@@ -1,3 +1,5 @@
+use core::default::Default;
+
 use bevy::prelude::*;
 
 fn main() {
@@ -24,8 +26,26 @@ struct Position {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn().insert(SnakePiece).insert(Position {
-        x: 10,
-        y: 10,
-    });
+    // cameras
+    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(UiCameraBundle::default());
+
+    // setup the snake
+    commands.spawn_bundle(SpriteBundle {
+        transform: Transform {
+            translation: Vec3::new(10.0, 10.0, 0.0),
+            scale: Vec3::new(10.0, 10.0, 0.0),
+            ..Default::default()
+        },
+        sprite: Sprite {
+            color: Color::rgb(0.5, 0.5, 1.0),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+        .insert(SnakePiece)
+        .insert(Position {
+            x: 10,
+            y: 10,
+        });
 }
