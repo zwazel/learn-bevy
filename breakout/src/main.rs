@@ -228,11 +228,11 @@ fn paddle_movement_system(
 ) {
     let (paddle, mut transform) = query.single_mut();
     let mut direction = 0.0;
-    if keyboard_input.pressed(KeyCode::Left) {
+    if keyboard_input.pressed(KeyCode::Left) || keyboard_input.pressed(KeyCode::A) {
         direction -= 1.0;
     }
 
-    if keyboard_input.pressed(KeyCode::Right) {
+    if keyboard_input.pressed(KeyCode::Right) || keyboard_input.pressed(KeyCode::D) {
         direction += 1.0;
     }
 
