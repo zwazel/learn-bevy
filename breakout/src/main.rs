@@ -46,6 +46,7 @@ struct Scoreboard {
     score: usize,
 }
 
+// asset_server = Loads assets from the filesystem on background threads
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Add the game's entities to our world
 
