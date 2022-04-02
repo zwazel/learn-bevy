@@ -11,7 +11,7 @@ fn main() {
             scale: Vec2::new(10.0, 10.0),
         })
         .insert_resource(MoveTimer {
-            timer: Timer::from_seconds(0.2, true),
+            timer: Timer::from_seconds(0.1, true),
         })
         .add_system_set(SystemSet::new()
             .with_system(snake_movement))
@@ -75,6 +75,66 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
         ..Default::default()
     })
         .insert(SnakePiece);
+
+    // add the walls
+    let wall_color = Color::rgb(0.8, 0.8, 0.8);
+    let wall_thickness = 10.0;
+
+    // left
+    commands.spawn_bundle(SpriteBundle {
+        transform: Transform {
+            translation: Vec3::new(0.0, global_settings.grid_size.y / 2.0, 0.0),
+            scale: Vec3::new(wall_thickness, global_settings.grid_size.y, 0.0),
+            ..Default::default()
+        },
+        sprite: Sprite {
+            color: wall_color,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+
+    // right
+    commands.spawn_bundle(SpriteBundle {
+        transform: Transform {
+            translation: Vec3::new(global_settings.grid_size.x, global_settings.grid_size.y / 2.0, 0.0),
+            scale: Vec3::new(wall_thickness, global_settings.grid_size.y, 0.0),
+            ..Default::default()
+        },
+        sprite: Sprite {
+            color: wall_color,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+
+    // top
+    commands.spawn_bundle(SpriteBundle {
+        transform: Transform {
+            translation: Vec3::new(global_settings.grid_size.x / 2.0, global_settings.grid_size.y, 0.0),
+            scale: Vec3::new(global_settings.grid_size.x, wall_thickness, 0.0),
+            ..Default::default()
+        },
+        sprite: Sprite {
+            color: wall_color,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+
+    // bottom
+    commands.spawn_bundle(SpriteBundle {
+        transform: Transform {
+            translation: Vec3::new(global_settings.grid_size.x / 2.0, 0.0, 0.0),
+            scale: Vec3::new(global_settings.grid_size.x, wall_thickness, 0.0),
+            ..Default::default()
+        },
+        sprite: Sprite {
+            color: wall_color,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
 }
 
 fn snake_movement(keyboard_input: Res<Input<KeyCode>>, global_settings: Res<Global>, time: Res<Time>, mut move_timer: ResMut<MoveTimer>, mut query: Query<(With<SnakeHead>, &mut Direction, &mut Transform)>) {
@@ -95,7 +155,6 @@ fn snake_movement(keyboard_input: Res<Input<KeyCode>>, global_settings: Res<Glob
     }
 
     if move_timer.timer.tick(time.delta()).just_finished() {
-        println!("{:?}", transform.translation);
         let translation = &mut transform.translation;
         translation.x += direction.dir.x * global_settings.scale.x;
         translation.y += direction.dir.y * global_settings.scale.y;
