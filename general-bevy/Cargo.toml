@@ -1,5 +1,5 @@
 [package]
-name = "chess_3d"
+name = "general-bevy"
 version = "0.1.0"
 authors = ["Zwazel"]
 edition = "2021"
