@@ -78,13 +78,12 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
 
     // add the walls
     let wall_color = Color::rgb(0.8, 0.8, 0.8);
-    let wall_thickness = 10.0;
 
     // left
     commands.spawn_bundle(SpriteBundle {
         transform: Transform {
             translation: Vec3::new(0.0, global_settings.grid_size.y / 2.0, 0.0),
-            scale: Vec3::new(wall_thickness, global_settings.grid_size.y, 0.0),
+            scale: Vec3::new(global_settings.scale.x, global_settings.grid_size.y, 0.0),
             ..Default::default()
         },
         sprite: Sprite {
@@ -98,7 +97,7 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
     commands.spawn_bundle(SpriteBundle {
         transform: Transform {
             translation: Vec3::new(global_settings.grid_size.x, global_settings.grid_size.y / 2.0, 0.0),
-            scale: Vec3::new(wall_thickness, global_settings.grid_size.y, 0.0),
+            scale: Vec3::new(global_settings.scale.x, global_settings.grid_size.y, 0.0),
             ..Default::default()
         },
         sprite: Sprite {
@@ -112,7 +111,7 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
     commands.spawn_bundle(SpriteBundle {
         transform: Transform {
             translation: Vec3::new(global_settings.grid_size.x / 2.0, global_settings.grid_size.y, 0.0),
-            scale: Vec3::new(global_settings.grid_size.x, wall_thickness, 0.0),
+            scale: Vec3::new(global_settings.grid_size.x, global_settings.scale.y, 0.0),
             ..Default::default()
         },
         sprite: Sprite {
@@ -126,7 +125,7 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
     commands.spawn_bundle(SpriteBundle {
         transform: Transform {
             translation: Vec3::new(global_settings.grid_size.x / 2.0, 0.0, 0.0),
-            scale: Vec3::new(global_settings.grid_size.x, wall_thickness, 0.0),
+            scale: Vec3::new(global_settings.grid_size.x, global_settings.scale.y, 0.0),
             ..Default::default()
         },
         sprite: Sprite {
@@ -160,16 +159,16 @@ fn snake_movement(keyboard_input: Res<Input<KeyCode>>, global_settings: Res<Glob
         translation.y += direction.dir.y * global_settings.scale.y;
 
         // wrap around the screen
-        if (translation.x) > global_settings.grid_size.x {
+        if (translation.x + global_settings.scale.x) > global_settings.grid_size.x {
             translation.x = 0.0 + global_settings.scale.x;
             println!("wrapped right to left");
-        } else if translation.x < 0.0 {
+        } else if (translation.x - global_settings.scale.x) < 0.0 {
             translation.x = global_settings.grid_size.x - global_settings.scale.x;
             println!("wrapped left to right");
-        } else if (translation.y) > global_settings.grid_size.y {
+        } else if (translation.y + global_settings.scale.y) > global_settings.grid_size.y {
             translation.y = 0.0 + global_settings.scale.y;
             println!("wrapped up to down");
-        } else if translation.y < 0.0 {
+        } else if (translation.y - global_settings.scale.y) < 0.0 {
             translation.y = global_settings.grid_size.y - global_settings.scale.y;
             println!("wrapped down to up");
         }
