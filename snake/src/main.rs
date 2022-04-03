@@ -8,7 +8,7 @@ fn main() {
         .add_startup_system(setup)
         .insert_resource(Global {
             grid_size: Vec2::new(500.0, 500.0),
-            scale: Vec2::new(10.0, 10.0),
+            scale: 10.0,
         })
         .insert_resource(MoveTimer {
             timer: Timer::from_seconds(0.1, true),
@@ -20,7 +20,7 @@ fn main() {
 
 struct Global {
     grid_size: Vec2,
-    scale: Vec2,
+    scale: f32,
 }
 
 struct MoveTimer {
@@ -47,7 +47,7 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
     commands.spawn_bundle(SpriteBundle {
         transform: Transform {
             translation: Vec3::new(global_settings.grid_size.x / 2.0, global_settings.grid_size.y / 2.0, 0.0),
-            scale: Vec3::new(global_settings.scale.x, global_settings.scale.y, 0.0),
+            scale: Vec3::new(global_settings.scale, global_settings.scale, 0.0),
             ..Default::default()
         },
         sprite: Sprite {
@@ -65,7 +65,7 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
     commands.spawn_bundle(SpriteBundle {
         transform: Transform {
             translation: Vec3::new(global_settings.grid_size.x / 2.0, global_settings.grid_size.y / 2.0, 0.0),
-            scale: Vec3::new(10.0, 10.0, 0.0),
+            scale: Vec3::new(global_settings.scale, global_settings.scale, 0.0),
             ..Default::default()
         },
         sprite: Sprite {
@@ -83,7 +83,7 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
     commands.spawn_bundle(SpriteBundle {
         transform: Transform {
             translation: Vec3::new(0.0, global_settings.grid_size.y / 2.0, 0.0),
-            scale: Vec3::new(global_settings.scale.x, global_settings.grid_size.y, 0.0),
+            scale: Vec3::new(global_settings.scale, global_settings.grid_size.y, 0.0),
             ..Default::default()
         },
         sprite: Sprite {
@@ -97,7 +97,7 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
     commands.spawn_bundle(SpriteBundle {
         transform: Transform {
             translation: Vec3::new(global_settings.grid_size.x, global_settings.grid_size.y / 2.0, 0.0),
-            scale: Vec3::new(global_settings.scale.x, global_settings.grid_size.y, 0.0),
+            scale: Vec3::new(global_settings.scale, global_settings.grid_size.y, 0.0),
             ..Default::default()
         },
         sprite: Sprite {
@@ -111,7 +111,7 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
     commands.spawn_bundle(SpriteBundle {
         transform: Transform {
             translation: Vec3::new(global_settings.grid_size.x / 2.0, global_settings.grid_size.y, 0.0),
-            scale: Vec3::new(global_settings.grid_size.x, global_settings.scale.y, 0.0),
+            scale: Vec3::new(global_settings.grid_size.x, global_settings.scale, 0.0),
             ..Default::default()
         },
         sprite: Sprite {
@@ -125,7 +125,7 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
     commands.spawn_bundle(SpriteBundle {
         transform: Transform {
             translation: Vec3::new(global_settings.grid_size.x / 2.0, 0.0, 0.0),
-            scale: Vec3::new(global_settings.grid_size.x, global_settings.scale.y, 0.0),
+            scale: Vec3::new(global_settings.grid_size.x, global_settings.scale, 0.0),
             ..Default::default()
         },
         sprite: Sprite {
@@ -155,21 +155,21 @@ fn snake_movement(keyboard_input: Res<Input<KeyCode>>, global_settings: Res<Glob
 
     if move_timer.timer.tick(time.delta()).just_finished() {
         let translation = &mut transform.translation;
-        translation.x += direction.dir.x * global_settings.scale.x;
-        translation.y += direction.dir.y * global_settings.scale.y;
+        translation.x += direction.dir.x * global_settings.scale;
+        translation.y += direction.dir.y * global_settings.scale;
 
         // wrap around the screen
-        if (translation.x + global_settings.scale.x) > global_settings.grid_size.x {
-            translation.x = 0.0 + global_settings.scale.x;
+        if (translation.x + global_settings.scale) > global_settings.grid_size.x {
+            translation.x = 0.0 + global_settings.scale;
             println!("wrapped right to left");
-        } else if (translation.x - global_settings.scale.x) < 0.0 {
-            translation.x = global_settings.grid_size.x - global_settings.scale.x;
+        } else if (translation.x - global_settings.scale) < 0.0 {
+            translation.x = global_settings.grid_size.x - global_settings.scale;
             println!("wrapped left to right");
-        } else if (translation.y + global_settings.scale.y) > global_settings.grid_size.y {
-            translation.y = 0.0 + global_settings.scale.y;
+        } else if (translation.y + global_settings.scale) > global_settings.grid_size.y {
+            translation.y = 0.0 + global_settings.scale;
             println!("wrapped up to down");
-        } else if (translation.y - global_settings.scale.y) < 0.0 {
-            translation.y = global_settings.grid_size.y - global_settings.scale.y;
+        } else if (translation.y - global_settings.scale) < 0.0 {
+            translation.y = global_settings.grid_size.y - global_settings.scale;
             println!("wrapped down to up");
         }
     }
