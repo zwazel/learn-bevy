@@ -211,9 +211,29 @@ fn snake_movement(keyboard_input: Res<Input<KeyCode>>,
     }
 
     if move_timer.timer.tick(time.delta()).just_finished() {
-        for (mut transform, _) in query_tails.iter_mut() {
-            transform.translation.x += direction.dir.x * global_settings.scale;
-            transform.translation.y += direction.dir.y * global_settings.scale;
+        let mut tails_query_iter = query_tails.iter_mut();
+        let mut tails: Vec<(Transform, SnakeTail)> = Vec::new();
+        for (transform, tail) in tails_query_iter {
+            tails.push((*transform, *tail));
+        }
+
+        // sort by id in tail
+        tails.sort_by(|a, b| a.1.id.cmp(&b.1.id));
+
+        // move tails
+        for i in 0..tails.len() {
+            let mut transform = tails[i].0;
+            let mut tail = tails[i].1;
+
+            if i == 0 {
+                transform.translation.x = transform.translation.x + direction.dir.x * global_settings.scale;
+                transform.translation.y = transform.translation.y + direction.dir.y * global_settings.scale;
+            } else {
+                transform.translation.x = tails[i - 1].0.translation.x;
+                transform.translation.y = tails[i - 1].0.translation.y;
+            }
+
+            tail.id = i as i32;
         }
 
         let translation = &mut transform.translation;
