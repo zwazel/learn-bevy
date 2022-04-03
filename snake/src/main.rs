@@ -18,6 +18,9 @@ fn main() {
         .insert_resource(MoveTimer {
             timer: Timer::from_seconds(0.1, true),
         })
+        .insert_resource(SnakeTailLength {
+            length: 2,
+        })
         .add_system_set(SystemSet::new()
             .with_system(snake_movement))
         .run();
@@ -32,8 +35,14 @@ struct MoveTimer {
     timer: Timer,
 }
 
-#[derive(Component)]
-struct SnakePiece;
+struct SnakeTailLength {
+    length: i32,
+}
+
+#[derive(Component, Copy, Clone)]
+struct SnakeTail {
+    id: i32,
+}
 
 #[derive(Component)]
 struct SnakeHead;
@@ -46,12 +55,13 @@ struct Direction {
 #[derive(Component)]
 struct Food;
 
-fn setup(mut commands: Commands, global_settings: Res<Global>) {
+fn setup(mut commands: Commands, global_settings: Res<Global>, snake_tail_length: Res<SnakeTailLength>) {
     // cameras
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(UiCameraBundle::default());
 
     // setup the snake
+    // head
     commands.spawn_bundle(SpriteBundle {
         transform: Transform {
             translation: Vec3::new(0.0, 0.0, 0.0),
@@ -64,25 +74,29 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
         },
         ..Default::default()
     })
-        .insert(SnakePiece)
         .insert(SnakeHead)
         .insert(Direction {
             dir: Vec2::new(1.0, 0.0),
         });
 
-    commands.spawn_bundle(SpriteBundle {
-        transform: Transform {
-            translation: Vec3::new(0.0, 0.0, 0.0),
-            scale: Vec3::new(global_settings.scale, global_settings.scale, 0.0),
+    // tail
+    for i in 1..snake_tail_length.length + 1 {
+        commands.spawn_bundle(SpriteBundle {
+            transform: Transform {
+                translation: Vec3::new(-(i as f32 * global_settings.scale), 0.0, 0.0),
+                scale: Vec3::new(global_settings.scale, global_settings.scale, 0.0),
+                ..Default::default()
+            },
+            sprite: Sprite {
+                color: Color::rgb(0.5, 0.5, 1.0),
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        sprite: Sprite {
-            color: Color::rgb(1.0, 0.5, 1.0),
-            ..Default::default()
-        },
-        ..Default::default()
-    })
-        .insert(SnakePiece);
+        })
+            .insert(SnakeTail {
+                id: i,
+            });
+    }
 
     // setup the food with a random position
     let food_pos = get_random_food_pos(&global_settings);
@@ -172,8 +186,14 @@ fn get_random_food_pos(global_settings: &Global) -> Vec3 {
     food_pos.mul(global_settings.scale)
 }
 
-fn snake_movement(keyboard_input: Res<Input<KeyCode>>, global_settings: Res<Global>, time: Res<Time>, mut move_timer: ResMut<MoveTimer>, mut query: Query<(&mut Direction, &mut Transform), (With<SnakeHead>, Without<Food>)>, mut query_food: Query<&mut Transform, (With<Food>, Without<SnakeHead>, Without<SnakePiece>)>) {
+fn snake_movement(keyboard_input: Res<Input<KeyCode>>,
+                  global_settings: Res<Global>, time: Res<Time>,
+                  mut move_timer: ResMut<MoveTimer>,
+                  mut query: Query<(&mut Direction, &mut Transform), (With<SnakeHead>, Without<Food>, Without<SnakeTail>)>,
+                  mut query_food: Query<&mut Transform, (With<Food>, Without<SnakeHead>, Without<SnakeTail>)>,
+                  mut query_tails: Query<(&mut Transform, &mut SnakeTail), (Without<SnakeHead>, Without<Food>)>) {
     let (mut direction, mut transform) = query.single_mut(); // this panics if there are multiple query results!
+
     let mut food_transform = query_food.single_mut();
 
     if keyboard_input.pressed(KeyCode::Left) || keyboard_input.pressed(KeyCode::A) {
@@ -191,24 +211,24 @@ fn snake_movement(keyboard_input: Res<Input<KeyCode>>, global_settings: Res<Glob
     }
 
     if move_timer.timer.tick(time.delta()).just_finished() {
+        for (mut transform, _) in query_tails.iter_mut() {
+            transform.translation.x += direction.dir.x * global_settings.scale;
+            transform.translation.y += direction.dir.y * global_settings.scale;
+        }
+
         let translation = &mut transform.translation;
         translation.x += direction.dir.x * global_settings.scale;
         translation.y += direction.dir.y * global_settings.scale;
-        println!("translation: {:?}", translation);
 
         // wrap around the screen
         if (translation.x + global_settings.scale) > global_settings.grid_size.x / 2.0 {
             translation.x = (-global_settings.grid_size.x / 2.0) + global_settings.scale;
-            println!("wrapped right to left");
         } else if (translation.x - global_settings.scale) < -global_settings.grid_size.x / 2.0 {
             translation.x = (global_settings.grid_size.x / 2.0) - global_settings.scale;
-            println!("wrapped left to right");
         } else if (translation.y + global_settings.scale) > global_settings.grid_size.y / 2.0 {
             translation.y = (-global_settings.grid_size.y / 2.0) + global_settings.scale;
-            println!("wrapped up to down");
         } else if (translation.y - global_settings.scale) < -global_settings.grid_size.y / 2.0 {
             translation.y = (global_settings.grid_size.y / 2.0) - global_settings.scale;
-            println!("wrapped down to up");
         }
 
         // check if the snake has eaten the food
