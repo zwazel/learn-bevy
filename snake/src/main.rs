@@ -1,6 +1,11 @@
+#![feature(core_intrinsics)]
+
 use core::default::Default;
+use std::intrinsics::floorf32;
+use std::ops::Mul;
 
 use bevy::prelude::*;
+use rand::Rng;
 
 fn main() {
     App::new()
@@ -36,6 +41,11 @@ struct SnakeHead;
 #[derive(Component)]
 struct Direction {
     dir: Vec2,
+}
+
+#[derive(Component)]
+struct Food {
+    pos: Vec2,
 }
 
 fn setup(mut commands: Commands, global_settings: Res<Global>) {
@@ -75,6 +85,31 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
         ..Default::default()
     })
         .insert(SnakePiece);
+
+    // setup the food with a random position
+    let mut rng = rand::thread_rng();
+    let mut food_pos = Vec2::new(
+        unsafe { floorf32(rng.gen_range(0.0..((global_settings.grid_size.x / 2.0) / global_settings.scale))) },
+        unsafe { floorf32(rng.gen_range(0.0..((global_settings.grid_size.y / 2.0) / global_settings.scale))) },
+    );
+    food_pos = food_pos.mul(global_settings.scale);
+
+    commands.spawn_bundle(SpriteBundle {
+        transform: Transform {
+            translation: Vec3::new(food_pos.x, food_pos.y, 0.0),
+            scale: Vec3::new(global_settings.scale, global_settings.scale, 0.0),
+            ..Default::default()
+        },
+        sprite: Sprite {
+            color: Color::rgb(1.0, 0.5, 0.5),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+        .insert(Food {
+            pos: food_pos,
+        });
+
 
     // add the walls
     let wall_color = Color::rgb(0.8, 0.8, 0.8);
@@ -157,6 +192,7 @@ fn snake_movement(keyboard_input: Res<Input<KeyCode>>, global_settings: Res<Glob
         let translation = &mut transform.translation;
         translation.x += direction.dir.x * global_settings.scale;
         translation.y += direction.dir.y * global_settings.scale;
+        println!("translation: {:?}", translation);
 
         // wrap around the screen
         if (translation.x + global_settings.scale) > global_settings.grid_size.x / 2.0 {
