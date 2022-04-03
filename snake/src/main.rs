@@ -1,260 +1,324 @@
-#![feature(core_intrinsics)]
-
-use core::default::Default;
-use std::intrinsics::floorf32;
-use std::ops::Mul;
-
+use bevy::core::FixedTimestep;
 use bevy::prelude::*;
-use rand::Rng;
+use rand::prelude::random;
 
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .add_startup_system(setup)
-        .insert_resource(Global {
-            grid_size: Vec2::new(500.0, 500.0),
-            scale: 10.0,
-        })
-        .insert_resource(MoveTimer {
-            timer: Timer::from_seconds(0.1, true),
-        })
-        .insert_resource(SnakeTailLength {
-            length: 2,
-        })
-        .add_system_set(SystemSet::new()
-            .with_system(snake_movement))
-        .run();
+const SNAKE_HEAD_COLOR: Color = Color::rgb(0.7, 0.7, 0.7);
+const FOOD_COLOR: Color = Color::rgb(1.0, 0.0, 1.0);
+const SNAKE_SEGMENT_COLOR: Color = Color::rgb(0.3, 0.3, 0.3);
+
+const ARENA_HEIGHT: u32 = 10;
+const ARENA_WIDTH: u32 = 10;
+
+#[derive(SystemLabel, Clone, Hash, Debug, PartialEq, Eq)]
+pub enum SnakeMovement {
+    Input,
+    Movement,
+    Eating,
+    Growth,
 }
 
-struct Global {
-    grid_size: Vec2,
-    scale: f32,
-}
-
-struct MoveTimer {
-    timer: Timer,
-}
-
-struct SnakeTailLength {
-    length: i32,
-}
-
-#[derive(Component, Copy, Clone)]
-struct SnakeTail {
-    id: i32,
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+struct Position {
+    x: i32,
+    y: i32,
 }
 
 #[derive(Component)]
-struct SnakeHead;
+struct Size {
+    width: f32,
+    height: f32,
+}
+
+impl Size {
+    pub fn square(x: f32) -> Self {
+        Self {
+            width: x,
+            height: x,
+        }
+    }
+}
 
 #[derive(Component)]
-struct Direction {
-    dir: Vec2,
+struct SnakeHead {
+    direction: Direction,
 }
+
+struct GameOverEvent;
+
+struct GrowthEvent;
+
+#[derive(Default)]
+struct LastTailPosition(Option<Position>);
+
+#[derive(Component)]
+struct SnakeSegment;
+
+#[derive(Default)]
+struct SnakeSegments(Vec<Entity>);
 
 #[derive(Component)]
 struct Food;
 
-fn setup(mut commands: Commands, global_settings: Res<Global>, snake_tail_length: Res<SnakeTailLength>) {
-    // cameras
+#[derive(PartialEq, Copy, Clone)]
+enum Direction {
+    Left,
+    Up,
+    Right,
+    Down,
+}
+
+impl Direction {
+    fn opposite(self) -> Self {
+        match self {
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+            Self::Up => Self::Down,
+            Self::Down => Self::Up,
+        }
+    }
+}
+
+fn setup_camera(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
-    commands.spawn_bundle(UiCameraBundle::default());
+}
 
-    // setup the snake
-    // head
-    commands.spawn_bundle(SpriteBundle {
-        transform: Transform {
-            translation: Vec3::new(0.0, 0.0, 0.0),
-            scale: Vec3::new(global_settings.scale, global_settings.scale, 0.0),
-            ..Default::default()
-        },
-        sprite: Sprite {
-            color: Color::rgb(0.5, 0.5, 1.0),
-            ..Default::default()
-        },
-        ..Default::default()
-    })
-        .insert(SnakeHead)
-        .insert(Direction {
-            dir: Vec2::new(1.0, 0.0),
-        });
-
-    // tail
-    for i in 1..snake_tail_length.length + 1 {
-        commands.spawn_bundle(SpriteBundle {
-            transform: Transform {
-                translation: Vec3::new(-(i as f32 * global_settings.scale), 0.0, 0.0),
-                scale: Vec3::new(global_settings.scale, global_settings.scale, 0.0),
+fn spawn_snake(mut commands: Commands, mut segments: ResMut<SnakeSegments>) {
+    segments.0 = vec![
+        commands
+            .spawn_bundle(SpriteBundle {
+                sprite: Sprite {
+                    color: SNAKE_HEAD_COLOR,
+                    ..Default::default()
+                },
                 ..Default::default()
-            },
+            })
+            .insert(SnakeHead {
+                direction: Direction::Up,
+            })
+            .insert(SnakeSegment)
+            .insert(Position { x: 3, y: 3 })
+            .insert(Size::square(0.8))
+            .id(),
+        spawn_segment(commands, Position { x: 3, y: 2 }),
+    ];
+}
+
+fn spawn_segment(mut commands: Commands, position: Position) -> Entity {
+    commands
+        .spawn_bundle(SpriteBundle {
             sprite: Sprite {
-                color: Color::rgb(0.5, 0.5, 1.0),
+                color: SNAKE_SEGMENT_COLOR,
                 ..Default::default()
             },
             ..Default::default()
         })
-            .insert(SnakeTail {
-                id: i,
-            });
-    }
-
-    // setup the food with a random position
-    let food_pos = get_random_food_pos(&global_settings);
-
-    commands.spawn_bundle(SpriteBundle {
-        transform: Transform {
-            translation: Vec3::new(food_pos.x, food_pos.y, food_pos.z),
-            scale: Vec3::new(global_settings.scale, global_settings.scale, 0.0),
-            ..Default::default()
-        },
-        sprite: Sprite {
-            color: Color::rgb(1.0, 0.5, 0.5),
-            ..Default::default()
-        },
-        ..Default::default()
-    })
-        .insert(Food);
-
-    // add the walls
-    let wall_color = Color::rgb(0.8, 0.8, 0.8);
-
-    // left
-    commands.spawn_bundle(SpriteBundle {
-        transform: Transform {
-            translation: Vec3::new(-global_settings.grid_size.x / 2.0, 0.0, 0.0),
-            scale: Vec3::new(global_settings.scale, global_settings.grid_size.y + global_settings.scale, 0.0),
-            ..Default::default()
-        },
-        sprite: Sprite {
-            color: wall_color,
-            ..Default::default()
-        },
-        ..Default::default()
-    });
-
-    // right
-    commands.spawn_bundle(SpriteBundle {
-        transform: Transform {
-            translation: Vec3::new(global_settings.grid_size.x / 2.0, 0.0, 0.0),
-            scale: Vec3::new(global_settings.scale, global_settings.grid_size.y + global_settings.scale, 0.0),
-            ..Default::default()
-        },
-        sprite: Sprite {
-            color: wall_color,
-            ..Default::default()
-        },
-        ..Default::default()
-    });
-
-    // top
-    commands.spawn_bundle(SpriteBundle {
-        transform: Transform {
-            translation: Vec3::new(0.0, global_settings.grid_size.y / 2.0, 0.0),
-            scale: Vec3::new(global_settings.grid_size.x + global_settings.scale, global_settings.scale, 0.0),
-            ..Default::default()
-        },
-        sprite: Sprite {
-            color: wall_color,
-            ..Default::default()
-        },
-        ..Default::default()
-    });
-
-    // bottom
-    commands.spawn_bundle(SpriteBundle {
-        transform: Transform {
-            translation: Vec3::new(0.0, -global_settings.grid_size.y / 2.0, 0.0),
-            scale: Vec3::new(global_settings.grid_size.x + global_settings.scale, global_settings.scale, 0.0),
-            ..Default::default()
-        },
-        sprite: Sprite {
-            color: wall_color,
-            ..Default::default()
-        },
-        ..Default::default()
-    });
+        .insert(SnakeSegment)
+        .insert(position)
+        .insert(Size::square(0.65))
+        .id()
 }
 
-fn get_random_food_pos(global_settings: &Global) -> Vec3 {
-    let mut rng = rand::thread_rng();
-    let food_pos = Vec3::new(
-        unsafe { floorf32(rng.gen_range(0.0..((global_settings.grid_size.x / 2.0) / global_settings.scale))) },
-        unsafe { floorf32(rng.gen_range(0.0..((global_settings.grid_size.y / 2.0) / global_settings.scale))) },
-        0.0,
-    );
-
-    food_pos.mul(global_settings.scale)
-}
-
-fn snake_movement(keyboard_input: Res<Input<KeyCode>>,
-                  global_settings: Res<Global>, time: Res<Time>,
-                  mut move_timer: ResMut<MoveTimer>,
-                  mut query: Query<(&mut Direction, &mut Transform), (With<SnakeHead>, Without<Food>, Without<SnakeTail>)>,
-                  mut query_food: Query<&mut Transform, (With<Food>, Without<SnakeHead>, Without<SnakeTail>)>,
-                  mut query_tails: Query<(&mut Transform, &mut SnakeTail), (Without<SnakeHead>, Without<Food>)>) {
-    let (mut direction, mut transform) = query.single_mut(); // this panics if there are multiple query results!
-
-    let mut food_transform = query_food.single_mut();
-
-    if keyboard_input.pressed(KeyCode::Left) || keyboard_input.pressed(KeyCode::A) {
-        direction.dir.x = -1.0;
-        direction.dir.y = 0.0;
-    } else if keyboard_input.pressed(KeyCode::Right) || keyboard_input.pressed(KeyCode::D) {
-        direction.dir.x = 1.0;
-        direction.dir.y = 0.0;
-    } else if keyboard_input.pressed(KeyCode::Up) || keyboard_input.pressed(KeyCode::W) {
-        direction.dir.y = 1.0;
-        direction.dir.x = 0.0;
-    } else if keyboard_input.pressed(KeyCode::Down) || keyboard_input.pressed(KeyCode::S) {
-        direction.dir.y = -1.0;
-        direction.dir.x = 0.0;
-    }
-
-    if move_timer.timer.tick(time.delta()).just_finished() {
-        let mut tails_query_iter = query_tails.iter_mut();
-        let mut tails: Vec<(Transform, SnakeTail)> = Vec::new();
-        for (transform, tail) in tails_query_iter {
-            tails.push((*transform, *tail));
-        }
-
-        // sort by id in tail
-        tails.sort_by(|a, b| a.1.id.cmp(&b.1.id));
-
-        // move tails
-        for i in 0..tails.len() {
-            let mut transform = tails[i].0;
-            let mut tail = tails[i].1;
-
-            if i == 0 {
-                transform.translation.x = transform.translation.x + direction.dir.x * global_settings.scale;
-                transform.translation.y = transform.translation.y + direction.dir.y * global_settings.scale;
-            } else {
-                transform.translation.x = tails[i - 1].0.translation.x;
-                transform.translation.y = tails[i - 1].0.translation.y;
+fn snake_movement(
+    mut last_tail_position: ResMut<LastTailPosition>,
+    mut game_over_writer: EventWriter<GameOverEvent>,
+    segments: ResMut<SnakeSegments>,
+    mut heads: Query<(Entity, &SnakeHead)>,
+    mut positions: Query<&mut Position>,
+) {
+    if let Some((head_entity, head)) = heads.iter_mut().next() {
+        let segment_positions = segments
+            .0
+            .iter()
+            .map(|e| *positions.get_mut(*e).unwrap())
+            .collect::<Vec<Position>>();
+        let mut head_pos = positions.get_mut(head_entity).unwrap();
+        match &head.direction {
+            Direction::Left => {
+                head_pos.x -= 1;
             }
-
-            tail.id = i as i32;
+            Direction::Right => {
+                head_pos.x += 1;
+            }
+            Direction::Up => {
+                head_pos.y += 1;
+            }
+            Direction::Down => {
+                head_pos.y -= 1;
+            }
+        };
+        if head_pos.x < 0
+            || head_pos.y < 0
+            || head_pos.x as u32 >= ARENA_WIDTH
+            || head_pos.y as u32 >= ARENA_HEIGHT
+        {
+            game_over_writer.send(GameOverEvent);
         }
-
-        let translation = &mut transform.translation;
-        translation.x += direction.dir.x * global_settings.scale;
-        translation.y += direction.dir.y * global_settings.scale;
-
-        // wrap around the screen
-        if (translation.x + global_settings.scale) > global_settings.grid_size.x / 2.0 {
-            translation.x = (-global_settings.grid_size.x / 2.0) + global_settings.scale;
-        } else if (translation.x - global_settings.scale) < -global_settings.grid_size.x / 2.0 {
-            translation.x = (global_settings.grid_size.x / 2.0) - global_settings.scale;
-        } else if (translation.y + global_settings.scale) > global_settings.grid_size.y / 2.0 {
-            translation.y = (-global_settings.grid_size.y / 2.0) + global_settings.scale;
-        } else if (translation.y - global_settings.scale) < -global_settings.grid_size.y / 2.0 {
-            translation.y = (global_settings.grid_size.y / 2.0) - global_settings.scale;
+        if segment_positions.contains(&head_pos) {
+            game_over_writer.send(GameOverEvent);
         }
+        segment_positions
+            .iter()
+            .zip(segments.0.iter().skip(1))
+            .for_each(|(pos, segment)| {
+                *positions.get_mut(*segment).unwrap() = *pos;
+            });
+        last_tail_position.0 = Some(*segment_positions.last().unwrap());
+    }
+}
 
-        // check if the snake has eaten the food
-        if translation.x == food_transform.translation.x && translation.y == food_transform.translation.y {
-            // change position of food
-            food_transform.translation = get_random_food_pos(&global_settings);
+fn snake_movement_input(keyboard_input: Res<Input<KeyCode>>, mut heads: Query<&mut SnakeHead>) {
+    if let Some(mut head) = heads.iter_mut().next() {
+        let dir: Direction = if keyboard_input.pressed(KeyCode::Left) {
+            Direction::Left
+        } else if keyboard_input.pressed(KeyCode::Down) {
+            Direction::Down
+        } else if keyboard_input.pressed(KeyCode::Up) {
+            Direction::Up
+        } else if keyboard_input.pressed(KeyCode::Right) {
+            Direction::Right
+        } else {
+            head.direction
+        };
+        if dir != head.direction.opposite() {
+            head.direction = dir;
         }
     }
+}
+
+fn game_over(
+    mut commands: Commands,
+    mut reader: EventReader<GameOverEvent>,
+    segments_res: ResMut<SnakeSegments>,
+    food: Query<Entity, With<Food>>,
+    segments: Query<Entity, With<SnakeSegment>>,
+) {
+    if reader.iter().next().is_some() {
+        for ent in food.iter().chain(segments.iter()) {
+            commands.entity(ent).despawn();
+        }
+        spawn_snake(commands, segments_res);
+    }
+}
+
+fn snake_eating(
+    mut commands: Commands,
+    mut growth_writer: EventWriter<GrowthEvent>,
+    food_positions: Query<(Entity, &Position), With<Food>>,
+    head_positions: Query<&Position, With<SnakeHead>>,
+) {
+    for head_pos in head_positions.iter() {
+        for (ent, food_pos) in food_positions.iter() {
+            if food_pos == head_pos {
+                commands.entity(ent).despawn();
+                growth_writer.send(GrowthEvent);
+            }
+        }
+    }
+}
+
+fn snake_growth(
+    commands: Commands,
+    last_tail_position: Res<LastTailPosition>,
+    mut segments: ResMut<SnakeSegments>,
+    mut growth_reader: EventReader<GrowthEvent>,
+) {
+    if growth_reader.iter().next().is_some() {
+        segments
+            .0
+            .push(spawn_segment(commands, last_tail_position.0.unwrap()));
+    }
+}
+
+fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
+    let window = windows.get_primary().unwrap();
+    for (sprite_size, mut transform) in q.iter_mut() {
+        transform.scale = Vec3::new(
+            sprite_size.width / ARENA_WIDTH as f32 * window.width() as f32,
+            sprite_size.height / ARENA_HEIGHT as f32 * window.height() as f32,
+            1.0,
+        );
+    }
+}
+
+fn position_translation(windows: Res<Windows>, mut q: Query<(&Position, &mut Transform)>) {
+    fn convert(pos: f32, bound_window: f32, bound_game: f32) -> f32 {
+        let tile_size = bound_window / bound_game;
+        pos / bound_game * bound_window - (bound_window / 2.) + (tile_size / 2.)
+    }
+    let window = windows.get_primary().unwrap();
+    for (pos, mut transform) in q.iter_mut() {
+        transform.translation = Vec3::new(
+            convert(pos.x as f32, window.width() as f32, ARENA_WIDTH as f32),
+            convert(pos.y as f32, window.height() as f32, ARENA_HEIGHT as f32),
+            0.0,
+        );
+    }
+}
+
+fn food_spawner(mut commands: Commands) {
+    commands
+        .spawn_bundle(SpriteBundle {
+            sprite: Sprite {
+                color: FOOD_COLOR,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .insert(Food)
+        .insert(Position {
+            x: (random::<f32>() * ARENA_WIDTH as f32) as i32,
+            y: (random::<f32>() * ARENA_HEIGHT as f32) as i32,
+        })
+        .insert(Size::square(0.8));
+}
+
+fn main() {
+    App::new()
+        .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
+        .insert_resource(WindowDescriptor {
+            title: "Snake!".to_string(),
+            width: 500.0,
+            height: 500.0,
+            ..Default::default()
+        })
+        .add_startup_system(setup_camera)
+        .add_startup_system(spawn_snake)
+        .insert_resource(SnakeSegments::default())
+        .insert_resource(LastTailPosition::default())
+        .add_event::<GrowthEvent>()
+        .add_event::<GameOverEvent>()
+        .add_system(
+            snake_movement_input
+                .label(SnakeMovement::Input)
+                .before(SnakeMovement::Movement),
+        )
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(0.150))
+                .with_system(snake_movement.label(SnakeMovement::Movement))
+                .with_system(
+                    snake_eating
+                        .label(SnakeMovement::Eating)
+                        .after(SnakeMovement::Movement),
+                )
+                .with_system(
+                    snake_growth
+                        .label(SnakeMovement::Growth)
+                        .after(SnakeMovement::Eating),
+                ),
+        )
+        .add_system(game_over.after(SnakeMovement::Movement))
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(1.0))
+                .with_system(food_spawner),
+        )
+        .add_system_set_to_stage(
+            CoreStage::PostUpdate,
+            SystemSet::new()
+                .with_system(position_translation)
+                .with_system(size_scaling),
+        )
+        .add_plugins(DefaultPlugins)
+        .run();
 }
