@@ -44,9 +44,7 @@ struct Direction {
 }
 
 #[derive(Component)]
-struct Food {
-    pos: Vec2,
-}
+struct Food;
 
 fn setup(mut commands: Commands, global_settings: Res<Global>) {
     // cameras
@@ -86,30 +84,8 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
     })
         .insert(SnakePiece);
 
-    // setup the food with a random position
-    let mut rng = rand::thread_rng();
-    let mut food_pos = Vec2::new(
-        unsafe { floorf32(rng.gen_range(0.0..((global_settings.grid_size.x / 2.0) / global_settings.scale))) },
-        unsafe { floorf32(rng.gen_range(0.0..((global_settings.grid_size.y / 2.0) / global_settings.scale))) },
-    );
-    food_pos = food_pos.mul(global_settings.scale);
-
-    commands.spawn_bundle(SpriteBundle {
-        transform: Transform {
-            translation: Vec3::new(food_pos.x, food_pos.y, 0.0),
-            scale: Vec3::new(global_settings.scale, global_settings.scale, 0.0),
-            ..Default::default()
-        },
-        sprite: Sprite {
-            color: Color::rgb(1.0, 0.5, 0.5),
-            ..Default::default()
-        },
-        ..Default::default()
-    })
-        .insert(Food {
-            pos: food_pos,
-        });
-
+    // place food
+    place_food(&mut commands, &global_settings);
 
     // add the walls
     let wall_color = Color::rgb(0.8, 0.8, 0.8);
@@ -171,8 +147,39 @@ fn setup(mut commands: Commands, global_settings: Res<Global>) {
     });
 }
 
-fn snake_movement(keyboard_input: Res<Input<KeyCode>>, global_settings: Res<Global>, time: Res<Time>, mut move_timer: ResMut<MoveTimer>, mut query: Query<(With<SnakeHead>, &mut Direction, &mut Transform)>) {
-    let (_, mut direction, mut transform) = query.single_mut(); // this panics if there are multiple query results!
+fn get_random_food_pos(global_settings: &Global) -> Vec3 {
+    let mut rng = rand::thread_rng();
+    let mut food_pos = Vec3::new(
+        unsafe { floorf32(rng.gen_range(0.0..((global_settings.grid_size.x / 2.0) / global_settings.scale))) },
+        unsafe { floorf32(rng.gen_range(0.0..((global_settings.grid_size.y / 2.0) / global_settings.scale))) },
+        0.0,
+    );
+
+    food_pos.mul(global_settings.scale)
+}
+
+fn place_food(mut commands: &mut Commands, global_settings: &Global) {
+    // setup the food with a random position
+    let food_pos = get_random_food_pos(&global_settings);
+
+    commands.spawn_bundle(SpriteBundle {
+        transform: Transform {
+            translation: Vec3::new(food_pos.x, food_pos.y, food_pos.z),
+            scale: Vec3::new(global_settings.scale, global_settings.scale, 0.0),
+            ..Default::default()
+        },
+        sprite: Sprite {
+            color: Color::rgb(1.0, 0.5, 0.5),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+        .insert(Food);
+}
+
+fn snake_movement(mut commands: Commands, keyboard_input: Res<Input<KeyCode>>, global_settings: Res<Global>, time: Res<Time>, mut move_timer: ResMut<MoveTimer>, mut query: Query<(&mut Direction, &mut Transform), (With<SnakeHead>, Without<Food>)>, mut query_food: Query<(&mut Transform), (With<Food>, Without<SnakeHead>, Without<SnakePiece>)>) {
+    let (mut direction, mut transform) = query.single_mut(); // this panics if there are multiple query results!
+    let (mut food_transform) = query_food.single_mut();
 
     if keyboard_input.pressed(KeyCode::Left) || keyboard_input.pressed(KeyCode::A) {
         direction.dir.x = -1.0;
@@ -207,6 +214,12 @@ fn snake_movement(keyboard_input: Res<Input<KeyCode>>, global_settings: Res<Glob
         } else if (translation.y - global_settings.scale) < -global_settings.grid_size.y / 2.0 {
             translation.y = (global_settings.grid_size.y / 2.0) - global_settings.scale;
             println!("wrapped down to up");
+        }
+
+        // check if the snake has eaten the food
+        if translation.x == food_transform.translation.x && translation.y == food_transform.translation.y {
+            // change position of food
+            food_transform.translation = get_random_food_pos(&global_settings);
         }
     }
 }
