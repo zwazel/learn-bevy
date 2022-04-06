@@ -1,6 +1,5 @@
 use bevy::app::App;
 use bevy::prelude::*;
-use bevy::render::render_resource::std140::AsStd140;
 
 fn main() {
     App::new()
