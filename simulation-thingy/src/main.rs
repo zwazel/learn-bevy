@@ -33,7 +33,6 @@ fn setup(mut commands: Commands) {
 fn hunger_system(mut query: Query<&mut Hunger>) {
     for mut hunger in query.iter_mut() {
         hunger.0 += 0.001;
-        println!("system")
     }
 }
 
