@@ -7,5 +7,5 @@ authors = ["Zwazel"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { version = "0.6.0", features = ["dynamic"] }
+bevy = { version = "0.6.1", features = ["dynamic"] }
 rand = { version = "0.8.5"}
