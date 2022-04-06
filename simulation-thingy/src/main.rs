@@ -13,11 +13,18 @@ fn main() {
             .label(DebugOrNot::Debug)
             .after(DebugOrNot::NotDebug)
         )
+        .add_system(health_check_system
+            .label(DebugOrNot::NotDebug)
+            .before(DebugOrNot::Debug)
+        )
         .run();
 }
 
 #[derive(Component)]
-struct Hunger(f32);
+struct Hunger(f32, f32); // first value is hunger, second is max hunger. if max hunger is reached they die
+
+#[derive(Component)]
+struct HungerModifier(f32);
 
 #[derive(Component)]
 struct Name(String);
@@ -29,21 +36,24 @@ enum DebugOrNot {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn().insert(Hunger(0.0)).insert(Name("Fritz".to_string()));
-    commands.spawn().insert(Hunger(0.5)).insert(Name("Hans".to_string()));
+    commands.spawn().insert(Hunger(0.0, 1.0)).insert(Name("Fritz".to_string()));
+    commands.spawn().insert(Hunger(0.5, 12.0)).insert(Name("Hans".to_string()));
 }
 
-fn hunger_system(mut commands: Commands, mut query: Query<(&mut Hunger, &Name)>) {
+fn health_check_system(mut commands: Commands, mut query: Query<(Entity, &Hunger, &Name)>) {
+    for (entity, hunger, name) in query.iter_mut() {
+        if hunger.0 >= hunger.1 {
+            println!("{} died of hunger", name.0);
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn hunger_system(mut query: Query<&mut Hunger>) {
     // Loop through entities and increase hunger
 
-    for (mut hunger, name) in query.iter_mut() {
+    for mut hunger in query.iter_mut() {
         hunger.0 += 0.1;
-
-        if hunger.0 >= 1.0 {
-            hunger.0 = 0.0;
-            println!("{} is hungry", name.0);
-            // commands.entity(entity).despawn();
-        }
     }
 }
 
