@@ -68,7 +68,7 @@ fn setup(mut commands: Commands) {
     ;
 }
 
-fn health_check_system(mut commands: Commands, mut query: Query<(Entity, &Health, &Name)>) {
+fn health_check_system(mut commands: Commands, query: Query<(Entity, &Health, &Name)>) {
     for (entity, health, name) in query.iter() {
         if health.0 <= 0.0 {
             println!("{} died of death", name.0);
@@ -87,7 +87,7 @@ fn health_system(mut query: Query<(&mut Health, &HealthModifier)>) {
     }
 }
 
-fn print_health_status_system(mut query: Query<(&Health, &Name)>) {
+fn print_health_status_system(query: Query<(&Health, &Name)>) {
     for (health, name) in query.iter() {
         println!("{} has {} health", name.0, health.0);
     }
