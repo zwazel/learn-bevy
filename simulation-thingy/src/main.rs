@@ -9,8 +9,8 @@ fn main() {
         .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
         .insert_resource(WindowDescriptor {
             title: "Simulation!".to_string(),
-            width: 750.0,
-            height: 750.0,
+            width: 500.0,
+            height: 500.0,
             ..Default::default()
         })
         .add_startup_system(setup_camera)
@@ -38,6 +38,12 @@ fn main() {
         .add_system(print_health_status_system
             .label(DebugOrNot::Debug)
             .after(DebugOrNot::NotDebug)
+        )
+        .add_system_set_to_stage(
+            CoreStage::PostUpdate,
+            SystemSet::new()
+                .with_system(position_translation)
+                .with_system(size_scaling),
         )
         .add_plugins(DefaultPlugins)
         .run();
@@ -102,7 +108,7 @@ fn setup_entities(mut commands: Commands) {
         .insert(Name("Fritz".to_string()))
         .insert(Health(100.0, 100.0))
         .insert(Position { x: 10, y: 10 })
-        .insert(Size::square(1.0))
+        .insert(Size::square(3.0))
     ;
 }
 
