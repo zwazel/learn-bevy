@@ -95,13 +95,12 @@ fn setup_camera(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 }
 
-fn setup_entities(mut commands: Commands) {
+fn setup_entities(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let bob_sprite: Handle<Sprite> = asset_server.load("assets/sprites/bob.png");
+
     commands
         .spawn_bundle(SpriteBundle {
-            sprite: Sprite {
-                color: Color::rgb(1.0, 0.0, 0.0),
-                ..Default::default()
-            },
+            sprite: bob_sprite,
             ..Default::default()
         })
         .insert(Hunger(0.0, 100.0))
