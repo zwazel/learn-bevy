@@ -1,8 +1,8 @@
 use bevy::app::App;
 use bevy::prelude::*;
 
-const WORLD_HEIGHT: u32 = 100;
-const WORLD_WIDTH: u32 = 100;
+const WORLD_HEIGHT: u32 = 1000;
+const WORLD_WIDTH: u32 = 1000;
 
 fn main() {
     App::new()
@@ -50,10 +50,13 @@ fn main() {
 }
 
 #[derive(Component)]
-struct Hunger(f32, f32); // first value is hunger, second is max hunger. if max hunger is reached they die
+struct Hunger(f32, f32); // current hunger value, max hunger value
 
 #[derive(Component)]
 struct HungerModifier(f32); // changes how quickly they get hungry. + value means faster more hunger, - value means less fast hunger
+
+#[derive(Component)]
+struct HungerDamageActive(bool);
 
 #[derive(Component)]
 struct Health(f32, f32); // first value is current health, second is max health. if current health is reached they die
@@ -63,6 +66,9 @@ struct HealthModifier(f32);
 
 #[derive(Component)]
 struct Name(String);
+
+#[derive(Component)]
+struct Food(f32); // how much hunger is removed when eating
 
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 struct Position {
@@ -95,19 +101,35 @@ fn setup_camera(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 }
 
-fn setup_entities(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let bob_sprite: Handle<Sprite> = asset_server.load("assets/sprites/bob.png");
+fn setup_entities(mut commands: Commands, asset_server: Res<AssetServer>, mut texture_atlases: ResMut<Assets<TextureAtlas>>) {
+    let texture_handle = asset_server.load("sprites/bob.png");
+    let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(32.0, 32.0), 1, 1);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
     commands
-        .spawn_bundle(SpriteBundle {
-            sprite: bob_sprite,
+        .spawn_bundle(SpriteSheetBundle {
+            texture_atlas: texture_atlas_handle.clone(),
+            sprite: TextureAtlasSprite::new(0),
             ..Default::default()
         })
-        .insert(Hunger(0.0, 100.0))
+        .insert(Hunger(100.0, 100.0))
+        .insert(HungerModifier(-1.0))
         .insert(Name("Fritz".to_string()))
         .insert(Health(100.0, 100.0))
-        .insert(Position { x: 10, y: 10 })
-        .insert(Size::square(3.0))
+        .insert(Position { x: 100, y: 100 })
+        .insert(HungerDamageActive(false))
+    ;
+
+    commands.spawn().insert_bundle(SpriteBundle {
+        sprite: Sprite {
+            color: Color::rgb(1.0, 0.0, 0.0),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+        .insert(Position { x: 500, y: 100 })
+        .insert(Size::square(64.0))
+        .insert(Food(10.0))
     ;
 }
 
@@ -136,21 +158,37 @@ fn print_health_status_system(query: Query<(&Health, &Name)>) {
     }
 }
 
-fn hunger_check_system(mut commands: Commands, mut query: Query<(Entity, &Hunger, &Name)>) {
-    for (entity, hunger, name) in query.iter_mut() {
-        if hunger.0 >= hunger.1 {
-            println!("{} died of hunger", name.0);
-            commands.entity(entity).despawn();
+fn hunger_check_system(mut commands: Commands, mut query: Query<(Entity, &Hunger, &Name, &mut HungerDamageActive, Option<&mut HealthModifier>)>) {
+    let hunger_damage = -1.0;
+    for (entity, hunger, name, mut hunger_damage_active, health_modifier_opt) in query.iter_mut() {
+        if hunger.0 <= 0.0 {
+            if !hunger_damage_active.0 {
+                println!("{} now takes damage because of hunger", name.0);
+                if let Some(mut health_modifier) = health_modifier_opt {
+                    health_modifier.0 += hunger_damage;
+                } else {
+                    println!("{} has no health modifier, inserted one", name.0);
+                    commands.entity(entity).insert(HealthModifier(hunger_damage));
+                }
+                hunger_damage_active.0 = true;
+            }
+        } else if hunger.0 >= hunger.1 {
+            if hunger_damage_active.0 {
+                if let Some(mut health_modifier) = health_modifier_opt {
+                    health_modifier.0 -= hunger_damage;
+                }
+            }
+
+            hunger_damage_active.0 = false;
         }
     }
 }
 
 fn hunger_system(mut query: Query<(&mut Hunger, &HungerModifier)>) {
     for (mut hunger, hunger_modifier) in query.iter_mut() {
-        if hunger.0 + hunger_modifier.0 > 0.0 {
+        let sum = hunger.0 + hunger_modifier.0;
+        if sum <= hunger.1 && sum >= 0.0 {
             hunger.0 += hunger_modifier.0;
-        } else {
-            hunger.0 = 0.0;
         }
     }
 }
