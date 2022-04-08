@@ -158,16 +158,14 @@ fn print_health_status_system(query: Query<(&Health, &Name)>) {
     }
 }
 
-fn hunger_check_system(mut commands: Commands, mut query: Query<(Entity, &Hunger, &Name, &mut HungerDamageActive, Option<&mut HealthModifier>)>) {
+fn hunger_check_system(mut commands: Commands, mut query: Query<(Entity, &Hunger, &mut HungerDamageActive, Option<&mut HealthModifier>)>) {
     let hunger_damage = -1.0;
-    for (entity, hunger, name, mut hunger_damage_active, health_modifier_opt) in query.iter_mut() {
+    for (entity, hunger, mut hunger_damage_active, health_modifier_opt) in query.iter_mut() {
         if hunger.0 <= 0.0 {
             if !hunger_damage_active.0 {
-                println!("{} now takes damage because of hunger", name.0);
                 if let Some(mut health_modifier) = health_modifier_opt {
                     health_modifier.0 += hunger_damage;
                 } else {
-                    println!("{} has no health modifier, inserted one", name.0);
                     commands.entity(entity).insert(HealthModifier(hunger_damage));
                 }
                 hunger_damage_active.0 = true;
