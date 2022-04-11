@@ -1,5 +1,3 @@
-use std::ops::{Deref, Mul};
-
 use bevy::DefaultPlugins;
 use bevy::prelude::*;
 
@@ -45,7 +43,7 @@ fn update_velocity(
         v.x * v.x + v.y * v.y + v.z * v.z
     }
 
-    let mut planets_velocities = Vec::new();
+    let mut planets_velocities: Vec<(&Planet, Vec3)> = Vec::new();
 
     for (entity, planet, planet_transform, planet_movable) in planets.iter() {
         if let Some(_) = planet_movable {
