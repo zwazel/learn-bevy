@@ -60,12 +60,12 @@ fn update_velocity(
                     current_velocity += acceleration * time.delta().as_secs_f32();
                 }
             }
-            planets_velocities.push((entity, current_velocity));
+            planets_velocities.push((planet, current_velocity));
         }
     }
 
-    for (entity, current_velocity) in planets_velocities {
-        planets.get_mut(entity).unwrap().velocity = current_velocity;
+    for (planet, current_velocity) in planets_velocities {
+        println!("{} -> {}", planet.velocity, current_velocity);
     }
 }
 
