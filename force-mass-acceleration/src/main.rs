@@ -17,10 +17,12 @@ const UNIVERSE_GRAVITATIONAL_CONSTANT: f32 = 0.0000000000667408;
 struct Movable;
 
 #[derive(Component)]
+struct Name(String);
+
+#[derive(Component)]
 struct Planet {
     radius: f32,
     mass: f32,
-    initial_velocity: Vec3,
     velocity: Vec3,
 }
 
@@ -30,25 +32,31 @@ fn update_position(
 ) {
     for (planet, mut transform, movable) in planets.iter_mut() {
         if let Some(_) = movable {
+            // planet.velocity
+            println!("velocity: {:?}", planet.velocity);
+
             transform.translation += planet.velocity * time.delta().as_secs_f32();
+
+            let transform_position = transform.translation;
+            println!("position: {:?}", transform_position);
         }
     }
 }
 
 fn update_velocity(
     time: Res<Time>,
-    mut planets: Query<(Entity, &mut Planet, &Transform, Option<&Movable>)>,
+    mut planets: Query<(Entity, &mut Planet, &Transform, Option<&Movable>, Option<&Name>)>,
 ) {
     fn magnitude_squared(v: Vec3) -> f32 {
         v.x * v.x + v.y * v.y + v.z * v.z
     }
 
-    let mut planets_velocities: Vec<(&Planet, Vec3)> = Vec::new();
+    let mut planets_velocities: Vec<Vec3> = Vec::new();
 
-    for (entity, planet, planet_transform, planet_movable) in planets.iter() {
+    for (entity, planet, planet_transform, planet_movable, opt_name) in planets.iter() {
         if let Some(_) = planet_movable {
-            let mut current_velocity = planet.initial_velocity;
-            for (other_entity, other_planet, other_planet_transform, _) in planets.iter() {
+            let mut current_velocity: Vec3 = planet.velocity;
+            for (other_entity, other_planet, other_planet_transform, _, _) in planets.iter() {
                 if entity.id() != other_entity.id() {
                     let distance = other_planet_transform.translation - planet_transform.translation;
                     let distance_squared = magnitude_squared(other_planet_transform.translation - planet_transform.translation);
@@ -58,12 +66,20 @@ fn update_velocity(
                     current_velocity += acceleration * time.delta().as_secs_f32();
                 }
             }
-            planets_velocities.push((planet, current_velocity));
+            planets_velocities.push(current_velocity);
         }
     }
 
-    for (planet, current_velocity) in planets_velocities {
-        println!("{} -> {}", planet.velocity, current_velocity);
+    let mut counter = 0;
+    for (_, mut planet, _, planet_movable, _) in planets.iter_mut() {
+        if let Some(_) = planet_movable {
+            if let Some(velocity) = planets_velocities.get(counter) {
+                planet.velocity = *velocity;
+                counter += 1;
+            } else {
+                panic!("Velocity not found!")
+            }
+        }
     }
 }
 
@@ -82,18 +98,18 @@ fn setup_entities(mut commands: Commands) {
         },
         transform: Transform {
             translation: Vec3::new(50.0, 100.0, 0.0),
-            scale: Vec3::new(radius, radius, 1.0),
+            scale: Vec3::new(100.0, 100.0, 1.0),
             ..Default::default()
         },
         ..Default::default()
     })
         .insert(Planet {
             radius,
-            mass: 10.0,
-            initial_velocity: Vec3::new(0.0, 0.0, 0.0),
-            velocity: Vec3::new(0.0, 0.0, 0.0),
+            mass: 3000.0,
+            velocity: Vec3::new(10.0, 0.0, 0.0),
         })
         .insert(Movable)
+        .insert(Name("Blue Planet".to_string()));
     ;
 
     let radius = 50.0;
@@ -104,18 +120,18 @@ fn setup_entities(mut commands: Commands) {
             ..Default::default()
         },
         transform: Transform {
-            translation: Vec3::new(0.0, 0.0, 0.0),
-            scale: Vec3::new(radius, radius, 1.0),
+            translation: Vec3::new(10.0, 100.0, 0.0),
+            scale: Vec3::new(50.0, 50.0, 1.0),
             ..Default::default()
         },
         ..Default::default()
     })
         .insert(Planet {
             radius,
-            mass: 1.0,
-            initial_velocity: Vec3::new(0.0, 0.0, 0.0),
-            velocity: Vec3::new(0.0, 0.0, 0.0),
+            mass: 100.0,
+            velocity: Vec3::new(0.0, 15.0, 0.0),
         })
         .insert(Movable)
+        .insert(Name("White Planet".to_string()));
     ;
 }
