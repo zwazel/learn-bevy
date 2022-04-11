@@ -28,17 +28,27 @@ struct Planet {
 
 fn update_position(
     time: Res<Time>,
-    mut planets: Query<(&Planet, &mut Transform, Option<&Movable>)>,
+    mut planets: Query<(&Planet, &mut Transform, Option<&Movable>, Option<&Name>)>,
 ) {
-    for (planet, mut transform, movable) in planets.iter_mut() {
+    for (planet, mut transform, movable, opt_name) in planets.iter_mut() {
         if let Some(_) = movable {
             // planet.velocity
-            println!("velocity: {:?}", planet.velocity);
+            println!("velocity{}: {:?}",
+                     if let Some(name) = opt_name {
+                         " of ".to_owned() + &name.0
+                     } else {
+                         "".to_string()
+                     }, planet.velocity);
 
             transform.translation += planet.velocity * time.delta().as_secs_f32();
 
             let transform_position = transform.translation;
-            println!("position: {:?}", transform_position);
+            println!("position{}: {:?}",
+                     if let Some(name) = opt_name {
+                         " of ".to_owned() + &name.0
+                     } else {
+                         "".to_string()
+                     }, transform_position);
         }
     }
 }
@@ -106,7 +116,7 @@ fn setup_entities(mut commands: Commands) {
         .insert(Planet {
             radius,
             mass: 3000.0,
-            velocity: Vec3::new(10.0, 0.0, 0.0),
+            velocity: Vec3::new(0.0, 0.0, 0.0),
         })
         .insert(Movable)
         .insert(Name("Blue Planet".to_string()));
@@ -129,7 +139,7 @@ fn setup_entities(mut commands: Commands) {
         .insert(Planet {
             radius,
             mass: 100.0,
-            velocity: Vec3::new(0.0, 15.0, 0.0),
+            velocity: Vec3::new(0.0, 0.0, 0.0),
         })
         .insert(Movable)
         .insert(Name("White Planet".to_string()));
