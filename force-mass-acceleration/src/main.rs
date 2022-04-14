@@ -11,7 +11,8 @@ fn main() {
         .run();
 }
 
-const UNIVERSE_GRAVITATIONAL_CONSTANT: f32 = 0.0000000000667408;
+const UNIVERSE_GRAVITATIONAL_CONSTANT: f32 = 0.0001;
+const PHYSICS_TIME_STEP: f32 = 0.01;
 
 #[derive(Component)]
 struct Movable;
@@ -40,7 +41,7 @@ fn update_position(
                          "".to_string()
                      }, planet.velocity);
 
-            transform.translation += planet.velocity * time.delta().as_secs_f32();
+            transform.translation += planet.velocity * PHYSICS_TIME_STEP;
 
             let transform_position = transform.translation;
             println!("position{}: {:?}",
@@ -58,34 +59,61 @@ fn update_velocity(
     mut planets: Query<(Entity, &mut Planet, &Transform, Option<&Movable>, Option<&Name>)>,
 ) {
     fn magnitude_squared(v: Vec3) -> f32 {
-        v.x * v.x + v.y * v.y + v.z * v.z
+        (v.x * v.x) + (v.y * v.y) + (v.z * v.z)
     }
 
-    let mut planets_velocities: Vec<Vec3> = Vec::new();
+    let mut planets_velocities = Vec::new();
 
-    for (entity, planet, planet_transform, planet_movable, opt_name) in planets.iter() {
+    for (entity, planet, planet_transform, planet_movable, _opt_name) in planets.iter() {
         if let Some(_) = planet_movable {
             let mut current_velocity: Vec3 = planet.velocity;
+            let name = if let Some(name) = _opt_name {
+                name.0.clone()
+            } else {
+                "".to_string()
+            };
+
             for (other_entity, other_planet, other_planet_transform, _, _) in planets.iter() {
                 if entity.id() != other_entity.id() {
-                    let distance = other_planet_transform.translation - planet_transform.translation;
-                    let distance_squared = magnitude_squared(other_planet_transform.translation - planet_transform.translation);
-                    let force_direction = distance.normalize();
-                    let force = force_direction * UNIVERSE_GRAVITATIONAL_CONSTANT * planet.mass * other_planet.mass / distance_squared;
-                    let acceleration = force / planet.mass;
-                    current_velocity += acceleration * time.delta().as_secs_f32();
+                    let distance: Vec3 = other_planet_transform.translation - planet_transform.translation;
+                    let distance_squared: f32 = magnitude_squared(other_planet_transform.translation - planet_transform.translation);
+
+                    println!("distance_squared{}: {}",
+                             if let Some(name) = _opt_name {
+                                 " of ".to_owned() + &name.0
+                             } else {
+                                 "".to_string()
+                             }, distance_squared);
+
+                    let force_direction: Vec3 = distance.normalize();
+
+                    println!("force_direction{}: {:?}",
+                             if let Some(name) = _opt_name {
+                                 " of ".to_owned() + &name.0
+                             } else {
+                                 "".to_string()
+                             }, force_direction);
+
+                    let force: Vec3 = force_direction * UNIVERSE_GRAVITATIONAL_CONSTANT * planet.mass * other_planet.mass / distance_squared;
+                    let acceleration: Vec3 = force / planet.mass;
+                    current_velocity += acceleration * PHYSICS_TIME_STEP;
                 }
             }
-            planets_velocities.push(current_velocity);
+            planets_velocities.push((name, entity.id(), current_velocity));
         }
     }
 
     let mut counter = 0;
-    for (_, mut planet, _, planet_movable, _) in planets.iter_mut() {
+    for (planet_entity, mut planet, _, planet_movable, _) in planets.iter_mut() {
         if let Some(_) = planet_movable {
-            if let Some(velocity) = planets_velocities.get(counter) {
-                planet.velocity = *velocity;
-                counter += 1;
+            if let Some((name, entity_id, velocity)) = planets_velocities.get(counter) {
+                if *entity_id == planet_entity.id() {
+                    planet.velocity = *velocity;
+                    println!("new_velocity of {}: {:?}", name, planet.velocity);
+                    counter += 1;
+                } else {
+                    panic!("Entity ID mismatch");
+                }
             } else {
                 panic!("Velocity not found!")
             }
@@ -107,7 +135,7 @@ fn setup_entities(mut commands: Commands) {
             ..Default::default()
         },
         transform: Transform {
-            translation: Vec3::new(50.0, 100.0, 0.0),
+            translation: Vec3::new(100.0, 100.0, 0.0),
             scale: Vec3::new(100.0, 100.0, 1.0),
             ..Default::default()
         },
@@ -119,7 +147,7 @@ fn setup_entities(mut commands: Commands) {
             velocity: Vec3::new(0.0, 0.0, 0.0),
         })
         .insert(Movable)
-        .insert(Name("Blue Planet".to_string()));
+        .insert(Name("Blue Planet".to_string()))
     ;
 
     let radius = 50.0;
@@ -130,7 +158,7 @@ fn setup_entities(mut commands: Commands) {
             ..Default::default()
         },
         transform: Transform {
-            translation: Vec3::new(10.0, 100.0, 0.0),
+            translation: Vec3::new(10.0, 50.0, 0.0),
             scale: Vec3::new(50.0, 50.0, 1.0),
             ..Default::default()
         },
@@ -139,9 +167,9 @@ fn setup_entities(mut commands: Commands) {
         .insert(Planet {
             radius,
             mass: 100.0,
-            velocity: Vec3::new(0.0, 0.0, 0.0),
+            velocity: Vec3::new(10.0, 0.0, 0.0),
         })
         .insert(Movable)
-        .insert(Name("White Planet".to_string()));
+        .insert(Name("White Planet".to_string()))
     ;
 }
