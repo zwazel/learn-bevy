@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_editor_pls::*;
+use bevy_editor_pls::prelude::*;
 
 fn main() {
     App::new()
