@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 bevy = { version = "0.7.0", features = ["dynamic"] }
+bevy_mod_picking = "0.7.0"  # https://github.com/aevyrie/bevy_mod_picking/
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
