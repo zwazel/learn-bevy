@@ -39,7 +39,8 @@ fn setup(
         ..default()
     });
     // camera
-    let mut camera = OrthographicCameraBundle::new_3d();
-    camera.transform = Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y);
-    commands.spawn_bundle(camera);
+    commands.spawn_bundle(Camera3dBundle {
+        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ..default()
+    });
 }
