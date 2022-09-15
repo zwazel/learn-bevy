@@ -5,9 +5,7 @@ use std::time::{Duration, Instant, SystemTime};
 use log::{info, trace, warn};
 use renet::{NETCODE_USER_DATA_BYTES, RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use store::{EndGameReason, HOST, PORT};
-
-pub const PROTOCOL_ID: u64 = 6969;
+use store::{EndGameReason, HOST, PORT, PROTOCOL_ID};
 
 /// Utility function for extracting a players name from renet user data
 fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {

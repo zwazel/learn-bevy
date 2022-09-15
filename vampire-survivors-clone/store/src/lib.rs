@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 pub const PORT: i32 = 5555;
 pub const HOST: &str = "127.0.0.1";
+pub const PROTOCOL_ID: u64 = 6969;
 
 /// Struct for storing player related data.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
