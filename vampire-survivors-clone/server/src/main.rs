@@ -1,5 +1,5 @@
 use std::net::{SocketAddr, UdpSocket};
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
 
 use log::trace;
 use renet::{RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig};
@@ -9,11 +9,6 @@ use store::{HOST, PORT};
 pub const PROTOCOL_ID: u64 = 6969;
 
 fn main() {
-    println!("{}", HOST);
-    println!("{}", PORT);
-    let address = format!("{}:{}", HOST, PORT);
-    println!("{}", address);
-
     let server_addr: SocketAddr = format!("{}:{}", HOST, PORT)
         .parse()
         .unwrap();
@@ -34,4 +29,6 @@ fn main() {
         .unwrap();
 
     trace!("🕹  TicTacTussle server listening on {}", server_addr);
+
+    let mut last_updated = Instant::now();
 }
