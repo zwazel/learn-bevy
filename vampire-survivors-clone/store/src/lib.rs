@@ -36,7 +36,7 @@ pub enum GameEvent {
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Deserialize)]
 pub enum EndGameReason {
     BothPlayersDied,
-    PlayerEndedTheGame { player_id: PlayerId, name: String },
+    PlayerEndedTheGame { player_id: PlayerId },
     ReturningToLobby,
 }
 
@@ -45,6 +45,7 @@ pub enum EndGameReason {
 pub struct GameState {
     pub stage: Stage,
     pub players: HashMap<PlayerId, Player>,
+    pub history: Vec<GameEvent>,
 }
 
 impl GameState {
@@ -56,28 +57,28 @@ impl GameState {
             EndGame { reason } => match reason {
                 EndGameReason::BothPlayersDied { .. } => {
                     // todo
-                    false
+                    return false;
                 }
                 _ => {}
             },
             BeginGame { .. } => {
                 if self.stage != Stage::PreGame {
-                    false
+                    return false;
                 }
             }
             PlayerJoined { player_id, name: _ } => {
                 if self.players.contains_key(player_id) {
-                    false
+                    return false;
                 }
             }
             PlayerDisconnected { player_id } => {
                 if !self.players.contains_key(player_id) {
-                    false
+                    return false;
                 }
             }
             PlayerGotKilled { player_id, .. } => {
                 if !self.players.contains_key(player_id) {
-                    false
+                    return false;
                 }
             }
         }
@@ -119,6 +120,7 @@ impl Default for GameState {
         Self {
             stage: Stage::PreGame,
             players: HashMap::new(),
+            history: Vec::new(),
         }
     }
 }

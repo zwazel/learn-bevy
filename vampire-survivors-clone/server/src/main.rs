@@ -1,12 +1,23 @@
 use std::net::{SocketAddr, UdpSocket};
-use std::time::{Instant, SystemTime};
+use std::thread;
+use std::time::{Duration, Instant, SystemTime};
 
-use log::trace;
-use renet::{RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig};
+use log::{info, trace, warn};
+use renet::{NETCODE_USER_DATA_BYTES, RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use store::{HOST, PORT};
+use store::{EndGameReason, HOST, PORT};
 
 pub const PROTOCOL_ID: u64 = 6969;
+
+/// Utility function for extracting a players name from renet user data
+fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
+    let mut buffer = [0u8; 8];
+    buffer.copy_from_slice(&user_data[0..8]);
+    let mut len = u64::from_le_bytes(buffer) as usize;
+    len = len.min(NETCODE_USER_DATA_BYTES - 8);
+    let data = user_data[8..len + 8].to_vec();
+    String::from_utf8(data).unwrap()
+}
 
 fn main() {
     let server_addr: SocketAddr = format!("{}:{}", HOST, PORT)
@@ -30,5 +41,83 @@ fn main() {
 
     trace!("🕹  TicTacTussle server listening on {}", server_addr);
 
+    let mut game_state = store::GameState::default();
     let mut last_updated = Instant::now();
+
+    loop {
+        // Update server time
+        let now = Instant::now();
+        server.update(now - last_updated).unwrap();
+        last_updated = now;
+
+        // Receive connection events from clients
+        while let Some(event) = server.get_event() {
+            match event {
+                ServerEvent::ClientConnected(id, user_data) => {
+                    // Tell the recently joined player about the other player
+                    for (player_id, player) in game_state.players.iter() {
+                        let event = store::GameEvent::PlayerJoined {
+                            player_id: *player_id,
+                            name: player.name.clone(),
+                        };
+                        server.send_message(id, 0, bincode::serialize(&event).unwrap());
+                    }
+
+                    // Add the new player to the game
+                    let event = store::GameEvent::PlayerJoined {
+                        player_id: id,
+                        name: name_from_user_data(&user_data),
+                    };
+                    game_state.consume(&event);
+
+                    // Tell all players that a new player has joined
+                    server.broadcast_message(0, bincode::serialize(&event).unwrap());
+
+                    info!("Client {} connected.", id);
+                    // once two players have joined, start it
+                    if game_state.players.len() == 2 {
+                        let event = store::GameEvent::BeginGame;
+                        game_state.consume(&event);
+                        server.broadcast_message(0, bincode::serialize(&event).unwrap());
+                        trace!("The game gas begun");
+                    }
+                }
+                ServerEvent::ClientDisconnected(id) => {
+                    // First consume a disconnect event
+                    let event = store::GameEvent::PlayerDisconnected { player_id: id };
+                    game_state.consume(&event);
+                    server.broadcast_message(0, bincode::serialize(&event).unwrap());
+                    info!("Client {} disconnected", id);
+
+                    // Then end the game
+                    let event = store::GameEvent::EndGame {
+                        reason: EndGameReason::PlayerEndedTheGame { player_id: id },
+                    };
+                    game_state.consume(&event);
+                    server.broadcast_message(0, bincode::serialize(&event).unwrap());
+
+                    // NOTE: Since we don't authenticate users we can't do any reconnection attempts.
+                    // We simply have no way to know if the next user is the same as the one that disconnected.
+                }
+            }
+        }
+
+        // Receive GameEvents from clients. Broadcast valid events.
+        for client_id in server.clients_id().into_iter() {
+            while let Some(message) = server.receive_message(client_id, 0) {
+                if let Ok(event) = bincode::deserialize::<store::GameEvent>(&message) {
+                    if game_state.validate(&event) {
+                        game_state.consume(&event);
+                        trace!("Player {} sent:\n\t{:#?}", client_id, event);
+                        server.broadcast_message(0, bincode::serialize(&event).unwrap());
+                    } else {
+                        warn!("Player {} sent invalid event:\n\t{:#?}", client_id, event);
+                    }
+                }
+            }
+        }
+
+        server.send_packets().unwrap();
+        thread::sleep(Duration::from_millis(50));
+    }
 }
