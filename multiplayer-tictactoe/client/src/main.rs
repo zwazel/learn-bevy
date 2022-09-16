@@ -135,13 +135,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 ////////// UPDATE SYSTEMS //////////
-fn input(
-    windows: Res<Windows>,
-    input: Res<Input<MouseButton>>,
-    game_state: Res<GameState>,
-    mut hover_dots: Query<(&HoverDot, &mut Sprite)>,
-    mut client: ResMut<RenetClient>,
-) {
+fn input(windows: Res<Windows>, input: Res<Input<MouseButton>>, game_state: Res<GameState>, mut hover_dots: Query<(&HoverDot, &mut Sprite)>, mut client: ResMut<RenetClient>, ) {
     // We only want to handle inputs once we are ingame
     if game_state.stage != store::Stage::InGame {
         return;
@@ -369,7 +363,7 @@ fn new_renet_client(username: &String) -> anyhow::Result<RenetClient> {
         RenetConnectionConfig::default(),
         ClientAuthentication::Unsecure {
             client_id,
-            protocol_id: crate::PROTOCOL_ID,
+            protocol_id: PROTOCOL_ID,
             server_addr,
             user_data: Some(user_data),
         },

@@ -102,6 +102,8 @@ impl GameState {
                         name: name.to_string(),
                     },
                 );
+
+                println!("Player {} joined the game!", name);
             }
             PlayerDisconnected { player_id } => {
                 self.players.remove(player_id);

@@ -1,7 +1,10 @@
+use std::net::UdpSocket;
+use std::time::SystemTime;
 use bevy::prelude::*;
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
+use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
 
-use store::{GameEvent, GameState};
+use store::{GameEvent, GameState, HOST, PORT, PROTOCOL_ID};
 
 fn main() {
     // Get username from stdin args
@@ -30,22 +33,9 @@ fn main() {
         .add_event::<GameEvent>()
         // Add setup function to spawn UI and board graphics
         .add_startup_system(setup)
-        // Add systems for playing TicTacTussle
-        .add_system(change_ui_by_stage)
-        .add_system(update_waiting_text)
-        .add_system(update_in_game_ui)
-        .add_system(update_board)
-        .add_system(input)
         // Finally we run the thing!
         .run();
 }
-
-////////// COMPONENTS //////////
-#[derive(Component)]
-struct UIRoot;
-
-#[derive(Component)]
-struct WaitingText;
 
 #[derive(Component)]
 struct PlayerHandle(pub u64);
@@ -53,48 +43,62 @@ struct PlayerHandle(pub u64);
 ////////// SETUP //////////
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_bundle(Camera2dBundle::default());
+}
 
-    // Spawn board background
-    commands.spawn_bundle(SpriteBundle {
-        transform: Transform::from_xyz(0.0, -30.0, 0.0),
-        sprite: Sprite {
-            custom_size: Some(Vec2::new(480.0, 480.0)),
-            ..default()
+
+////////// RENET NETWORKING //////////
+fn new_renet_client(username: &String) -> anyhow::Result<RenetClient> {
+    let server_addr = format!("{}:{}", HOST, PORT).parse()?;
+    let socket = UdpSocket::bind(HOST)?;
+    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
+    let client_id = current_time.as_millis() as u64;
+
+    // Place username in user data
+    let mut user_data = [0u8; NETCODE_USER_DATA_BYTES];
+    if username.len() > NETCODE_USER_DATA_BYTES - 8 {
+        panic!("Username is too big");
+    }
+    user_data[0..8].copy_from_slice(&(username.len() as u64).to_le_bytes());
+    user_data[8..username.len() + 8].copy_from_slice(username.as_bytes());
+
+    let client = RenetClient::new(
+        current_time,
+        socket,
+        client_id,
+        RenetConnectionConfig::default(),
+        ClientAuthentication::Unsecure {
+            client_id,
+            protocol_id: PROTOCOL_ID,
+            server_addr,
+            user_data: Some(user_data),
         },
-        texture: asset_server.load("background.jpg").into(),
-        ..default()
-    });
+    )?;
 
-    // Spawn pregame ui
-    commands
-        // A container that centers its children on the screen
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                position_type: PositionType::Absolute,
-                position: UiRect {
-                    left: Val::Px(0.0),
-                    top: Val::Px(0.0),
-                    ..default()
-                },
-                size: Size::new(Val::Percent(100.0), Val::Px(60.0)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            color: Color::NONE.into(),
-            ..default()
-        })
-        .insert(UIRoot)
-        .with_children(|parent| {
-            parent
-                .spawn_bundle(TextBundle::from_section(
-                    "Waiting for an opponent...",
-                    TextStyle {
-                        font: asset_server.load("Inconsolata.ttf"),
-                        font_size: 24.0,
-                        color: Color::hex("ebdbb2").unwrap(),
-                    },
-                ))
-                .insert(WaitingText);
-        });
+    Ok(client)
+}
+
+fn receive_events_from_server(
+    mut client: ResMut<RenetClient>,
+    mut game_state: ResMut<GameState>,
+    mut game_events: EventWriter<GameEvent>,
+) {
+    while let Some(message) = client.receive_message(0) {
+        // Whenever the server sends a message we know that it must be a game event
+        let event: GameEvent = bincode::deserialize(&message).unwrap();
+        trace!("{:#?}", event);
+
+        // We trust the server - It's always been good to us!
+        // No need to validate the events it is sending us
+        game_state.consume(&event);
+
+        // Send the event into the bevy event system so systems can react to it
+        game_events.send(event);
+    }
+}
+
+// If there's any error network we just panic 🤷‍♂️
+fn handle_renet_error(mut renet_error: EventReader<RenetError>) {
+    for err in renet_error.iter() {
+        panic!("{}", err);
+    }
 }
