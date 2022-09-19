@@ -1,5 +1,5 @@
+use std::{env, thread};
 use std::net::{SocketAddr, UdpSocket};
-use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
 use log::{info, trace, warn};
@@ -18,12 +18,34 @@ fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
 }
 
 fn main() {
-    let args = std::env::args().collect::<Vec<String>>();
-    // first arg is port, check if it exists
-    let port = if args.len() > 1 {
-        args[1].parse::<i32>().unwrap()
-    } else {
-        PORT
+    let args: Vec<String> = env::args().collect();
+    let mut port = PORT;
+    let mut host = HOST;
+    let mut amount_of_players = 2;
+    match args.len() {
+        1 => {
+            // no args
+            println!("Default settings as no args passed, PORT: {}, HOST: {}, PLAYERS: {}", PORT, HOST, amount_of_players);
+        }
+        2 => {
+            println!("Port has been set to: {}", args[1]);
+            port = args[1].parse().unwrap();
+        }
+        3 => {
+            println!("Port has been set to: {}, Host has been set to: {}", args[1], args[2]);
+            port = args[1].parse().unwrap();
+            host = &*args[2];
+        }
+        4 => {
+            println!("Port has been set to: {}, Host has been set to: {}, Amount of players has been set to: {}", args[1], args[2], args[3]);
+            port = args[1].parse().unwrap();
+            host = &*args[2];
+            amount_of_players = args[3].parse().unwrap();
+        }
+        _ => {
+            // more than one arg
+            println!("Too many args passed, set to default, PORT: {}, HOST: {}, PLAYERS: {}", PORT, HOST, amount_of_players);
+        }
     };
 
     let server_addr: SocketAddr = format!("{}:{}", HOST, port)
@@ -37,7 +59,7 @@ fn main() {
             .unwrap(),
         // Pass a server configuration specifying that we want to allow only 2 clients to connect
         // and that we don't want to authenticate them. Everybody is welcome!
-        ServerConfig::new(2, PROTOCOL_ID, server_addr, ServerAuthentication::Unsecure),
+        ServerConfig::new(amount_of_players, PROTOCOL_ID, server_addr, ServerAuthentication::Unsecure),
         // Pass the default connection configuration. This will create a reliable, unreliable and blocking channel.
         // We only actually need the reliable one, but we can just not use the other two.
         RenetConnectionConfig::default(),
