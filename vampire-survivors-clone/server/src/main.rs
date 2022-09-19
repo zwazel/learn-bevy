@@ -17,6 +17,14 @@ fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
     String::from_utf8(data).unwrap()
 }
 
+fn translate_host(host: &str) -> &str {
+    let host = match host {
+        "localhost" => "127.0.0.1",
+        _ => host,
+    };
+    host
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mut port = PORT;
@@ -28,19 +36,19 @@ fn main() {
             println!("Default settings as no args passed, PORT: {}, HOST: {}, PLAYERS: {}", PORT, HOST, amount_of_players);
         }
         2 => {
-            println!("Port has been set to: {}", args[1]);
             port = args[1].parse().unwrap();
+            println!("Port has been set to: {}", port);
         }
         3 => {
-            println!("Port has been set to: {}, Host has been set to: {}", args[1], args[2]);
             port = args[1].parse().unwrap();
-            host = &*args[2];
+            host = translate_host(&*args[2]);
+            println!("Port has been set to: {}, Host has been set to: {}", port, host);
         }
         4 => {
-            println!("Port has been set to: {}, Host has been set to: {}, Amount of players has been set to: {}", args[1], args[2], args[3]);
             port = args[1].parse().unwrap();
-            host = &*args[2];
+            host = translate_host(&*args[2]);
             amount_of_players = args[3].parse().unwrap();
+            println!("Port has been set to: {}, Host has been set to: {}, Amount of players has been set to: {}", port, host, amount_of_players);
         }
         _ => {
             // more than one arg
@@ -48,7 +56,7 @@ fn main() {
         }
     };
 
-    let server_addr: SocketAddr = format!("{}:{}", HOST, port)
+    let server_addr: SocketAddr = format!("{}:{}", host, port)
         .parse()
         .unwrap();
 
