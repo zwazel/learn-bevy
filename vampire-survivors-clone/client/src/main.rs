@@ -49,7 +49,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 ////////// RENET NETWORKING //////////
 fn new_renet_client(username: &String) -> anyhow::Result<RenetClient> {
     let server_addr = format!("{}:{}", HOST, PORT).parse()?;
-    let socket = UdpSocket::bind(HOST)?;
+    let socket = UdpSocket::bind(format!("{}:0", HOST))?;
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
     let client_id = current_time.as_millis() as u64;
 
@@ -99,6 +99,6 @@ fn receive_events_from_server(
 // If there's any error network we just panic 🤷‍♂️
 fn handle_renet_error(mut renet_error: EventReader<RenetError>) {
     for err in renet_error.iter() {
-        panic!("{}", err);
+        panic!("PANIC ERROR: {}", err);
     }
 }
