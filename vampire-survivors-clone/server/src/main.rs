@@ -18,7 +18,15 @@ fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
 }
 
 fn main() {
-    let server_addr: SocketAddr = format!("{}:{}", HOST, PORT)
+    let args = std::env::args().collect::<Vec<String>>();
+    // first arg is port, check if it exists
+    let port = if args.len() > 1 {
+        args[1].parse::<i32>().unwrap()
+    } else {
+        PORT
+    };
+
+    let server_addr: SocketAddr = format!("{}:{}", HOST, port)
         .parse()
         .unwrap();
 
