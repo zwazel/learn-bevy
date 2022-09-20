@@ -127,14 +127,6 @@ fn main() {
                     let event = store::GameEvent::PlayerDisconnected { player_id: id };
                     game_state.consume(&event);
                     server.broadcast_message(0, bincode::serialize(&event).unwrap());
-                    info!("Client {} disconnected", id);
-
-                    // Then end the game
-                    let event = store::GameEvent::EndGame {
-                        reason: EndGameReason::PlayerEndedTheGame { player_id: id },
-                    };
-                    game_state.consume(&event);
-                    server.broadcast_message(0, bincode::serialize(&event).unwrap());
 
                     // NOTE: Since we don't authenticate users we can't do any reconnection attempts.
                     // We simply have no way to know if the next user is the same as the one that disconnected.

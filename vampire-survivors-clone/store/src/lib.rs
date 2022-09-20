@@ -116,6 +116,7 @@ impl GameState {
             }
             PlayerDisconnected { player_id } => {
                 self.players.remove(player_id);
+                println!("Client {} disconnected", player_id);
             }
             PlayerGotKilled { player_id, killer_entity } => {
                 let player = self.players.get(player_id).unwrap().name.to_string();

@@ -1,6 +1,9 @@
 use std::net::UdpSocket;
 use std::time::SystemTime;
+
 use bevy::prelude::*;
+use bevy::render::camera::RenderTarget::Window;
+use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin};
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
 
@@ -75,6 +78,18 @@ fn new_renet_client(username: &String) -> anyhow::Result<RenetClient> {
     )?;
 
     Ok(client)
+}
+
+// prints events as they come in
+fn window_closed_listener(
+    mut events: EventReader<WindowClosed>,
+    mut client: ResMut<RenetClient>,
+) {
+    println!("hallo");
+
+    for _ in events.iter() {
+        println!("Window closed");
+    }
 }
 
 fn receive_events_from_server(
