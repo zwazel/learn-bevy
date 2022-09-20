@@ -27,7 +27,11 @@ fn main() {
         })
         .insert_resource(ClearColor(Color::hex("282828").unwrap()))
         .add_plugins(DefaultPlugins)
-        .add_system(position_translation)
+        .add_system_set_to_stage(
+            CoreStage::PostUpdate,
+            SystemSet::new()
+                .with_system(position_translation)
+        )
         // Renet setup
         .add_plugin(RenetClientPlugin)
         .insert_resource(new_renet_client(&username).unwrap())
@@ -60,12 +64,12 @@ struct ComponentPosition {
     pos: Position,
 }
 
-#[derive(Component, Clone, Copy, PartialEq, Eq)]
+#[derive(Component)]
 struct Name {
     name: String,
 }
 
-fn position_translation(windows: Res<Windows>, mut q: Query<(&Position, &mut Transform)>) {
+fn position_translation(windows: Res<Windows>, mut q: Query<(&ComponentPosition, &mut Transform)>) {
     fn convert(pos: f32, bound_window: f32, bound_game: f32) -> f32 {
         let tile_size = bound_window / bound_game;
         pos / bound_game * bound_window - (bound_window / 2.) + (tile_size / 2.)
@@ -73,8 +77,8 @@ fn position_translation(windows: Res<Windows>, mut q: Query<(&Position, &mut Tra
     let window = windows.get_primary().unwrap();
     for (pos, mut transform) in q.iter_mut() {
         transform.translation = Vec3::new(
-            convert(pos.x as f32, window.width() as f32, 1000 as f32),
-            convert(pos.y as f32, window.height() as f32, 1000 as f32),
+            convert(pos.pos.x as f32, window.width(), 1000.0),
+            convert(pos.pos.y as f32, window.height(), 1000.0),
             0.0,
         );
     }
