@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 pub const PORT: i32 = 5000;
+pub const AMOUNT_PLAYERS: usize = 4;
 pub const HOST: &str = "127.0.0.1";
 pub const PROTOCOL_ID: u64 = 6969;
 

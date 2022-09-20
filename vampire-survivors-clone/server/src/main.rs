@@ -5,7 +5,7 @@ use std::time::{Duration, Instant, SystemTime};
 use log::{info, trace, warn};
 use renet::{NETCODE_USER_DATA_BYTES, RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use store::{EndGameReason, HOST, PORT, PROTOCOL_ID};
+use store::{AMOUNT_PLAYERS, EndGameReason, HOST, PORT, PROTOCOL_ID};
 
 /// Utility function for extracting a players name from renet user data
 fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
@@ -29,30 +29,24 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let mut port = PORT;
     let mut host = HOST;
-    let mut amount_of_players = 2;
+    let mut amount_of_players = AMOUNT_PLAYERS;
     match args.len() {
         1 => {
             // no args
-            println!("Default settings as no args passed, PORT: {}, HOST: {}, PLAYERS: {}", PORT, HOST, amount_of_players);
+            println!("Default settings as no args passed, PLAYERS: {}, PORT: {}", amount_of_players, PORT);
         }
         2 => {
-            port = args[1].parse().unwrap();
-            println!("Port has been set to: {}", port);
+            amount_of_players = args[1].parse().unwrap();
+            println!("Amount of players set to: {}", amount_of_players);
         }
         3 => {
             port = args[1].parse().unwrap();
-            host = translate_host(&*args[2]);
-            println!("Port has been set to: {}, Host has been set to: {}", port, host);
-        }
-        4 => {
-            port = args[1].parse().unwrap();
-            host = translate_host(&*args[2]);
-            amount_of_players = args[3].parse().unwrap();
-            println!("Port has been set to: {}, Host has been set to: {}, Amount of players has been set to: {}", port, host, amount_of_players);
+            amount_of_players = args[2].parse().unwrap();
+            println!("Amount of players has been set to: {}, Port has been set to: {}", amount_of_players, port);
         }
         _ => {
-            // more than one arg
-            println!("Too many args passed, set to default, PORT: {}, HOST: {}, PLAYERS: {}", PORT, HOST, amount_of_players);
+            println!("Too many args passed, please pass only 2 args, the amount of players and the port\n\
+            using the default settings, PLAYERS: {}, PORT: {}", amount_of_players, PORT);
         }
     };
 
