@@ -11,8 +11,13 @@ pub const PROTOCOL_ID: u64 = 6969;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Player {
     pub name: String,
-    pub x: f64,
-    pub y: f64,
+    pub pos: Position,
+}
+
+#[derive(Component, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Position {
+    x: f64,
+    y: f64,
 }
 
 // This just makes it easier to discern between a player id and any ol' u64
@@ -31,7 +36,7 @@ pub enum Stage {
 pub enum GameEvent {
     BeginGame,
     EndGame { reason: EndGameReason },
-    PlayerJoined { player_id: PlayerId, name: String, x: f64, y: f64 },
+    PlayerJoined { player_id: PlayerId, name: String, pos: Position},
     PlayerDisconnected { player_id: PlayerId },
     PlayerGotKilled { player_id: PlayerId, killer_entity: String },
 }
@@ -98,13 +103,12 @@ impl GameState {
                 self.stage = Stage::InGame;
             }
             EndGame { reason: _ } => self.stage = Stage::Ended,
-            PlayerJoined { player_id, name, x, y } => {
+            PlayerJoined { player_id, name,pos } => {
                 self.players.insert(
                     *player_id,
                     Player {
                         name: name.to_string(),
-                        x: *x,
-                        y: *y,
+                        pos: *pos,
                     },
                 );
 

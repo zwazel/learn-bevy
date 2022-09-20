@@ -6,7 +6,7 @@ use log::{info, trace, warn};
 use renet::{NETCODE_USER_DATA_BYTES, RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
 use rand::prelude::*;
-use store::{AMOUNT_PLAYERS, EndGameReason, HOST, PORT, PROTOCOL_ID};
+use store::{AMOUNT_PLAYERS, EndGameReason, HOST, PORT, PROTOCOL_ID, Position};
 
 /// Utility function for extracting a players name from renet user data
 fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
@@ -97,8 +97,7 @@ fn main() {
                         let event = store::GameEvent::PlayerJoined {
                             player_id: *player_id,
                             name: player.name.clone(),
-                            x: player.x,
-                            y: player.y,
+                            pos: player.pos,
                         };
                         server.send_message(id, 0, bincode::serialize(&event).unwrap());
                     }
@@ -107,8 +106,7 @@ fn main() {
                     let event = store::GameEvent::PlayerJoined {
                         player_id: id,
                         name: name_from_user_data(&user_data),
-                        x,
-                        y,
+                        pos: Position { x, y },
                     };
                     game_state.consume(&event);
 
