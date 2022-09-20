@@ -8,7 +8,7 @@ use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin, WindowSetti
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
 
-use store::{GameEvent, GameState, HOST, PORT, PROTOCOL_ID};
+use store::{GameEvent, GameState, HOST, PORT, Position, PROTOCOL_ID};
 
 fn main() {
     // Get username from stdin args
@@ -27,6 +27,7 @@ fn main() {
         })
         .insert_resource(ClearColor(Color::hex("282828").unwrap()))
         .add_plugins(DefaultPlugins)
+        .add_system(position_translation)
         // Renet setup
         .add_plugin(RenetClientPlugin)
         .insert_resource(new_renet_client(&username).unwrap())
@@ -53,6 +54,31 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_bundle(Camera2dBundle::default());
 }
 
+// Components
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+struct ComponentPosition {
+    pos: Position,
+}
+
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+struct Name {
+    name: String,
+}
+
+fn position_translation(windows: Res<Windows>, mut q: Query<(&Position, &mut Transform)>) {
+    fn convert(pos: f32, bound_window: f32, bound_game: f32) -> f32 {
+        let tile_size = bound_window / bound_game;
+        pos / bound_game * bound_window - (bound_window / 2.) + (tile_size / 2.)
+    }
+    let window = windows.get_primary().unwrap();
+    for (pos, mut transform) in q.iter_mut() {
+        transform.translation = Vec3::new(
+            convert(pos.x as f32, window.width() as f32, 1000 as f32),
+            convert(pos.y as f32, window.height() as f32, 1000 as f32),
+            0.0,
+        );
+    }
+}
 
 ////////// RENET NETWORKING //////////
 fn new_renet_client(username: &String) -> anyhow::Result<RenetClient> {
@@ -99,6 +125,8 @@ fn receive_events_from_server(
     mut client: ResMut<RenetClient>,
     mut game_state: ResMut<GameState>,
     mut game_events: EventWriter<GameEvent>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
 ) {
     while let Some(message) = client.receive_message(0) {
         // Whenever the server sends a message we know that it must be a game event
@@ -108,6 +136,23 @@ fn receive_events_from_server(
         // We trust the server - It's always been good to us!
         // No need to validate the events it is sending us
         game_state.consume(&event);
+
+        match &event {
+            GameEvent::PlayerJoined { name, pos, .. } => {
+                commands
+                    .spawn_bundle(SpriteSheetBundle {
+                        texture_atlas: texture_atlas_handle.clone(),
+                        sprite: TextureAtlasSprite::new(0),
+                        ..Default::default()
+                    })
+                    .insert(Name { name: name.clone() })
+                    .insert(ComponentPosition { pos: *pos })
+                ;
+            }
+            GameEvent::PlayerDisconnected { .. } => {}
+            GameEvent::PlayerGotKilled { .. } => {}
+            _ => {}
+        }
 
         // Send the event into the bevy event system so systems can react to it
         game_events.send(event);
