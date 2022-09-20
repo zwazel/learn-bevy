@@ -1,9 +1,10 @@
 use std::net::UdpSocket;
 use std::time::SystemTime;
 
+use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget::Window;
-use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin};
+use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin, WindowSettings};
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
 
@@ -19,6 +20,9 @@ fn main() {
             title: format!("Vampire Survivors Clone <{}>", username),
             width: 480.0,
             height: 540.0,
+            ..default()
+        })
+        .insert_resource(WindowSettings {
             ..default()
         })
         .insert_resource(ClearColor(Color::hex("282828").unwrap()))
@@ -37,6 +41,7 @@ fn main() {
         // Add setup function to spawn UI and board graphics
         .add_startup_system(setup)
         // Finally we run the thing!
+        .add_system_to_stage(CoreStage::Last, disconnect)
         .run();
 }
 
@@ -80,15 +85,13 @@ fn new_renet_client(username: &String) -> anyhow::Result<RenetClient> {
     Ok(client)
 }
 
-// prints events as they come in
-fn window_closed_listener(
-    mut events: EventReader<WindowClosed>,
+fn disconnect(
+    mut events: EventReader<AppExit>,
     mut client: ResMut<RenetClient>,
 ) {
-    println!("hallo");
-
-    for _ in events.iter() {
-        println!("Window closed");
+    if let Some(_) = events.iter().next() {
+        print!("Exiting...");
+        client.disconnect();
     }
 }
 
