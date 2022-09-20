@@ -11,6 +11,8 @@ pub const PROTOCOL_ID: u64 = 6969;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Player {
     pub name: String,
+    pub x: f64,
+    pub y: f64,
 }
 
 // This just makes it easier to discern between a player id and any ol' u64
@@ -29,7 +31,7 @@ pub enum Stage {
 pub enum GameEvent {
     BeginGame,
     EndGame { reason: EndGameReason },
-    PlayerJoined { player_id: PlayerId, name: String },
+    PlayerJoined { player_id: PlayerId, name: String, x: f64, y: f64 },
     PlayerDisconnected { player_id: PlayerId },
     PlayerGotKilled { player_id: PlayerId, killer_entity: String },
 }
@@ -68,7 +70,7 @@ impl GameState {
                     return false;
                 }
             }
-            PlayerJoined { player_id, name: _ } => {
+            PlayerJoined { player_id, .. } => {
                 if self.players.contains_key(player_id) {
                     return false;
                 }
@@ -96,15 +98,17 @@ impl GameState {
                 self.stage = Stage::InGame;
             }
             EndGame { reason: _ } => self.stage = Stage::Ended,
-            PlayerJoined { player_id, name } => {
+            PlayerJoined { player_id, name, x, y } => {
                 self.players.insert(
                     *player_id,
                     Player {
                         name: name.to_string(),
+                        x: *x,
+                        y: *y,
                     },
                 );
 
-                println!("Player {} joined the game!", name);
+                println!("Player {} joined the game at [x:{}, y:{}]", name, x, y);
             }
             PlayerDisconnected { player_id } => {
                 self.players.remove(player_id);

@@ -5,6 +5,7 @@ use std::time::{Duration, Instant, SystemTime};
 use log::{info, trace, warn};
 use renet::{NETCODE_USER_DATA_BYTES, RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
+use rand::prelude::*;
 use store::{AMOUNT_PLAYERS, EndGameReason, HOST, PORT, PROTOCOL_ID};
 
 /// Utility function for extracting a players name from renet user data
@@ -84,11 +85,20 @@ fn main() {
         while let Some(event) = server.get_event() {
             match event {
                 ServerEvent::ClientConnected(id, user_data) => {
+                    // random position for new player
+                    let mut rng = thread_rng();
+                    let x = rng.gen_range(10..51);
+                    let y = rng.gen_range(10..51);
+                    let x = f64::from(x);
+                    let y = f64::from(y);
+
                     // Tell the recently joined player about the other player
                     for (player_id, player) in game_state.players.iter() {
                         let event = store::GameEvent::PlayerJoined {
                             player_id: *player_id,
                             name: player.name.clone(),
+                            x: player.x,
+                            y: player.y,
                         };
                         server.send_message(id, 0, bincode::serialize(&event).unwrap());
                     }
@@ -97,6 +107,8 @@ fn main() {
                     let event = store::GameEvent::PlayerJoined {
                         player_id: id,
                         name: name_from_user_data(&user_data),
+                        x,
+                        y,
                     };
                     game_state.consume(&event);
 
