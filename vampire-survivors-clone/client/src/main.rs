@@ -146,6 +146,7 @@ fn move_input(
             let move_event = GameEvent::MovementKeyPressed {
                 player_id: handle.client_id,
                 direction: Direction::Up,
+                start_pos: pos.pos,
             };
 
             println!("Sending event: {:?}", move_event);
@@ -154,6 +155,7 @@ fn move_input(
             let move_event = GameEvent::MovementKeyPressed {
                 player_id: handle.client_id,
                 direction: Direction::Left,
+                start_pos: pos.pos,
             };
 
             println!("Sending event: {:?}", move_event);
@@ -162,6 +164,7 @@ fn move_input(
             let move_event = GameEvent::MovementKeyPressed {
                 player_id: handle.client_id,
                 direction: Direction::Down,
+                start_pos: pos.pos,
             };
 
             println!("Sending event: {:?}", move_event);
@@ -170,6 +173,7 @@ fn move_input(
             let move_event = GameEvent::MovementKeyPressed {
                 player_id: handle.client_id,
                 direction: Direction::Right,
+                start_pos: pos.pos,
             };
 
             println!("Sending event: {:?}", move_event);
@@ -314,10 +318,11 @@ fn receive_events_from_server(
             GameEvent::PlayerGotKilled { .. } => {}
             GameEvent::BeginGame => {}
             GameEvent::EndGame { .. } => {}
-            GameEvent::MovementKeyPressed { player_id, direction } => {
-                for (mut player_handle, _) in player_handles_query.iter_mut() {
+            GameEvent::MovementKeyPressed { player_id, direction, start_pos } => {
+                for (mut player_handle, mut pos) in player_handles_query.iter_mut() {
                     if player_handle.client_id == *player_id {
                         player_handle.dir = *direction;
+                        pos.pos = *start_pos;
                     }
                 }
             }
@@ -325,7 +330,7 @@ fn receive_events_from_server(
                 for (mut player_handle, mut pos) in player_handles_query.iter_mut() {
                     if player_handle.client_id == *player_id {
                         player_handle.dir = Direction::Idle;
-                        // pos.pos = *position;
+                        pos.pos = *position;
                     }
                 }
             }

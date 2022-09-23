@@ -85,7 +85,7 @@ pub enum GameEvent {
     PlayerJoined { player_id: PlayerId, name: String, pos: Position },
     PlayerDisconnected { player_id: PlayerId },
     PlayerGotKilled { player_id: PlayerId, killer_entity: String },
-    MovementKeyPressed { player_id: PlayerId, direction: Direction },
+    MovementKeyPressed { player_id: PlayerId, direction: Direction, start_pos: Position },
     MovementKeyReleased { player_id: PlayerId, position: Position },
 }
 
@@ -172,10 +172,15 @@ impl GameState {
                 let player = self.players.get(player_id).unwrap().name.to_string();
                 println!("Player {} got killed by {}", player, killer_entity);
             }
-            MovementKeyPressed { player_id, direction } => {
-                println!("Player {} pressed movement key {:?}", player_id, direction);
+            MovementKeyPressed { player_id, direction, start_pos } => {
+                let player = self.players.get_mut(player_id).unwrap();
+                let dir = direction.value();
+                player.pos = *start_pos;
             }
-            MovementKeyReleased { .. } => {}
+            MovementKeyReleased { player_id, position } => {
+                let player = self.players.get_mut(player_id).unwrap();
+                player.pos = *position;
+            }
         }
 
         self.history.push(valid_event.clone());
