@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::net::UdpSocket;
 use std::time::SystemTime;
 
@@ -14,7 +16,7 @@ use store::{GameEvent, GameState, HOST, PlayerId, PORT, Position, PROTOCOL_ID, D
 fn main() {
     // Get username from stdin args
     let args = std::env::args().collect::<Vec<String>>();
-    let username = &args[1];
+    let username = args.get(1).unwrap_or(&"Player".to_string()).to_string();
 
     App::new()
         .insert_resource(WindowDescriptor {
