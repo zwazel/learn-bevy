@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +24,35 @@ pub struct Position {
 // This just makes it easier to discern between a player id and any ol' u64
 pub type PlayerId = u64;
 
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub enum Direction {
+    Idle,
+    Up,
+    Down,
+    Left,
+    Right,
+    LeftUp,
+    LeftDown,
+    RightUp,
+    RightDown,
+}
+
+impl Debug for Direction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+match self {
+            Direction::Idle => write!(f, "Idle"),
+            Direction::Up => write!(f, "Up"),
+            Direction::Down => write!(f, "Down"),
+            Direction::Left => write!(f, "Left"),
+            Direction::Right => write!(f, "Right"),
+            Direction::LeftUp => write!(f, "LeftUp"),
+            Direction::LeftDown => write!(f, "LeftDown"),
+            Direction::RightUp => write!(f, "RightUp"),
+            Direction::RightDown => write!(f, "RightDown"),
+        }
+    }
+}
+
 /// The different states a game can be in. (not to be confused with the entire "GameState")
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Stage {
@@ -39,6 +69,8 @@ pub enum GameEvent {
     PlayerJoined { player_id: PlayerId, name: String, pos: Position },
     PlayerDisconnected { player_id: PlayerId },
     PlayerGotKilled { player_id: PlayerId, killer_entity: String },
+    MovementKeyPressed { player_id: PlayerId, direction: Direction },
+    MovementKeyReleased { player_id: PlayerId, position: Position },
 }
 
 /// The various reasons why a game could end
@@ -90,6 +122,8 @@ impl GameState {
                     return false;
                 }
             }
+            MovementKeyPressed { .. } => {}
+            MovementKeyReleased { .. } => {}
         }
         true
     }
@@ -122,6 +156,8 @@ impl GameState {
                 let player = self.players.get(player_id).unwrap().name.to_string();
                 println!("Player {} got killed by {}", player, killer_entity);
             }
+            MovementKeyPressed { .. } => {}
+            MovementKeyReleased { .. } => {}
         }
 
         self.history.push(valid_event.clone());

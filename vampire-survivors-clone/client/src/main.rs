@@ -9,7 +9,7 @@ use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin, WindowSetti
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
 
-use store::{GameEvent, GameState, HOST, PlayerId, PORT, Position, PROTOCOL_ID};
+use store::{GameEvent, GameState, HOST, PlayerId, PORT, Position, PROTOCOL_ID, Direction};
 
 fn main() {
     // Get username from stdin args
@@ -73,7 +73,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 // Components
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 struct PlayerHandle {
     client_id: PlayerId,
     entity: Entity,
@@ -81,7 +81,7 @@ struct PlayerHandle {
 
 #[derive(Component)]
 struct PlayerHandles {
-    handles: HashMap<PlayerId, Entity>,
+    handles: HashMap<PlayerId, PlayerHandle>,
 }
 
 impl Default for PlayerHandles {
@@ -103,6 +103,11 @@ struct ComponentPosition {
 #[derive(Component)]
 struct Name {
     name: String,
+}
+
+#[derive(Component)]
+struct MovementDirection {
+    direction: Direction,
 }
 
 fn position_translation(windows: Res<Windows>, mut q: Query<
@@ -208,31 +213,38 @@ fn receive_events_from_server(
                     })
                     .insert(Name { name: name.clone() })
                     .insert(ComponentPosition { pos: *pos })
+                    .insert(MovementDirection { direction: Direction::Idle })
                     .id();
 
-                commands.entity(entity_id).insert(PlayerHandle {
+                let player_handle = PlayerHandle {
                     client_id: *player_id,
                     entity: entity_id,
-                });
+                };
+                commands.entity(entity_id).insert(player_handle);
 
                 if is_player {
                     commands.entity(entity_id).insert(Player);
                 }
 
-                player_handles.handles.insert(*player_id, entity_id);
+                player_handles.handles.insert(*player_id,player_handle);
             }
             GameEvent::PlayerDisconnected { player_id } => {
                 println!("Trying to despawn Entity: {:?}", player_id);
-                let entity = player_handles.handles.get(player_id);
-                if let Some(entity) = entity {
+                let player_handler_option = player_handles.handles.get(player_id);
+                if let Some(player_handler) = player_handler_option {
                     println!("Despawning entity: {:?}", player_id);
-                    commands.entity(*entity).despawn();
+                    commands.entity(player_handler.entity).despawn();
                 } else {
                     println!("Entity not found: {:?}", player_id);
                 }
             }
             GameEvent::PlayerGotKilled { .. } => {}
-            _ => {}
+            GameEvent::BeginGame => {}
+            GameEvent::EndGame { .. } => {}
+            GameEvent::MovementKeyPressed { player_id, .. } => {
+                let player_handle = player_handles.handles.get(player_id).unwrap();
+            }
+            GameEvent::MovementKeyReleased { .. } => {}
         }
 
         // Send the event into the bevy event system so systems can react to it
