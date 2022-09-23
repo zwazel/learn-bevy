@@ -4,11 +4,12 @@ use std::time::SystemTime;
 use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget::Window;
+use bevy::utils::HashMap;
 use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin, WindowSettings};
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
 
-use store::{GameEvent, GameState, HOST, PORT, Position, PROTOCOL_ID};
+use store::{GameEvent, GameState, HOST, Player, PORT, Position, PROTOCOL_ID};
 
 fn main() {
     // Get username from stdin args
@@ -153,9 +154,12 @@ fn receive_events_from_server(
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
-    let texture_handle = asset_server.load("sprites/bob.png");
-    let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(32.0, 32.0), 1, 1);
-    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    let texture_handle_self = asset_server.load("sprites/bob.png");
+    let texture_handle_others = asset_server.load("sprites/fritz.png");
+    let texture_atlas_self = TextureAtlas::from_grid(texture_handle_self, Vec2::new(32.0, 32.0), 1, 1);
+    let texture_atlas_others = TextureAtlas::from_grid(texture_handle_others, Vec2::new(32.0, 32.0), 1, 1);
+    let texture_atlas_handle_self = texture_atlases.add(texture_atlas_self);
+    let texture_atlas_handle_others = texture_atlases.add(texture_atlas_others);
 
     while let Some(message) = client.receive_message(0) {
         // Whenever the server sends a message we know that it must be a game event
@@ -167,7 +171,13 @@ fn receive_events_from_server(
         game_state.consume(&event);
 
         match &event {
-            GameEvent::PlayerJoined { name, pos, .. } => {
+            GameEvent::PlayerJoined { name, pos, player_id } => {
+                let texture_atlas_handle = if *player_id == client.client_id() {
+                    texture_atlas_handle_self.clone()
+                } else {
+                    texture_atlas_handle_others.clone()
+                };
+
                 commands
                     .spawn_bundle(SpriteSheetBundle {
                         texture_atlas: texture_atlas_handle.clone(),
@@ -176,9 +186,10 @@ fn receive_events_from_server(
                     })
                     .insert(Name { name: name.clone() })
                     .insert(ComponentPosition { pos: *pos })
+                    .insert(PlayerHandle(*player_id))
                 ;
             }
-            GameEvent::PlayerDisconnected { .. } => {}
+            GameEvent::PlayerDisconnected { player_id } => {}
             GameEvent::PlayerGotKilled { .. } => {}
             _ => {}
         }
