@@ -135,7 +135,7 @@ fn position_translation(windows: Res<Windows>,
 
 fn move_input(
     keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<&PlayerHandle, With<Player>>,
+    mut query: Query<&mut PlayerHandle, With<Player>>,
     mut client: ResMut<RenetClient>,
 ) {
     for (mut handle) in query.iter_mut() {
@@ -235,6 +235,7 @@ fn receive_events_from_server(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut player_handles_query: Query<(&mut PlayerHandle)>,
 ) {
     let texture_handle_self = asset_server.load("sprites/bob.png");
     let texture_handle_others = asset_server.load("sprites/fritz.png");
@@ -299,10 +300,11 @@ fn receive_events_from_server(
             GameEvent::BeginGame => {}
             GameEvent::EndGame { .. } => {}
             GameEvent::MovementKeyPressed { player_id, direction } => {
-                let handler = player_handles.handles.get_mut(player_id).unwrap();
-                println!("Player {:?} pressed {:?}, is {:?}", player_id, direction, handler.dir);
-                handler.dir = *direction;
-                println!("Player {:?} is now {:?}", player_id, handler.dir);
+                for (mut player_handle) in player_handles_query.iter_mut() {
+                    if player_handle.client_id == *player_id {
+                        player_handle.dir = *direction;
+                    }
+                }
             }
             GameEvent::MovementKeyReleased { .. } => {}
         }
