@@ -16,8 +16,8 @@ pub struct Player {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Position {
-    pub x: f64,
-    pub y: f64,
+    pub x: f32,
+    pub y: f32,
 }
 
 // This just makes it easier to discern between a player id and any ol' u64

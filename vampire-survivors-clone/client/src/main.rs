@@ -30,15 +30,21 @@ fn main() {
         .add_system_set_to_stage(
             CoreStage::PostUpdate,
             SystemSet::new()
-                .with_system(position_translation)
+                .with_system(position_translation
+                    .label(RunPriority::Run)
+                ),
         )
         // Renet setup
         .add_plugin(RenetClientPlugin)
         .insert_resource(new_renet_client(&username).unwrap())
-        .add_system(handle_renet_error)
+        .add_system(handle_renet_error
+            .label(RunPriority::Run)
+        )
         .add_system_to_stage(
             CoreStage::PostUpdate,
-            receive_events_from_server.with_run_criteria(run_if_client_connected),
+            receive_events_from_server
+                .with_run_criteria(run_if_client_connected)
+                .label(RunPriority::Run),
         )
         // Add our game state and register GameEvent as a bevy event
         .insert_resource(GameState::default())
@@ -46,12 +52,18 @@ fn main() {
         // Add setup function to spawn UI and board graphics
         .add_startup_system(setup)
         // Finally we run the thing!
-        .add_system_to_stage(CoreStage::Last, disconnect)
+        .add_system_to_stage(CoreStage::Last, disconnect
+            .label(RunPriority::Cleanup)
+            .after(RunPriority::Run))
         .run();
 }
 
-#[derive(Component)]
-struct PlayerHandle(pub u64);
+#[derive(SystemLabel, Clone, Hash, Debug, PartialEq, Eq)]
+enum RunPriority {
+    Run,
+    Cleanup,
+}
+
 
 ////////// SETUP //////////
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -59,7 +71,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 // Components
-#[derive(Component, Clone, Copy, PartialEq, Eq)]
+#[derive(Component)]
+struct PlayerHandle(pub u64);
+
+#[derive(Component, Clone, Copy, PartialEq)]
 struct ComponentPosition {
     pos: Position,
 }
@@ -74,13 +89,15 @@ fn position_translation(windows: Res<Windows>, mut q: Query<(&ComponentPosition,
         let tile_size = bound_window / bound_game;
         pos / bound_game * bound_window - (bound_window / 2.) + (tile_size / 2.)
     }
-    let window = windows.get_primary().unwrap();
-    for (pos, mut transform) in q.iter_mut() {
-        transform.translation = Vec3::new(
-            convert(pos.pos.x as f32, window.width(), 1000.0),
-            convert(pos.pos.y as f32, window.height(), 1000.0),
-            0.0,
-        );
+    let window_option = windows.get_primary();
+    if let Some(window) = window_option {
+        for (pos, mut transform) in q.iter_mut() {
+            transform.translation = Vec3::new(
+                convert(pos.pos.x, window.width(), 1000.0),
+                convert(pos.pos.y, window.height(), 1000.0),
+                0.0,
+            );
+        }
     }
 }
 
@@ -122,6 +139,7 @@ fn disconnect(
     if let Some(_) = events.iter().next() {
         print!("Exiting...");
         client.disconnect();
+        std::process::exit(0);
     }
 }
 
@@ -131,7 +149,12 @@ fn receive_events_from_server(
     mut game_events: EventWriter<GameEvent>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
+    let texture_handle = asset_server.load("sprites/bob.png");
+    let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(32.0, 32.0), 1, 1);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+
     while let Some(message) = client.receive_message(0) {
         // Whenever the server sends a message we know that it must be a game event
         let event: GameEvent = bincode::deserialize(&message).unwrap();
