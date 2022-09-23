@@ -9,7 +9,7 @@ use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin, WindowSetti
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
 
-use store::{GameEvent, GameState, HOST, Player, PORT, Position, PROTOCOL_ID};
+use store::{GameEvent, GameState, HOST, PlayerId, PORT, Position, PROTOCOL_ID};
 
 fn main() {
     // Get username from stdin args
@@ -38,6 +38,7 @@ fn main() {
         // Renet setup
         .add_plugin(RenetClientPlugin)
         .insert_resource(new_renet_client(&username).unwrap())
+        .insert_resource(PlayerHandles::default())
         .add_system(handle_renet_error
             .label(RunPriority::Run)
         )
@@ -73,7 +74,26 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 // Components
 #[derive(Component)]
-struct PlayerHandle(pub u64);
+struct PlayerHandle {
+    client_id: PlayerId,
+    entity: Entity,
+}
+
+#[derive(Component)]
+struct PlayerHandles {
+    handles: HashMap<PlayerId, Entity>,
+}
+
+impl Default for PlayerHandles {
+    fn default() -> Self {
+        Self {
+            handles: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Component)]
+struct Player;
 
 #[derive(Component, Clone, Copy, PartialEq)]
 struct ComponentPosition {
@@ -149,6 +169,7 @@ fn disconnect(
 fn receive_events_from_server(
     mut client: ResMut<RenetClient>,
     mut game_state: ResMut<GameState>,
+    mut player_handles: ResMut<PlayerHandles>,
     mut game_events: EventWriter<GameEvent>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -172,13 +193,14 @@ fn receive_events_from_server(
 
         match &event {
             GameEvent::PlayerJoined { name, pos, player_id } => {
-                let texture_atlas_handle = if *player_id == client.client_id() {
+                let is_player = *player_id == client.client_id();
+                let texture_atlas_handle = if is_player {
                     texture_atlas_handle_self.clone()
                 } else {
                     texture_atlas_handle_others.clone()
                 };
 
-                commands
+                let entity_id = commands
                     .spawn_bundle(SpriteSheetBundle {
                         texture_atlas: texture_atlas_handle.clone(),
                         sprite: TextureAtlasSprite::new(0),
@@ -186,10 +208,29 @@ fn receive_events_from_server(
                     })
                     .insert(Name { name: name.clone() })
                     .insert(ComponentPosition { pos: *pos })
-                    .insert(PlayerHandle(*player_id))
-                ;
+                    .id();
+
+                commands.entity(entity_id).insert(PlayerHandle {
+                    client_id: *player_id,
+                    entity: entity_id,
+                });
+
+                if is_player {
+                    commands.entity(entity_id).insert(Player);
+                }
+
+                player_handles.handles.insert(*player_id, entity_id);
             }
-            GameEvent::PlayerDisconnected { player_id } => {}
+            GameEvent::PlayerDisconnected { player_id } => {
+                println!("Trying to despawn Entity: {:?}", player_id);
+                let entity = player_handles.handles.get(player_id);
+                if let Some(entity) = entity {
+                    println!("Despawning entity: {:?}", player_id);
+                    commands.entity(*entity).despawn();
+                } else {
+                    println!("Entity not found: {:?}", player_id);
+                }
+            }
             GameEvent::PlayerGotKilled { .. } => {}
             _ => {}
         }

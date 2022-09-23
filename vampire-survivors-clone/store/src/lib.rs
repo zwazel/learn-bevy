@@ -21,7 +21,7 @@ pub struct Position {
 }
 
 // This just makes it easier to discern between a player id and any ol' u64
-type PlayerId = u64;
+pub type PlayerId = u64;
 
 /// The different states a game can be in. (not to be confused with the entire "GameState")
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
