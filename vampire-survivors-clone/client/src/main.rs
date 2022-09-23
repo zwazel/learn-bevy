@@ -135,10 +135,13 @@ fn position_translation(windows: Res<Windows>,
 
 fn move_input(
     keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<&mut PlayerHandle, With<Player>>,
+    mut query: Query<(&PlayerHandle, &ComponentPosition), With<Player>>,
     mut client: ResMut<RenetClient>,
 ) {
-    for (mut handle) in query.iter_mut() {
+    for (handle, pos) in query.iter_mut() {
+        let handle: &PlayerHandle = handle;
+        let pos: &ComponentPosition = pos;
+
         if keyboard_input.just_pressed(KeyCode::W) {
             let move_event = GameEvent::MovementKeyPressed {
                 player_id: handle.client_id,
@@ -167,6 +170,18 @@ fn move_input(
             let move_event = GameEvent::MovementKeyPressed {
                 player_id: handle.client_id,
                 direction: Direction::Right,
+            };
+
+            println!("Sending event: {:?}", move_event);
+            client.send_message(0, bincode::serialize(&move_event).unwrap());
+        } else if keyboard_input.just_released(KeyCode::W)
+            || keyboard_input.just_released(KeyCode::A)
+            || keyboard_input.just_released(KeyCode::S)
+            || keyboard_input.just_released(KeyCode::D)
+        {
+            let move_event = GameEvent::MovementKeyReleased {
+                player_id: handle.client_id,
+                position: pos.pos,
             };
 
             println!("Sending event: {:?}", move_event);
@@ -235,7 +250,7 @@ fn receive_events_from_server(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-    mut player_handles_query: Query<(&mut PlayerHandle)>,
+    mut player_handles_query: Query<(&mut PlayerHandle, &mut ComponentPosition)>,
 ) {
     let texture_handle_self = asset_server.load("sprites/bob.png");
     let texture_handle_others = asset_server.load("sprites/fritz.png");
@@ -300,13 +315,20 @@ fn receive_events_from_server(
             GameEvent::BeginGame => {}
             GameEvent::EndGame { .. } => {}
             GameEvent::MovementKeyPressed { player_id, direction } => {
-                for (mut player_handle) in player_handles_query.iter_mut() {
+                for (mut player_handle, _) in player_handles_query.iter_mut() {
                     if player_handle.client_id == *player_id {
                         player_handle.dir = *direction;
                     }
                 }
             }
-            GameEvent::MovementKeyReleased { .. } => {}
+            GameEvent::MovementKeyReleased { player_id, position } => {
+                for (mut player_handle, mut pos) in player_handles_query.iter_mut() {
+                    if player_handle.client_id == *player_id {
+                        player_handle.dir = Direction::Idle;
+                        // pos.pos = *position;
+                    }
+                }
+            }
         }
 
         // Send the event into the bevy event system so systems can react to it
