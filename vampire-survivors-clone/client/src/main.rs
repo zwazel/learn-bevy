@@ -45,6 +45,9 @@ fn main() {
         .add_system(move_entities
             .label(RunPriority::Run)
         )
+        .add_system(move_input
+            .label(RunPriority::Run)
+        )
         .add_system_to_stage(
             CoreStage::PostUpdate,
             receive_events_from_server
@@ -126,6 +129,25 @@ fn position_translation(windows: Res<Windows>,
                 convert(pos.pos.y, window.height(), 100.0),
                 0.0,
             );
+        }
+    }
+}
+
+fn move_input(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut query: Query<(&mut PlayerHandle), With<Player>>,
+) {
+    for (mut handle) in query.iter_mut() {
+        if keyboard_input.pressed(KeyCode::W) {
+            handle.dir = Direction::Up;
+        } else if keyboard_input.pressed(KeyCode::A) {
+            handle.dir = Direction::Left;
+        } else if keyboard_input.pressed(KeyCode::S) {
+            handle.dir = Direction::Down;
+        } else if keyboard_input.pressed(KeyCode::D) {
+            handle.dir = Direction::Right;
+        } else {
+            handle.dir = Direction::Idle;
         }
     }
 }
@@ -229,8 +251,7 @@ fn receive_events_from_server(
                 let player_handle = PlayerHandle {
                     client_id: *player_id,
                     entity: entity_id,
-                    dir: Direction::Right,
-                    // ..PlayerHandle::default()
+                    dir: Direction::Idle,
                 };
                 commands.entity(entity_id).insert(player_handle);
 
