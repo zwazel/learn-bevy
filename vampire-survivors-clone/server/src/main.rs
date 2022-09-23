@@ -1,4 +1,4 @@
-use std::{env, thread};
+use std::{env, f32, thread};
 use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -89,8 +89,8 @@ fn main() {
                     let mut rng = thread_rng();
                     let x = rng.gen_range(10..51);
                     let y = rng.gen_range(10..51);
-                    let x = f64::from(x);
-                    let y = f64::from(y);
+                    let x = x as f32;
+                    let y = y as f32;
 
                     // Tell the recently joined player about the other player
                     for (player_id, player) in game_state.players.iter() {

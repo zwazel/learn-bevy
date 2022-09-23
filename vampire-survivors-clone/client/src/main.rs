@@ -84,7 +84,9 @@ struct Name {
     name: String,
 }
 
-fn position_translation(windows: Res<Windows>, mut q: Query<(&ComponentPosition, &mut Transform)>) {
+fn position_translation(windows: Res<Windows>, mut q: Query<
+    (&ComponentPosition, &mut Transform),
+>) {
     fn convert(pos: f32, bound_window: f32, bound_game: f32) -> f32 {
         let tile_size = bound_window / bound_game;
         pos / bound_game * bound_window - (bound_window / 2.) + (tile_size / 2.)
@@ -93,8 +95,8 @@ fn position_translation(windows: Res<Windows>, mut q: Query<(&ComponentPosition,
     if let Some(window) = window_option {
         for (pos, mut transform) in q.iter_mut() {
             transform.translation = Vec3::new(
-                convert(pos.pos.x, window.width(), 1000.0),
-                convert(pos.pos.y, window.height(), 1000.0),
+                convert(pos.pos.x, window.width(), 100.0),
+                convert(pos.pos.y, window.height(), 100.0),
                 0.0,
             );
         }
