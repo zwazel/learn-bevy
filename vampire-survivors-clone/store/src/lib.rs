@@ -24,7 +24,7 @@ pub struct Position {
 // This just makes it easier to discern between a player id and any ol' u64
 pub type PlayerId = u64;
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Direction {
     Idle,
     Up,
@@ -37,9 +37,25 @@ pub enum Direction {
     RightDown,
 }
 
+impl Direction {
+    pub fn value(&self) -> Position {
+        match self {
+            Direction::Idle => Position { x: 0.0, y: 0.0 },
+            Direction::Up => Position { x: 0.0, y: 1.0 },
+            Direction::Down => Position { x: 0.0, y: -1.0 },
+            Direction::Left => Position { x: -1.0, y: 0.0 },
+            Direction::Right => Position { x: 1.0, y: 0.0 },
+            Direction::LeftUp => Position { x: -1.0, y: 1.0 },
+            Direction::LeftDown => Position { x: -1.0, y: -1.0 },
+            Direction::RightUp => Position { x: 1.0, y: 1.0 },
+            Direction::RightDown => Position { x: 1.0, y: -1.0 },
+        }
+    }
+}
+
 impl Debug for Direction {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-match self {
+        match self {
             Direction::Idle => write!(f, "Idle"),
             Direction::Up => write!(f, "Up"),
             Direction::Down => write!(f, "Down"),

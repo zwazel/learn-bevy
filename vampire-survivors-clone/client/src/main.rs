@@ -42,6 +42,9 @@ fn main() {
         .add_system(handle_renet_error
             .label(RunPriority::Run)
         )
+        .add_system(move_entities
+            .label(RunPriority::Run)
+        )
         .add_system_to_stage(
             CoreStage::PostUpdate,
             receive_events_from_server
@@ -77,6 +80,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 struct PlayerHandle {
     client_id: PlayerId,
     entity: Entity,
+    dir: Direction,
 }
 
 #[derive(Component)]
@@ -105,14 +109,11 @@ struct Name {
     name: String,
 }
 
-#[derive(Component)]
-struct MovementDirection {
-    direction: Direction,
-}
-
-fn position_translation(windows: Res<Windows>, mut q: Query<
-    (&ComponentPosition, &mut Transform),
->) {
+fn position_translation(windows: Res<Windows>,
+                        mut q: Query<
+                            (&ComponentPosition, &mut Transform),
+                        >,
+) {
     fn convert(pos: f32, bound_window: f32, bound_game: f32) -> f32 {
         let tile_size = bound_window / bound_game;
         pos / bound_game * bound_window - (bound_window / 2.) + (tile_size / 2.)
@@ -126,6 +127,16 @@ fn position_translation(windows: Res<Windows>, mut q: Query<
                 0.0,
             );
         }
+    }
+}
+
+fn move_entities(
+    mut query: Query<(&mut ComponentPosition, &PlayerHandle)>,
+) {
+    for (mut pos, handle) in query.iter_mut() {
+        let dir = handle.dir as Direction;
+        pos.pos.x = pos.pos.x + dir.value().x;
+        pos.pos.y = pos.pos.y + dir.value().y;
     }
 }
 
@@ -213,12 +224,13 @@ fn receive_events_from_server(
                     })
                     .insert(Name { name: name.clone() })
                     .insert(ComponentPosition { pos: *pos })
-                    .insert(MovementDirection { direction: Direction::Idle })
                     .id();
 
                 let player_handle = PlayerHandle {
                     client_id: *player_id,
                     entity: entity_id,
+                    dir: Direction::Right,
+                    // ..PlayerHandle::default()
                 };
                 commands.entity(entity_id).insert(player_handle);
 
@@ -226,7 +238,7 @@ fn receive_events_from_server(
                     commands.entity(entity_id).insert(Player);
                 }
 
-                player_handles.handles.insert(*player_id,player_handle);
+                player_handles.handles.insert(*player_id, player_handle);
             }
             GameEvent::PlayerDisconnected { player_id } => {
                 println!("Trying to despawn Entity: {:?}", player_id);
@@ -242,7 +254,8 @@ fn receive_events_from_server(
             GameEvent::BeginGame => {}
             GameEvent::EndGame { .. } => {}
             GameEvent::MovementKeyPressed { player_id, .. } => {
-                let player_handle = player_handles.handles.get(player_id).unwrap();
+                let mut player_handle = *player_handles.handles.get(player_id).unwrap();
+                player_handle.dir = Direction::Down;
             }
             GameEvent::MovementKeyReleased { .. } => {}
         }
