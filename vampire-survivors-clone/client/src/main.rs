@@ -135,19 +135,42 @@ fn position_translation(windows: Res<Windows>,
 
 fn move_input(
     keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<(&mut PlayerHandle), With<Player>>,
+    mut query: Query<&PlayerHandle, With<Player>>,
+    mut client: ResMut<RenetClient>,
 ) {
     for (mut handle) in query.iter_mut() {
-        if keyboard_input.pressed(KeyCode::W) {
-            handle.dir = Direction::Up;
-        } else if keyboard_input.pressed(KeyCode::A) {
-            handle.dir = Direction::Left;
-        } else if keyboard_input.pressed(KeyCode::S) {
-            handle.dir = Direction::Down;
-        } else if keyboard_input.pressed(KeyCode::D) {
-            handle.dir = Direction::Right;
-        } else {
-            handle.dir = Direction::Idle;
+        if keyboard_input.just_pressed(KeyCode::W) {
+            let move_event = GameEvent::MovementKeyPressed {
+                player_id: handle.client_id,
+                direction: Direction::Up,
+            };
+
+            println!("Sending event: {:?}", move_event);
+            client.send_message(0, bincode::serialize(&move_event).unwrap());
+        } else if keyboard_input.just_pressed(KeyCode::A) {
+            let move_event = GameEvent::MovementKeyPressed {
+                player_id: handle.client_id,
+                direction: Direction::Left,
+            };
+
+            println!("Sending event: {:?}", move_event);
+            client.send_message(0, bincode::serialize(&move_event).unwrap());
+        } else if keyboard_input.just_pressed(KeyCode::S) {
+            let move_event = GameEvent::MovementKeyPressed {
+                player_id: handle.client_id,
+                direction: Direction::Down,
+            };
+
+            println!("Sending event: {:?}", move_event);
+            client.send_message(0, bincode::serialize(&move_event).unwrap());
+        } else if keyboard_input.just_pressed(KeyCode::D) {
+            let move_event = GameEvent::MovementKeyPressed {
+                player_id: handle.client_id,
+                direction: Direction::Right,
+            };
+
+            println!("Sending event: {:?}", move_event);
+            client.send_message(0, bincode::serialize(&move_event).unwrap());
         }
     }
 }
@@ -267,6 +290,7 @@ fn receive_events_from_server(
                 if let Some(player_handler) = player_handler_option {
                     println!("Despawning entity: {:?}", player_id);
                     commands.entity(player_handler.entity).despawn();
+                    player_handles.handles.remove(player_id);
                 } else {
                     println!("Entity not found: {:?}", player_id);
                 }
@@ -274,9 +298,11 @@ fn receive_events_from_server(
             GameEvent::PlayerGotKilled { .. } => {}
             GameEvent::BeginGame => {}
             GameEvent::EndGame { .. } => {}
-            GameEvent::MovementKeyPressed { player_id, .. } => {
-                let mut player_handle = *player_handles.handles.get(player_id).unwrap();
-                player_handle.dir = Direction::Down;
+            GameEvent::MovementKeyPressed { player_id, direction } => {
+                let handler = player_handles.handles.get_mut(player_id).unwrap();
+                println!("Player {:?} pressed {:?}, is {:?}", player_id, direction, handler.dir);
+                handler.dir = *direction;
+                println!("Player {:?} is now {:?}", player_id, handler.dir);
             }
             GameEvent::MovementKeyReleased { .. } => {}
         }

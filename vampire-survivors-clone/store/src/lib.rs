@@ -172,7 +172,9 @@ impl GameState {
                 let player = self.players.get(player_id).unwrap().name.to_string();
                 println!("Player {} got killed by {}", player, killer_entity);
             }
-            MovementKeyPressed { .. } => {}
+            MovementKeyPressed { player_id, direction } => {
+                println!("Player {} pressed movement key {:?}", player_id, direction);
+            }
             MovementKeyReleased { .. } => {}
         }
 
