@@ -209,7 +209,7 @@ fn move_entities(
 ////////// RENET NETWORKING //////////
 fn new_renet_client(username: &String) -> anyhow::Result<RenetClient> {
     let server_addr = format!("{}:{}", HOST, PORT).parse()?;
-    let socket = UdpSocket::bind(format!("{}:0", HOST))?;
+    let socket = UdpSocket::bind(format!("0.0.0.0:0"))?;
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
     let client_id = current_time.as_millis() as u64;
 
