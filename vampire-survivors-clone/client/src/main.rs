@@ -14,12 +14,10 @@ use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetCon
 use store::{GameEvent, GameState, PlayerId, PORT, Position, PROTOCOL_ID, Direction, translate_host, translate_port};
 
 fn main() {
-    // Get username from stdin args
     let args = std::env::args().collect::<Vec<String>>();
 
     let mut username = format!("Player_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis());
-    let default_host = "127.0.0.1";
-    let mut host = default_host;
+    let mut host = "127.0.0.1";
     let mut port = PORT;
     match args.len() {
         2 => {
@@ -28,12 +26,12 @@ fn main() {
         }
         3 => {
             username = args[1].clone();
-            host = translate_host(&args[2], default_host);
+            host = translate_host(&args[2], "");
             println!("Host has been set to: {}, Username has been set to: {}", host, username);
         }
         4 => {
             username = args[1].clone();
-            host = translate_host(&args[2], default_host);
+            host = translate_host(&args[2], "");
             port = translate_port(&args[3]);
             println!("Port has been set to: {}, Host has been set to: {}, Username has been set to: {}", port, host, username);
         }
