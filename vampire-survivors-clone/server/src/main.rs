@@ -6,7 +6,7 @@ use log::{info, trace, warn};
 use renet::{NETCODE_USER_DATA_BYTES, RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
 use rand::prelude::*;
-use store::{AMOUNT_PLAYERS, EndGameReason, HOST, PORT, PROTOCOL_ID, Position};
+use store::{AMOUNT_PLAYERS, EndGameReason, HOST, PORT, PROTOCOL_ID, Position, translate_port, translate_host};
 
 /// Utility function for extracting a players name from renet user data
 fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
@@ -18,12 +18,8 @@ fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
     String::from_utf8(data).unwrap()
 }
 
-fn translate_host(host: &str) -> &str {
-    let host = match host {
-        "localhost" => "127.0.0.1",
-        _ => host,
-    };
-    host
+fn translate_amount_players(amount_players: &str) -> usize {
+    amount_players.parse::<usize>().unwrap_or(AMOUNT_PLAYERS)
 }
 
 fn main() {
@@ -32,22 +28,24 @@ fn main() {
     let mut host = HOST;
     let mut amount_of_players = AMOUNT_PLAYERS;
     match args.len() {
-        1 => {
-            // no args
-            println!("Default settings as no args passed, PLAYERS: {}, PORT: {}", amount_of_players, PORT);
-        }
         2 => {
-            amount_of_players = args[1].parse().unwrap();
+            amount_of_players = translate_amount_players(&args[1]);
             println!("Amount of players set to: {}", amount_of_players);
         }
         3 => {
-            port = args[1].parse().unwrap();
-            amount_of_players = args[2].parse().unwrap();
+            port = translate_port(&args[2]);
+            amount_of_players = translate_amount_players(&args[1]);
             println!("Amount of players has been set to: {}, Port has been set to: {}", amount_of_players, port);
         }
+        4 => {
+            host = translate_host(&args[3]);
+            port = translate_port(&args[2]);
+            amount_of_players = translate_amount_players(&args[1]);
+            println!("Amount of players has been set to: {}, Port has been set to: {}, Host has been set to: {}", amount_of_players, port, host);
+        }
         _ => {
-            println!("Too many args passed, please pass only 2 args, the amount of players and the port\n\
-            using the default settings, PLAYERS: {}, PORT: {}", amount_of_players, PORT);
+            println!("Usage: server [amount of players] [port] [host]");
+            println!("Default values: amount of players: {}, port: {}, host: {}", AMOUNT_PLAYERS, PORT, HOST);
         }
     };
 

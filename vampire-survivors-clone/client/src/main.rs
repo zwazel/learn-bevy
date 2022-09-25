@@ -16,7 +16,16 @@ use store::{GameEvent, GameState, HOST, PlayerId, PORT, Position, PROTOCOL_ID, D
 fn main() {
     // Get username from stdin args
     let args = std::env::args().collect::<Vec<String>>();
-    let username = args.get(1).unwrap_or(&"Player".to_string()).to_string();
+
+    let mut username = format!("Player_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis());
+    match args.len() {
+        2 => {
+            username = args[1].clone();
+        }
+        _ => {
+            println!("Usage: client [username]");
+        }
+    }
 
     App::new()
         .insert_resource(WindowDescriptor {
@@ -209,7 +218,7 @@ fn move_entities(
 ////////// RENET NETWORKING //////////
 fn new_renet_client(username: &String) -> anyhow::Result<RenetClient> {
     let server_addr = format!("{}:{}", HOST, PORT).parse()?;
-    let socket = UdpSocket::bind(format!("0.0.0.0:0"))?;
+    let socket = UdpSocket::bind(format!("{}:0", HOST))?;
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
     let client_id = current_time.as_millis() as u64;
 

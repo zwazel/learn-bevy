@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 pub const PORT: i32 = 5000;
 pub const AMOUNT_PLAYERS: usize = 4;
-pub const HOST: &str = "127.0.0.1";
+pub const HOST: &str = "10.0.0.16";
 pub const PROTOCOL_ID: u64 = 6969;
 
 /// Struct for storing player related data.
@@ -195,4 +195,17 @@ impl Default for GameState {
             history: Vec::new(),
         }
     }
+}
+
+pub fn translate_port(port: &str) -> i32 {
+    port.parse::<i32>().unwrap_or(PORT)
+}
+
+pub fn translate_host(host: &str) -> &str {
+    let host = match host {
+        "localhost" => "127.0.0.1",
+        "-" => HOST,
+        _ => host,
+    };
+    host
 }
