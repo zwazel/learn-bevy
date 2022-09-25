@@ -6,7 +6,7 @@ use log::{info, trace, warn};
 use renet::{NETCODE_USER_DATA_BYTES, RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
 use rand::prelude::*;
-use store::{AMOUNT_PLAYERS, EndGameReason, HOST, PORT, PROTOCOL_ID, Position, translate_port, translate_host};
+use store::{AMOUNT_PLAYERS, EndGameReason, PORT, PROTOCOL_ID, Position, translate_port, translate_host};
 
 /// Utility function for extracting a players name from renet user data
 fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
@@ -25,7 +25,7 @@ fn translate_amount_players(amount_players: &str) -> usize {
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mut port = PORT;
-    let mut host = HOST;
+    let mut host = "127.0.0.1";
     let mut amount_of_players = AMOUNT_PLAYERS;
     match args.len() {
         2 => {
@@ -45,7 +45,7 @@ fn main() {
         }
         _ => {
             println!("Usage: server [amount of players] [port] [host]");
-            println!("Default values: amount of players: {}, port: {}, host: {}", AMOUNT_PLAYERS, PORT, HOST);
+            println!("Default values: amount of players: {}, port: {}, host: {}", AMOUNT_PLAYERS, PORT, host);
         }
     };
 

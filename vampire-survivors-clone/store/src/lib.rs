@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 
 pub const PORT: i32 = 5000;
 pub const AMOUNT_PLAYERS: usize = 4;
-pub const HOST: &str = "10.0.0.16";
 pub const PROTOCOL_ID: u64 = 6969;
 
 /// Struct for storing player related data.
@@ -202,9 +201,10 @@ pub fn translate_port(port: &str) -> i32 {
 }
 
 pub fn translate_host(host: &str) -> &str {
+    let default = "127.0.0.1";
     let host = match host {
-        "localhost" => "127.0.0.1",
-        "-" => HOST,
+        "localhost" => default,
+        "-" => default,
         _ => host,
     };
     host

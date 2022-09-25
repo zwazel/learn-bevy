@@ -11,19 +11,34 @@ use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin, WindowSetti
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
 
-use store::{GameEvent, GameState, HOST, PlayerId, PORT, Position, PROTOCOL_ID, Direction};
+use store::{GameEvent, GameState, PlayerId, PORT, Position, PROTOCOL_ID, Direction, translate_host, translate_port};
 
 fn main() {
     // Get username from stdin args
     let args = std::env::args().collect::<Vec<String>>();
 
     let mut username = format!("Player_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis());
+    let mut host = "127.0.0.1";
+    let mut port = PORT;
     match args.len() {
         2 => {
             username = args[1].clone();
+            println!("Username set to: {}", username);
+        }
+        3 => {
+            username = args[1].clone();
+            host = translate_host(&args[2]);
+            println!("Host has been set to: {}, Username has been set to: {}", host, username);
+        }
+        4 => {
+            username = args[1].clone();
+            host = translate_host(&args[2]);
+            port = translate_port(&args[3]);
+            println!("Port has been set to: {}, Host has been set to: {}, Username has been set to: {}", port, host, username);
         }
         _ => {
-            println!("Usage: client [username]");
+            println!("Usage: client [username] [host] [port]");
+            println!("Default values: username: {}, host: {}, port: {}", username, host, port);
         }
     }
 
@@ -48,7 +63,7 @@ fn main() {
         )
         // Renet setup
         .add_plugin(RenetClientPlugin)
-        .insert_resource(new_renet_client(&username).unwrap())
+        .insert_resource(new_renet_client(&username, host, port).unwrap())
         .insert_resource(PlayerHandles::default())
         .add_system(handle_renet_error
             .label(RunPriority::Run)
@@ -216,9 +231,9 @@ fn move_entities(
 }
 
 ////////// RENET NETWORKING //////////
-fn new_renet_client(username: &String) -> anyhow::Result<RenetClient> {
-    let server_addr = format!("{}:{}", HOST, PORT).parse()?;
-    let socket = UdpSocket::bind(format!("{}:0", HOST))?;
+fn new_renet_client(username: &String, host: &str, port: i32) -> anyhow::Result<RenetClient> {
+    let server_addr = format!("{}:{}", host, port).parse()?;
+    let socket = UdpSocket::bind(format!("0.0.0.0:0"))?;
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
     let client_id = current_time.as_millis() as u64;
 
