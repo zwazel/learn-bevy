@@ -200,8 +200,13 @@ pub fn translate_port(port: &str) -> i32 {
     port.parse::<i32>().unwrap_or(PORT)
 }
 
-pub fn translate_host(host: &str) -> &str {
-    let default = "127.0.0.1";
+pub fn translate_host<'a>(host: &'a str, default: &'a str) -> &'a str {
+    // 127.0.0.1 if default is not provided
+    let default = if default.is_empty() {
+        "127.0.0.1"
+    } else {
+        default
+    };
     let host = match host {
         "localhost" => default,
         "-" => default,

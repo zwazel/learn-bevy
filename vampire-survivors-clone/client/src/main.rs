@@ -18,7 +18,8 @@ fn main() {
     let args = std::env::args().collect::<Vec<String>>();
 
     let mut username = format!("Player_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis());
-    let mut host = "127.0.0.1";
+    let default_host = "127.0.0.1";
+    let mut host = default_host;
     let mut port = PORT;
     match args.len() {
         2 => {
@@ -27,12 +28,12 @@ fn main() {
         }
         3 => {
             username = args[1].clone();
-            host = translate_host(&args[2]);
+            host = translate_host(&args[2], default_host);
             println!("Host has been set to: {}, Username has been set to: {}", host, username);
         }
         4 => {
             username = args[1].clone();
-            host = translate_host(&args[2]);
+            host = translate_host(&args[2], default_host);
             port = translate_port(&args[3]);
             println!("Port has been set to: {}, Host has been set to: {}, Username has been set to: {}", port, host, username);
         }

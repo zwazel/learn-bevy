@@ -38,7 +38,7 @@ fn main() {
             println!("Amount of players has been set to: {}, Port has been set to: {}", amount_of_players, port);
         }
         4 => {
-            host = translate_host(&args[3]);
+            host = translate_host(&args[3],"");
             port = translate_port(&args[2]);
             amount_of_players = translate_amount_players(&args[1]);
             println!("Amount of players has been set to: {}, Port has been set to: {}, Host has been set to: {}", amount_of_players, port, host);
