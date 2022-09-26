@@ -24,4 +24,4 @@ To use the default and skip an argument, use "-" as argument.
 
 ## Example
 
-`cargo run --bin client "Player_1" localhost 5000`
+`cargo run --bin client Player_1 localhost 5000`
