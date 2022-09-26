@@ -1,216 +1,232 @@
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::time::Duration;
 
+use bevy::prelude::*;
+use bevy_rapier3d::prelude::*;
+use bevy_renet::renet::{ChannelConfig, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig, NETCODE_KEY_BYTES};
 use serde::{Deserialize, Serialize};
 
-pub const PORT: i32 = 5000;
-pub const AMOUNT_PLAYERS: usize = 4;
-pub const PROTOCOL_ID: u64 = 6969;
+pub const PRIVATE_KEY: &[u8; NETCODE_KEY_BYTES] = b"an example very very secret key."; // 32-bytes
+pub const PROTOCOL_ID: u64 = 7;
 
-/// Struct for storing player related data.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Component)]
 pub struct Player {
-    pub name: String,
-    pub pos: Position,
+    pub id: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct Position {
-    pub x: f32,
-    pub y: f32,
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, Component)]
+pub struct PlayerInput {
+    pub most_recent_tick: Option<u32>,
+    pub up: bool,
+    pub down: bool,
+    pub left: bool,
+    pub right: bool,
 }
 
-// This just makes it easier to discern between a player id and any ol' u64
-pub type PlayerId = u64;
-
-#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub enum Direction {
-    Idle,
-    Up,
-    Down,
-    Left,
-    Right,
-    LeftUp,
-    LeftDown,
-    RightUp,
-    RightDown,
+#[derive(Debug, Serialize, Deserialize, Component)]
+pub enum PlayerCommand {
+    BasicAttack { cast_at: Vec3 },
 }
 
-impl Direction {
-    pub fn value(&self) -> Position {
+pub enum ClientChannel {
+    Input,
+    Command,
+}
+
+pub enum ServerChannel {
+    ServerMessages,
+    NetworkFrame,
+}
+
+#[derive(Debug, Serialize, Deserialize, Component)]
+pub enum ServerMessages {
+    PlayerCreate { entity: Entity, id: u64, translation: [f32; 3] },
+    PlayerRemove { id: u64 },
+    SpawnProjectile { entity: Entity, translation: [f32; 3] },
+    DespawnProjectile { entity: Entity },
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct NetworkedEntities {
+    pub entities: Vec<Entity>,
+    pub translations: Vec<[f32; 3]>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct NetworkFrame {
+    pub tick: u32,
+    pub entities: NetworkedEntities,
+}
+
+impl ClientChannel {
+    pub fn id(&self) -> u8 {
         match self {
-            Direction::Idle => Position { x: 0.0, y: 0.0 },
-            Direction::Up => Position { x: 0.0, y: 1.0 },
-            Direction::Down => Position { x: 0.0, y: -1.0 },
-            Direction::Left => Position { x: -1.0, y: 0.0 },
-            Direction::Right => Position { x: 1.0, y: 0.0 },
-            Direction::LeftUp => Position { x: -1.0, y: 1.0 },
-            Direction::LeftDown => Position { x: -1.0, y: -1.0 },
-            Direction::RightUp => Position { x: 1.0, y: 1.0 },
-            Direction::RightDown => Position { x: 1.0, y: -1.0 },
+            Self::Input => 0,
+            Self::Command => 1,
         }
+    }
+
+    pub fn channels_config() -> Vec<ChannelConfig> {
+        vec![
+            ReliableChannelConfig {
+                channel_id: Self::Input.id(),
+                message_resend_time: Duration::ZERO,
+                ..Default::default()
+            }
+                .into(),
+            ReliableChannelConfig {
+                channel_id: Self::Command.id(),
+                message_resend_time: Duration::ZERO,
+                ..Default::default()
+            }
+                .into(),
+        ]
     }
 }
 
-impl Debug for Direction {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl ServerChannel {
+    pub fn id(&self) -> u8 {
         match self {
-            Direction::Idle => write!(f, "Idle"),
-            Direction::Up => write!(f, "Up"),
-            Direction::Down => write!(f, "Down"),
-            Direction::Left => write!(f, "Left"),
-            Direction::Right => write!(f, "Right"),
-            Direction::LeftUp => write!(f, "LeftUp"),
-            Direction::LeftDown => write!(f, "LeftDown"),
-            Direction::RightUp => write!(f, "RightUp"),
-            Direction::RightDown => write!(f, "RightDown"),
+            Self::NetworkFrame => 0,
+            Self::ServerMessages => 1,
         }
+    }
+
+    pub fn channels_config() -> Vec<ChannelConfig> {
+        vec![
+            UnreliableChannelConfig {
+                channel_id: Self::NetworkFrame.id(),
+                ..Default::default()
+            }
+                .into(),
+            ReliableChannelConfig {
+                channel_id: Self::ServerMessages.id(),
+                message_resend_time: Duration::from_millis(200),
+                ..Default::default()
+            }
+                .into(),
+        ]
     }
 }
 
-/// The different states a game can be in. (not to be confused with the entire "GameState")
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Stage {
-    PreGame,
-    InGame,
-    Ended,
-}
-
-/// An event that progresses the GameGameState forward
-#[derive(Debug, Clone, Serialize, PartialEq, Deserialize)]
-pub enum GameEvent {
-    BeginGame,
-    EndGame { reason: EndGameReason },
-    PlayerJoined { player_id: PlayerId, name: String, pos: Position },
-    PlayerDisconnected { player_id: PlayerId },
-    PlayerGotKilled { player_id: PlayerId, killer_entity: String },
-    MovementKeyPressed { player_id: PlayerId, direction: Direction, start_pos: Position },
-    MovementKeyReleased { player_id: PlayerId, position: Position },
-}
-
-/// The various reasons why a game could end
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Deserialize)]
-pub enum EndGameReason {
-    BothPlayersDied,
-    PlayerEndedTheGame { player_id: PlayerId },
-    ReturningToLobby,
-}
-
-/// A GameState object that is able to keep track of the, uh, well.... state of the game
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct GameState {
-    pub stage: Stage,
-    pub players: HashMap<PlayerId, Player>,
-    pub history: Vec<GameEvent>,
-}
-
-impl GameState {
-    /// Determines whether an event is valid considering the current GameState
-    pub fn validate(&self, event: &GameEvent) -> bool {
-        use GameEvent::*;
-
-        match event {
-            EndGame { reason } => match reason {
-                EndGameReason::BothPlayersDied { .. } => {
-                    // todo
-                    return false;
-                }
-                _ => {}
-            },
-            BeginGame { .. } => {
-                if self.stage != Stage::PreGame {
-                    return false;
-                }
-            }
-            PlayerJoined { player_id, .. } => {
-                if self.players.contains_key(player_id) {
-                    return false;
-                }
-            }
-            PlayerDisconnected { player_id } => {
-                if !self.players.contains_key(player_id) {
-                    return false;
-                }
-            }
-            PlayerGotKilled { player_id, .. } => {
-                if !self.players.contains_key(player_id) {
-                    return false;
-                }
-            }
-            MovementKeyPressed { .. } => {}
-            MovementKeyReleased { .. } => {}
-        }
-        true
-    }
-
-    /// Consumes an event, modifying the GameState and adding the event to its history
-    /// NOTE: consume assumes the event to have already been validated and will accept *any* event passed to it
-    pub fn consume(&mut self, valid_event: &GameEvent) {
-        use GameEvent::*;
-        match valid_event {
-            BeginGame { .. } => {
-                self.stage = Stage::InGame;
-            }
-            EndGame { reason: _ } => self.stage = Stage::Ended,
-            PlayerJoined { player_id, name, pos } => {
-                self.players.insert(
-                    *player_id,
-                    Player {
-                        name: name.to_string(),
-                        pos: *pos,
-                    },
-                );
-
-                println!("Player {} joined the game at [x:{}, y:{}]", name, pos.x, pos.y);
-            }
-            PlayerDisconnected { player_id } => {
-                self.players.remove(player_id);
-                println!("Client {} disconnected", player_id);
-            }
-            PlayerGotKilled { player_id, killer_entity } => {
-                let player = self.players.get(player_id).unwrap().name.to_string();
-                println!("Player {} got killed by {}", player, killer_entity);
-            }
-            MovementKeyPressed { player_id, direction, start_pos } => {
-                let player = self.players.get_mut(player_id).unwrap();
-                let dir = direction.value();
-                player.pos = *start_pos;
-            }
-            MovementKeyReleased { player_id, position } => {
-                let player = self.players.get_mut(player_id).unwrap();
-                player.pos = *position;
-            }
-        }
-
-        self.history.push(valid_event.clone());
+pub fn client_connection_config() -> RenetConnectionConfig {
+    RenetConnectionConfig {
+        send_channels_config: ClientChannel::channels_config(),
+        receive_channels_config: ServerChannel::channels_config(),
+        ..Default::default()
     }
 }
 
-impl Default for GameState {
-    fn default() -> Self {
-        Self {
-            stage: Stage::PreGame,
-            players: HashMap::new(),
-            history: Vec::new(),
-        }
+pub fn server_connection_config() -> RenetConnectionConfig {
+    RenetConnectionConfig {
+        send_channels_config: ServerChannel::channels_config(),
+        receive_channels_config: ClientChannel::channels_config(),
+        ..Default::default()
     }
 }
 
-pub fn translate_port(port: &str) -> i32 {
-    port.parse::<i32>().unwrap_or(PORT)
+/// set up a simple 3D scene
+pub fn setup_level(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
+    // plane
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Box::new(10., 1., 10.))),
+            material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+            transform: Transform::from_xyz(0.0, -1.0, 0.0),
+            ..Default::default()
+        })
+        .insert(Collider::cuboid(5., 0.5, 5.));
+    // light
+    commands.spawn_bundle(PointLightBundle {
+        point_light: PointLight {
+            intensity: 1500.0,
+            shadows_enabled: true,
+            ..Default::default()
+        },
+        transform: Transform::from_xyz(4.0, 8.0, 4.0),
+        ..Default::default()
+    });
 }
 
-pub fn translate_host<'a>(host: &'a str, default: &'a str) -> &'a str {
-    // 127.0.0.1 if default is not provided
-    let default = if default.is_empty() {
-        "127.0.0.1"
-    } else {
-        default
-    };
-    let host = match host {
-        "localhost" => default,
-        "-" => default,
-        _ => host,
-    };
-    host
+#[derive(Debug, Component)]
+pub struct Projectile {
+    pub duration: Timer,
+}
+
+pub fn spawn_fireball(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    translation: Vec3,
+    mut direction: Vec3,
+) -> Entity {
+    if !direction.is_normalized() {
+        direction = Vec3::X;
+    }
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Icosphere {
+                radius: 0.1,
+                subdivisions: 5,
+            })),
+            material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+            transform: Transform::from_translation(translation),
+            ..Default::default()
+        })
+        .insert(RigidBody::Dynamic)
+        .insert(LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y)
+        .insert(Collider::ball(0.1))
+        .insert(Velocity::linear(direction * 10.))
+        .insert(ActiveEvents::COLLISION_EVENTS)
+        .insert(Projectile {
+            duration: Timer::from_seconds(1.5, false),
+        })
+        .id()
+}
+
+/// A 3D ray, with an origin and direction. The direction is guaranteed to be normalized.
+#[derive(Debug, PartialEq, Copy, Clone, Default)]
+pub struct Ray3d {
+    pub(crate) origin: Vec3,
+    pub(crate) direction: Vec3,
+}
+
+impl Ray3d {
+    pub fn new(origin: Vec3, direction: Vec3) -> Self {
+        Ray3d { origin, direction }
+    }
+
+    pub fn from_screenspace(windows: &Res<Windows>, camera: &Camera, camera_transform: &GlobalTransform) -> Option<Self> {
+        let window = windows.get_primary().unwrap();
+        let cursor_position = match window.cursor_position() {
+            Some(c) => c,
+            None => return None,
+        };
+
+        let view = camera_transform.compute_matrix();
+        let screen_size = camera.logical_target_size()?;
+        let projection = camera.projection_matrix();
+        let far_ndc = projection.project_point3(Vec3::NEG_Z).z;
+        let near_ndc = projection.project_point3(Vec3::Z).z;
+        let cursor_ndc = (cursor_position / screen_size) * 2.0 - Vec2::ONE;
+        let ndc_to_world: Mat4 = view * projection.inverse();
+        let near = ndc_to_world.project_point3(cursor_ndc.extend(near_ndc));
+        let far = ndc_to_world.project_point3(cursor_ndc.extend(far_ndc));
+        let ray_direction = far - near;
+
+        Some(Ray3d::new(near, ray_direction))
+    }
+
+    pub fn intersect_y_plane(&self, y_offset: f32) -> Option<Vec3> {
+        let plane_normal = Vec3::Y;
+        let plane_origin = Vec3::new(0.0, y_offset, 0.0);
+        let denominator = self.direction.dot(plane_normal);
+        if denominator.abs() > f32::EPSILON {
+            let point_to_point = plane_origin * y_offset - self.origin;
+            let intersect_dist = plane_normal.dot(point_to_point) / denominator;
+            let intersect_position = self.direction * intersect_dist + self.origin;
+            Some(intersect_position)
+        } else {
+            None
+        }
+    }
 }

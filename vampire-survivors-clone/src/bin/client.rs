@@ -1,374 +1,289 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use std::{collections::HashMap, net::UdpSocket, time::SystemTime};
 
-use std::collections::HashMap;
-use std::net::UdpSocket;
-use std::time::SystemTime;
+use bevy::{
+    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    prelude::*,
+};
+use bevy_egui::{EguiContext, EguiPlugin};
+use bevy_renet::{
+    renet::{ClientAuthentication, RenetClient, RenetError},
+    run_if_client_connected, RenetClientPlugin,
+};
+use vampire_surviors_clone::{
+    client_connection_config, setup_level, ClientChannel, NetworkFrame, PlayerCommand, PlayerInput, Ray3d, ServerChannel, ServerMessages,
+    PROTOCOL_ID,
+};
+use renet_visualizer::{RenetClientVisualizer, RenetVisualizerStyle};
+use smooth_bevy_cameras::{LookTransform, LookTransformBundle, LookTransformPlugin, Smoother};
 
-use bevy::app::AppExit;
-use bevy::prelude::*;
-use bevy::render::camera::RenderTarget::Window;
-use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin, WindowSettings};
-use bevy_renet::{RenetClientPlugin, run_if_client_connected};
-use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
+#[derive(Component)]
+struct ControlledPlayer;
 
-use vampire_surviors_clone::{Direction, GameEvent, GameState, PlayerId, PORT, Position, PROTOCOL_ID, translate_host, translate_port};
+#[derive(Default)]
+struct NetworkMapping(HashMap<Entity, Entity>);
+
+#[derive(Debug)]
+struct PlayerInfo {
+    client_entity: Entity,
+    server_entity: Entity,
+}
+
+#[derive(Debug, Default)]
+struct ClientLobby {
+    players: HashMap<u64, PlayerInfo>,
+}
+
+#[derive(Debug)]
+struct MostRecentTick(Option<u32>);
+
+fn new_renet_client() -> RenetClient {
+    let server_addr = "127.0.0.1:5000".parse().unwrap();
+    let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let connection_config = client_connection_config();
+    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
+    let client_id = current_time.as_millis() as u64;
+    let authentication = ClientAuthentication::Unsecure {
+        client_id,
+        protocol_id: PROTOCOL_ID,
+        server_addr,
+        user_data: None,
+    };
+
+    RenetClient::new(current_time, socket, connection_config, authentication).unwrap()
+}
 
 fn main() {
-    let args = std::env::args().collect::<Vec<String>>();
+    let mut app = App::new();
+    app.add_plugins(DefaultPlugins);
+    app.add_plugin(RenetClientPlugin::default());
+    app.add_plugin(LookTransformPlugin);
+    app.add_plugin(FrameTimeDiagnosticsPlugin::default());
+    app.add_plugin(LogDiagnosticsPlugin::default());
+    app.add_plugin(EguiPlugin);
 
-    let mut username = format!("Player_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis());
-    let mut host = "127.0.0.1";
-    let mut port = PORT;
-    match args.len() {
-        2 => {
-            username = args[1].clone();
-            println!("Username set to: {}", username);
-        }
-        3 => {
-            username = args[1].clone();
-            host = translate_host(&args[2], "");
-            println!("Host has been set to: {}, Username has been set to: {}", host, username);
-        }
-        4 => {
-            username = args[1].clone();
-            host = translate_host(&args[2], "");
-            port = translate_port(&args[3]);
-            println!("Port has been set to: {}, Host has been set to: {}, Username has been set to: {}", port, host, username);
-        }
-        _ => {
-            println!("Usage: client [username] [host] [port]");
-            println!("Default values: username: {}, host: {}, port: {}", username, host, port);
-        }
-    }
+    app.add_event::<PlayerCommand>();
 
-    App::new()
-        .insert_resource(WindowDescriptor {
-            title: format!("Vampire Survivors Clone <{}>", username),
-            width: 480.0,
-            height: 540.0,
-            ..default()
-        })
-        .insert_resource(WindowSettings {
-            ..default()
-        })
-        .insert_resource(ClearColor(Color::hex("282828").unwrap()))
-        .add_plugins(DefaultPlugins)
-        .add_system_set_to_stage(
-            CoreStage::PostUpdate,
-            SystemSet::new()
-                .with_system(position_translation
-                    .label(RunPriority::Run)
-                ),
-        )
-        // Renet setup
-        .add_plugin(RenetClientPlugin)
-        .insert_resource(new_renet_client(&username, host, port).unwrap())
-        .insert_resource(PlayerHandles::default())
-        .add_system(handle_renet_error
-            .label(RunPriority::Run)
-        )
-        .add_system(move_entities
-            .label(RunPriority::Run)
-        )
-        .add_system(move_input
-            .label(RunPriority::Run)
-        )
-        .add_system_to_stage(
-            CoreStage::PostUpdate,
-            receive_events_from_server
-                .with_run_criteria(run_if_client_connected)
-                .label(RunPriority::Run),
-        )
-        // Add our game state and register GameEvent as a bevy event
-        .insert_resource(GameState::default())
-        .add_event::<GameEvent>()
-        // Add setup function to spawn UI and board graphics
-        .add_startup_system(setup)
-        // Finally we run the thing!
-        .add_system_to_stage(CoreStage::Last, disconnect
-            .label(RunPriority::Cleanup)
-            .after(RunPriority::Run))
-        .run();
+    app.insert_resource(ClientLobby::default());
+    app.insert_resource(PlayerInput::default());
+    app.insert_resource(MostRecentTick(None));
+    app.insert_resource(new_renet_client());
+    app.insert_resource(NetworkMapping::default());
+
+    app.add_system(player_input);
+    app.add_system(camera_follow);
+    app.add_system(update_target_system);
+    app.add_system(client_send_input.with_run_criteria(run_if_client_connected));
+    app.add_system(client_send_player_commands.with_run_criteria(run_if_client_connected));
+    app.add_system(client_sync_players.with_run_criteria(run_if_client_connected));
+
+    app.insert_resource(RenetClientVisualizer::<200>::new(RenetVisualizerStyle::default()));
+    app.add_system(update_visulizer_system);
+
+    app.add_startup_system(setup_level);
+    app.add_startup_system(setup_camera);
+    app.add_startup_system(setup_target);
+    app.add_system(panic_on_error_system);
+
+    app.run();
 }
 
-#[derive(SystemLabel, Clone, Hash, Debug, PartialEq, Eq)]
-enum RunPriority {
-    Run,
-    Cleanup,
-}
-
-
-////////// SETUP //////////
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(Camera2dBundle::default());
-}
-
-// Components
-#[derive(Component, Clone, Copy)]
-struct PlayerHandle {
-    client_id: PlayerId,
-    entity: Entity,
-    dir: Direction,
-}
-
-#[derive(Component)]
-struct PlayerHandles {
-    handles: HashMap<PlayerId, PlayerHandle>,
-}
-
-impl Default for PlayerHandles {
-    fn default() -> Self {
-        Self {
-            handles: HashMap::new(),
-        }
+// If any error is found we just panic
+fn panic_on_error_system(mut renet_error: EventReader<RenetError>) {
+    for e in renet_error.iter() {
+        panic!("{}", e);
     }
 }
 
-#[derive(Component)]
-struct Player;
-
-#[derive(Component, Clone, Copy, PartialEq)]
-struct ComponentPosition {
-    pos: Position,
-}
-
-#[derive(Component)]
-struct Name {
-    name: String,
-}
-
-fn position_translation(windows: Res<Windows>,
-                        mut q: Query<
-                            (&ComponentPosition, &mut Transform),
-                        >,
-) {
-    fn convert(pos: f32, bound_window: f32, bound_game: f32) -> f32 {
-        let tile_size = bound_window / bound_game;
-        pos / bound_game * bound_window - (bound_window / 2.) + (tile_size / 2.)
-    }
-    let window_option = windows.get_primary();
-    if let Some(window) = window_option {
-        for (pos, mut transform) in q.iter_mut() {
-            transform.translation = Vec3::new(
-                convert(pos.pos.x, window.width(), 100.0),
-                convert(pos.pos.y, window.height(), 100.0),
-                0.0,
-            );
-        }
-    }
-}
-
-fn move_input(
+fn update_visulizer_system(
+    mut egui_context: ResMut<EguiContext>,
+    mut visualizer: ResMut<RenetClientVisualizer<200>>,
+    client: Res<RenetClient>,
+    mut show_visualizer: Local<bool>,
     keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<(&PlayerHandle, &ComponentPosition), With<Player>>,
-    mut client: ResMut<RenetClient>,
 ) {
-    for (handle, pos) in query.iter_mut() {
-        let handle: &PlayerHandle = handle;
-        let pos: &ComponentPosition = pos;
-
-        if keyboard_input.just_pressed(KeyCode::W) {
-            let move_event = GameEvent::MovementKeyPressed {
-                player_id: handle.client_id,
-                direction: Direction::Up,
-                start_pos: pos.pos,
-            };
-
-            println!("Sending event: {:?}", move_event);
-            client.send_message(0, bincode::serialize(&move_event).unwrap());
-        } else if keyboard_input.just_pressed(KeyCode::A) {
-            let move_event = GameEvent::MovementKeyPressed {
-                player_id: handle.client_id,
-                direction: Direction::Left,
-                start_pos: pos.pos,
-            };
-
-            println!("Sending event: {:?}", move_event);
-            client.send_message(0, bincode::serialize(&move_event).unwrap());
-        } else if keyboard_input.just_pressed(KeyCode::S) {
-            let move_event = GameEvent::MovementKeyPressed {
-                player_id: handle.client_id,
-                direction: Direction::Down,
-                start_pos: pos.pos,
-            };
-
-            println!("Sending event: {:?}", move_event);
-            client.send_message(0, bincode::serialize(&move_event).unwrap());
-        } else if keyboard_input.just_pressed(KeyCode::D) {
-            let move_event = GameEvent::MovementKeyPressed {
-                player_id: handle.client_id,
-                direction: Direction::Right,
-                start_pos: pos.pos,
-            };
-
-            println!("Sending event: {:?}", move_event);
-            client.send_message(0, bincode::serialize(&move_event).unwrap());
-        } else if keyboard_input.just_released(KeyCode::W)
-            || keyboard_input.just_released(KeyCode::A)
-            || keyboard_input.just_released(KeyCode::S)
-            || keyboard_input.just_released(KeyCode::D)
-        {
-            let move_event = GameEvent::MovementKeyReleased {
-                player_id: handle.client_id,
-                position: pos.pos,
-            };
-
-            println!("Sending event: {:?}", move_event);
-            client.send_message(0, bincode::serialize(&move_event).unwrap());
-        }
+    visualizer.add_network_info(client.network_info());
+    if keyboard_input.just_pressed(KeyCode::F1) {
+        *show_visualizer = !*show_visualizer;
+    }
+    if *show_visualizer {
+        visualizer.show_window(egui_context.ctx_mut());
     }
 }
 
-fn move_entities(
-    mut query: Query<(&mut ComponentPosition, &PlayerHandle)>,
+fn player_input(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut player_input: ResMut<PlayerInput>,
+    mouse_button_input: Res<Input<MouseButton>>,
+    target_query: Query<&Transform, With<Target>>,
+    mut player_commands: EventWriter<PlayerCommand>,
+    most_recent_tick: Res<MostRecentTick>,
 ) {
-    for (mut pos, handle) in query.iter_mut() {
-        let dir = handle.dir as Direction;
-        pos.pos.x = pos.pos.x + dir.value().x;
-        pos.pos.y = pos.pos.y + dir.value().y;
+    player_input.left = keyboard_input.pressed(KeyCode::A) || keyboard_input.pressed(KeyCode::Left);
+    player_input.right = keyboard_input.pressed(KeyCode::D) || keyboard_input.pressed(KeyCode::Right);
+    player_input.up = keyboard_input.pressed(KeyCode::W) || keyboard_input.pressed(KeyCode::Up);
+    player_input.down = keyboard_input.pressed(KeyCode::S) || keyboard_input.pressed(KeyCode::Down);
+    player_input.most_recent_tick = most_recent_tick.0;
+
+    if mouse_button_input.just_pressed(MouseButton::Left) {
+        let target_transform = target_query.single();
+        player_commands.send(PlayerCommand::BasicAttack {
+            cast_at: target_transform.translation,
+        });
     }
 }
 
-////////// RENET NETWORKING //////////
-fn new_renet_client(username: &String, host: &str, port: i32) -> anyhow::Result<RenetClient> {
-    let server_addr = format!("{}:{}", host, port).parse()?;
-    let socket = UdpSocket::bind(format!("0.0.0.0:0"))?;
-    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
-    let client_id = current_time.as_millis() as u64;
+fn client_send_input(player_input: Res<PlayerInput>, mut client: ResMut<RenetClient>) {
+    let input_message = bincode::serialize(&*player_input).unwrap();
 
-    // Place username in user data
-    let mut user_data = [0u8; NETCODE_USER_DATA_BYTES];
-    if username.len() > NETCODE_USER_DATA_BYTES - 8 {
-        panic!("Username is too big");
-    }
-    user_data[0..8].copy_from_slice(&(username.len() as u64).to_le_bytes());
-    user_data[8..username.len() + 8].copy_from_slice(username.as_bytes());
-
-    let client = RenetClient::new(
-        current_time,
-        socket,
-        client_id,
-        RenetConnectionConfig::default(),
-        ClientAuthentication::Unsecure {
-            client_id,
-            protocol_id: PROTOCOL_ID,
-            server_addr,
-            user_data: Some(user_data),
-        },
-    )?;
-
-    Ok(client)
+    client.send_message(ClientChannel::Input.id(), input_message);
 }
 
-fn disconnect(
-    mut events: EventReader<AppExit>,
-    mut client: ResMut<RenetClient>,
-) {
-    if let Some(_) = events.iter().next() {
-        print!("Exiting...");
-        client.disconnect();
-        std::process::exit(0);
+fn client_send_player_commands(mut player_commands: EventReader<PlayerCommand>, mut client: ResMut<RenetClient>) {
+    for command in player_commands.iter() {
+        let command_message = bincode::serialize(command).unwrap();
+        client.send_message(ClientChannel::Command.id(), command_message);
     }
 }
 
-fn receive_events_from_server(
-    mut client: ResMut<RenetClient>,
-    mut game_state: ResMut<GameState>,
-    mut player_handles: ResMut<PlayerHandles>,
-    mut game_events: EventWriter<GameEvent>,
+fn client_sync_players(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-    mut player_handles_query: Query<(&mut PlayerHandle, &mut ComponentPosition)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut client: ResMut<RenetClient>,
+    mut lobby: ResMut<ClientLobby>,
+    mut network_mapping: ResMut<NetworkMapping>,
+    mut most_recent_tick: ResMut<MostRecentTick>,
 ) {
-    let texture_handle_self = asset_server.load("sprites/bob.png");
-    let texture_handle_others = asset_server.load("sprites/fritz.png");
-    let texture_atlas_self = TextureAtlas::from_grid(texture_handle_self, Vec2::new(32.0, 32.0), 1, 1);
-    let texture_atlas_others = TextureAtlas::from_grid(texture_handle_others, Vec2::new(32.0, 32.0), 1, 1);
-    let texture_atlas_handle_self = texture_atlases.add(texture_atlas_self);
-    let texture_atlas_handle_others = texture_atlases.add(texture_atlas_others);
+    let client_id = client.client_id();
+    while let Some(message) = client.receive_message(ServerChannel::ServerMessages.id()) {
+        let server_message = bincode::deserialize(&message).unwrap();
+        match server_message {
+            ServerMessages::PlayerCreate { id, translation, entity } => {
+                println!("Player {} connected.", id);
+                let mut client_entity = commands.spawn_bundle(PbrBundle {
+                    mesh: meshes.add(Mesh::from(shape::Capsule::default())),
+                    material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+                    transform: Transform::from_xyz(translation[0], translation[1], translation[2]),
+                    ..Default::default()
+                });
 
-    while let Some(message) = client.receive_message(0) {
-        // Whenever the server sends a message we know that it must be a game event
-        let event: GameEvent = bincode::deserialize(&message).unwrap();
-        trace!("{:#?}", event);
+                if client_id == id {
+                    client_entity.insert(ControlledPlayer);
+                }
 
-        // We trust the server - It's always been good to us!
-        // No need to validate the events it is sending us
-        game_state.consume(&event);
-
-        match &event {
-            GameEvent::PlayerJoined { name, pos, player_id } => {
-                let is_player = *player_id == client.client_id();
-                let texture_atlas_handle = if is_player {
-                    texture_atlas_handle_self.clone()
-                } else {
-                    texture_atlas_handle_others.clone()
+                let player_info = PlayerInfo {
+                    server_entity: entity,
+                    client_entity: client_entity.id(),
                 };
-
-                let entity_id = commands
-                    .spawn_bundle(SpriteSheetBundle {
-                        texture_atlas: texture_atlas_handle.clone(),
-                        sprite: TextureAtlasSprite::new(0),
-                        ..Default::default()
-                    })
-                    .insert(Name { name: name.clone() })
-                    .insert(ComponentPosition { pos: *pos })
-                    .id();
-
-                let player_handle = PlayerHandle {
-                    client_id: *player_id,
-                    entity: entity_id,
-                    dir: Direction::Idle,
-                };
-                commands.entity(entity_id).insert(player_handle);
-
-                if is_player {
-                    commands.entity(entity_id).insert(Player);
-                }
-
-                player_handles.handles.insert(*player_id, player_handle);
+                lobby.players.insert(id, player_info);
+                network_mapping.0.insert(entity, client_entity.id());
             }
-            GameEvent::PlayerDisconnected { player_id } => {
-                println!("Trying to despawn Entity: {:?}", player_id);
-                let player_handler_option = player_handles.handles.get(player_id);
-                if let Some(player_handler) = player_handler_option {
-                    println!("Despawning entity: {:?}", player_id);
-                    commands.entity(player_handler.entity).despawn();
-                    player_handles.handles.remove(player_id);
-                } else {
-                    println!("Entity not found: {:?}", player_id);
+            ServerMessages::PlayerRemove { id } => {
+                println!("Player {} disconnected.", id);
+                if let Some(PlayerInfo {
+                                server_entity,
+                                client_entity,
+                            }) = lobby.players.remove(&id)
+                {
+                    commands.entity(client_entity).despawn();
+                    network_mapping.0.remove(&server_entity);
                 }
             }
-            GameEvent::PlayerGotKilled { .. } => {}
-            GameEvent::BeginGame => {}
-            GameEvent::EndGame { .. } => {}
-            GameEvent::MovementKeyPressed { player_id, direction, start_pos } => {
-                for (mut player_handle, mut pos) in player_handles_query.iter_mut() {
-                    if player_handle.client_id == *player_id {
-                        player_handle.dir = *direction;
-                        pos.pos = *start_pos;
-                    }
-                }
+            ServerMessages::SpawnProjectile { entity, translation } => {
+                let projectile_entity = commands.spawn_bundle(PbrBundle {
+                    mesh: meshes.add(Mesh::from(shape::Icosphere {
+                        radius: 0.1,
+                        subdivisions: 5,
+                    })),
+                    material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+                    transform: Transform::from_translation(translation.into()),
+                    ..Default::default()
+                });
+                network_mapping.0.insert(entity, projectile_entity.id());
             }
-            GameEvent::MovementKeyReleased { player_id, position } => {
-                for (mut player_handle, mut pos) in player_handles_query.iter_mut() {
-                    if player_handle.client_id == *player_id {
-                        player_handle.dir = Direction::Idle;
-                        pos.pos = *position;
-                    }
+            ServerMessages::DespawnProjectile { entity } => {
+                if let Some(entity) = network_mapping.0.remove(&entity) {
+                    commands.entity(entity).despawn();
                 }
             }
         }
+    }
 
-        // Send the event into the bevy event system so systems can react to it
-        game_events.send(event);
+    while let Some(message) = client.receive_message(ServerChannel::NetworkFrame.id()) {
+        let frame: NetworkFrame = bincode::deserialize(&message).unwrap();
+        match most_recent_tick.0 {
+            None => most_recent_tick.0 = Some(frame.tick),
+            Some(tick) if tick < frame.tick => most_recent_tick.0 = Some(frame.tick),
+            _ => continue,
+        }
+
+        for i in 0..frame.entities.entities.len() {
+            if let Some(entity) = network_mapping.0.get(&frame.entities.entities[i]) {
+                let translation = frame.entities.translations[i].into();
+                let transform = Transform {
+                    translation,
+                    ..Default::default()
+                };
+                commands.entity(*entity).insert(transform);
+            }
+        }
     }
 }
 
-// If there's any error network we just panic 🤷‍♂️
-fn handle_renet_error(mut renet_error: EventReader<RenetError>) {
-    for err in renet_error.iter() {
-        panic!("PANIC ERROR: {}", err);
+#[derive(Component)]
+struct Target;
+
+fn update_target_system(
+    windows: Res<Windows>,
+    mut target_query: Query<&mut Transform, With<Target>>,
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+) {
+    let (camera, camera_transform) = camera_query.single();
+    let mut target_transform = target_query.single_mut();
+    if let Some(ray) = Ray3d::from_screenspace(&windows, camera, camera_transform) {
+        if let Some(pos) = ray.intersect_y_plane(1.0) {
+            target_transform.translation = pos;
+        }
+    }
+}
+
+fn setup_camera(mut commands: Commands) {
+    commands
+        .spawn_bundle(LookTransformBundle {
+            transform: LookTransform {
+                eye: Vec3::new(0.0, 8., 2.5),
+                target: Vec3::new(0.0, 0.5, 0.0),
+            },
+            smoother: Smoother::new(0.9),
+        })
+        .insert_bundle(Camera3dBundle {
+            transform: Transform::from_xyz(0., 8.0, 2.5).looking_at(Vec3::new(0.0, 0.5, 0.0), Vec3::Y),
+            ..default()
+        });
+}
+
+fn setup_target(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Icosphere {
+                radius: 0.1,
+                subdivisions: 5,
+            })),
+            material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+            transform: Transform::from_xyz(0.0, 0., 0.0),
+            ..Default::default()
+        })
+        .insert(Target);
+}
+
+fn camera_follow(
+    mut camera_query: Query<&mut LookTransform, (With<Camera>, Without<ControlledPlayer>)>,
+    player_query: Query<&Transform, With<ControlledPlayer>>,
+) {
+    let mut cam_transform = camera_query.single_mut();
+    if let Ok(player_transform) = player_query.get_single() {
+        cam_transform.eye.x = player_transform.translation.x;
+        cam_transform.eye.z = player_transform.translation.z + 2.5;
+        cam_transform.target = player_transform.translation;
     }
 }
