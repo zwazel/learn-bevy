@@ -1,17 +1,17 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::collections::HashMap;
 use std::net::UdpSocket;
 use std::time::SystemTime;
 
 use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget::Window;
-use bevy::utils::HashMap;
 use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin, WindowSettings};
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
 
-use store::{GameEvent, GameState, PlayerId, PORT, Position, PROTOCOL_ID, Direction, translate_host, translate_port};
+use vampire_surviors_clone::{Direction, GameEvent, GameState, PlayerId, PORT, Position, PROTOCOL_ID, translate_host, translate_port};
 
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();

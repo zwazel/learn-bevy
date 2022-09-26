@@ -3,10 +3,10 @@ use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, Instant, SystemTime};
 
 use log::{info, trace, warn};
+use rand::prelude::*;
 use renet::{NETCODE_USER_DATA_BYTES, RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use rand::prelude::*;
-use store::{AMOUNT_PLAYERS, EndGameReason, PORT, PROTOCOL_ID, Position, translate_port, translate_host};
+use vampire_surviors_clone::{AMOUNT_PLAYERS, GameEvent, GameState, PORT, Position, PROTOCOL_ID, translate_host, translate_port};
 
 /// Utility function for extracting a players name from renet user data
 fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
@@ -38,7 +38,7 @@ fn main() {
             println!("Amount of players has been set to: {}, Port has been set to: {}", amount_of_players, port);
         }
         4 => {
-            host = translate_host(&args[3],"");
+            host = translate_host(&args[3], "");
             port = translate_port(&args[2]);
             amount_of_players = translate_amount_players(&args[1]);
             println!("Amount of players has been set to: {}, Port has been set to: {}, Host has been set to: {}", amount_of_players, port, host);
@@ -70,7 +70,7 @@ fn main() {
 
     trace!("🕹  TicTacTussle server listening on {}", server_addr);
 
-    let mut game_state = store::GameState::default();
+    let mut game_state = GameState::default();
     let mut last_updated = Instant::now();
 
     loop {
@@ -92,7 +92,7 @@ fn main() {
 
                     // Tell the recently joined player about the other player
                     for (player_id, player) in game_state.players.iter() {
-                        let event = store::GameEvent::PlayerJoined {
+                        let event = GameEvent::PlayerJoined {
                             player_id: *player_id,
                             name: player.name.clone(),
                             pos: player.pos,
@@ -101,7 +101,7 @@ fn main() {
                     }
 
                     // Add the new player to the game
-                    let event = store::GameEvent::PlayerJoined {
+                    let event = GameEvent::PlayerJoined {
                         player_id: id,
                         name: name_from_user_data(&user_data),
                         pos: Position { x, y },
@@ -114,7 +114,7 @@ fn main() {
                     info!("Client {} connected.", id);
                     // once two players have joined, start it
                     if game_state.players.len() == 2 {
-                        let event = store::GameEvent::BeginGame;
+                        let event = GameEvent::BeginGame;
                         game_state.consume(&event);
                         server.broadcast_message(0, bincode::serialize(&event).unwrap());
                         trace!("The game gas begun");
@@ -122,7 +122,7 @@ fn main() {
                 }
                 ServerEvent::ClientDisconnected(id) => {
                     // First consume a disconnect event
-                    let event = store::GameEvent::PlayerDisconnected { player_id: id };
+                    let event = GameEvent::PlayerDisconnected { player_id: id };
                     game_state.consume(&event);
                     server.broadcast_message(0, bincode::serialize(&event).unwrap());
 
@@ -135,7 +135,7 @@ fn main() {
         // Receive GameEvents from clients. Broadcast valid events.
         for client_id in server.clients_id().into_iter() {
             while let Some(message) = server.receive_message(client_id, 0) {
-                if let Ok(event) = bincode::deserialize::<store::GameEvent>(&message) {
+                if let Ok(event) = bincode::deserialize::<GameEvent>(&message) {
                     if game_state.validate(&event) {
                         game_state.consume(&event);
                         trace!("Player {} sent:\n\t{:#?}", client_id, event);
