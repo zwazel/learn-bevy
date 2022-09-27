@@ -15,7 +15,6 @@ use bevy_renet::RenetServerPlugin;
 use log::{info, trace, warn};
 use rand::prelude::*;
 use renet::{NETCODE_USER_DATA_BYTES, RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
-use renet_visualizer::RenetServerVisualizer;
 
 use vampire_surviors_clone::{AMOUNT_PLAYERS, ClientChannel, NetworkFrame, Player, PlayerCommand, PlayerInput, PORT, Projectile, PROTOCOL_ID, server_connection_config, ServerChannel, ServerMessages, spawn_bullet, translate_host, translate_port};
 
@@ -99,13 +98,11 @@ fn main() {
     app.insert_resource(NetworkTick(0));
     app.insert_resource(ClientTicks::default());
     app.insert_resource(new_renet_server(amount_of_players, host, port));
-    app.insert_resource(RenetServerVisualizer::<200>::default());
 
     app.add_system(server_update_system);
     app.add_system(server_network_sync);
     app.add_system(move_players_system);
     app.add_system(update_projectiles_system);
-    app.add_system(update_visulizer_system);
     app.add_system_to_stage(CoreStage::PostUpdate, projectile_on_removal_system);
 
     app.run();
@@ -118,7 +115,6 @@ fn server_update_system(
     mut lobby: ResMut<ServerLobby>,
     mut server: ResMut<RenetServer>,
     mut client_ticks: ResMut<ClientTicks>,
-    mut visualizer: ResMut<RenetServerVisualizer<200>>,
     players: Query<(Entity, &Player, &Transform)>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
@@ -131,7 +127,6 @@ fn server_update_system(
         match event {
             ServerEvent::ClientConnected(id, _) => {
                 println!("Player {} connected.", id);
-                visualizer.add_client(*id);
 
                 // Initialize other players for this new client
                 for (entity, player, transform) in players.iter() {
@@ -172,7 +167,6 @@ fn server_update_system(
             }
             ServerEvent::ClientDisconnected(id) => {
                 println!("Player {} disconnected.", id);
-                visualizer.remove_client(*id);
                 client_ticks.0.remove(id);
                 if let Some(player_entity) = lobby.players.remove(id) {
                     commands.entity(player_entity).despawn();
@@ -221,15 +215,6 @@ fn server_update_system(
     }
 }
 
-fn update_visulizer_system(
-    mut egui_context: ResMut<EguiContext>,
-    mut visualizer: ResMut<RenetServerVisualizer<200>>,
-    server: Res<RenetServer>,
-) {
-    visualizer.update(&server);
-    visualizer.show_window(egui_context.ctx_mut());
-}
-
 #[allow(clippy::type_complexity)]
 fn server_network_sync(
     mut tick: ResMut<NetworkTick>,
@@ -250,12 +235,12 @@ fn server_network_sync(
 
 // TODO
 fn move_players_system(mut query: Query<(&mut Transform, &PlayerInput)>) {
-    for (mut velocity, input) in query.iter_mut() {
+    for (mut transform, input) in query.iter_mut() {
         let x = (input.right as i8 - input.left as i8) as f32;
         let y = (input.down as i8 - input.up as i8) as f32;
         let direction = Vec2::new(x, y).normalize_or_zero();
-        velocity.linvel.x = direction.x * PLAYER_MOVE_SPEED;
-        velocity.linvel.z = direction.y * PLAYER_MOVE_SPEED;
+        transform.translation.x += direction.x * 0.1;
+        transform.translation.y += direction.y * 0.1;
     }
 }
 

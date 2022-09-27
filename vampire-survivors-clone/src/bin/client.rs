@@ -12,7 +12,6 @@ use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin, WindowSetti
 use bevy_egui::{EguiContext, EguiPlugin};
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
-use renet_visualizer::{RenetClientVisualizer, RenetVisualizerStyle};
 use smooth_bevy_cameras::{LookTransform, LookTransformBundle, Smoother};
 
 use vampire_surviors_clone::{client_connection_config, ClientChannel, NetworkFrame, PlayerCommand, PlayerInput, PORT, PROTOCOL_ID, Ray3d, ServerChannel, ServerMessages, translate_host, translate_port};
@@ -57,10 +56,8 @@ fn main() {
         })
         .insert_resource(ClearColor(Color::hex("282828").unwrap()))
         .insert_resource(new_renet_client(&username, host, port))
-        .insert_resource(PlayerHandles::default())
         .insert_resource(ClientLobby::default())
         .insert_resource(PlayerInput::default())
-        .insert_resource(GameState::default())
         .insert_resource(MostRecentTick(None))
         .insert_resource(NetworkMapping::default())
 
@@ -70,15 +67,11 @@ fn main() {
         .add_plugin(RenetClientPlugin)
         .add_plugin(EguiPlugin)
 
-        .add_system(handle_renet_error)
         .add_system(player_input)
         .add_system(camera_follow)
         .add_system(client_send_input.with_run_criteria(run_if_client_connected))
         .add_system(client_send_player_commands.with_run_criteria(run_if_client_connected))
         .add_system(client_sync_players.with_run_criteria(run_if_client_connected))
-
-        .insert_resource(RenetClientVisualizer::<200>::new(RenetVisualizerStyle::default()))
-        .add_system(update_visualizer_system)
 
         .add_event::<PlayerCommand>()
 
@@ -112,8 +105,8 @@ struct MostRecentTick(Option<u32>);
 
 ////////// RENET NETWORKING //////////
 fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
-    let server_addr = format!("{}:{}", host, port).parse()?;
-    let socket = UdpSocket::bind(format!("0.0.0.0:0"))?;
+    let server_addr = format!("{}:{}", host, port).parse().unwrap();
+    let socket = UdpSocket::bind(format!("0.0.0.0:0")).unwrap();
     let connection_config = client_connection_config();
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
     let client_id = current_time.as_millis() as u64;
@@ -136,23 +129,6 @@ fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
     RenetClient::new(current_time, socket, client_id, connection_config, authentication).unwrap()
 }
 
-//noinspection RsTypeCheck
-fn update_visualizer_system(
-    mut egui_context: ResMut<EguiContext>,
-    mut visualizer: ResMut<RenetClientVisualizer<200>>,
-    client: Res<RenetClient>,
-    mut show_visualizer: Local<bool>,
-    keyboard_input: Res<Input<KeyCode>>,
-) {
-    visualizer.add_network_info(client.network_info());
-    if keyboard_input.just_pressed(KeyCode::F1) {
-        *show_visualizer = !*show_visualizer;
-    }
-    if *show_visualizer {
-        visualizer.show_window(egui_context.ctx_mut());
-    }
-}
-
 fn player_input(
     keyboard_input: Res<Input<KeyCode>>,
     mut player_input: ResMut<PlayerInput>,
@@ -169,7 +145,7 @@ fn player_input(
 
     if mouse_button_input.just_pressed(MouseButton::Left) {
         player_commands.send(PlayerCommand::BasicAttack {
-            cast_at: cursor_moved_events.iter().last().unwrap().position,
+            cast_at: cursor_moved_events
         });
     }
 }

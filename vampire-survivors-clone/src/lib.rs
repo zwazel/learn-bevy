@@ -26,6 +26,7 @@ pub struct PlayerInput {
     pub down: bool,
     pub left: bool,
     pub right: bool,
+    pub velocity: Vec2,
 }
 
 #[derive(Debug, Serialize, Deserialize, Component)]
