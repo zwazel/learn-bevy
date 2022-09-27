@@ -142,12 +142,6 @@ fn player_input(
     player_input.up = keyboard_input.pressed(KeyCode::W) || keyboard_input.pressed(KeyCode::Up);
     player_input.down = keyboard_input.pressed(KeyCode::S) || keyboard_input.pressed(KeyCode::Down);
     player_input.most_recent_tick = most_recent_tick.0;
-
-    if mouse_button_input.just_pressed(MouseButton::Left) {
-        player_commands.send(PlayerCommand::BasicAttack {
-            cast_at: cursor_moved_events
-        });
-    }
 }
 
 fn client_send_input(player_input: Res<PlayerInput>, mut client: ResMut<RenetClient>) {
