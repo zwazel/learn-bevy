@@ -93,9 +93,6 @@ fn main() {
 
     app.add_system(server_update_system);
     app.add_system(server_network_sync);
-    app.add_system(move_players_system);
-    app.add_system(update_projectiles_system);
-    app.add_system_to_stage(CoreStage::PostUpdate, projectile_on_removal_system);
 
     app.run();
 }
@@ -111,8 +108,9 @@ fn server_update_system(
 ) {
     for event in server_events.iter() {
         match event {
-            ServerEvent::ClientConnected(id, _) => {
-                println!("Player {} connected.", id);
+            ServerEvent::ClientConnected(id, user_data) => {
+                let username = name_from_user_data(&user_data);
+                println!("Player {} connected.", username);
 
                 // Initialize other players for this new client
                 for (entity, player, transform) in players.iter() {
@@ -163,27 +161,7 @@ fn server_update_system(
         while let Some(message) = server.receive_message(client_id, ClientChannel::Command.id()) {
             let command: PlayerCommand = bincode::deserialize(&message).unwrap();
             match command {
-                PlayerCommand::BasicAttack { mut cast_at } => {
-                    println!("Received basic attack from client {}: {:?}", client_id, cast_at);
-
-                    if let Some(player_entity) = lobby.players.get(&client_id) {
-                        if let Ok((_, _, player_transform)) = players.get(*player_entity) {
-                            cast_at[1] = player_transform.translation[1];
-
-                            let direction = (cast_at - player_transform.translation).normalize_or_zero();
-                            let mut translation = player_transform.translation + (direction * 0.7);
-                            translation[1] = 1.0;
-
-                            let fireball_entity = spawn_bullet(&mut commands, None, None, translation, direction);
-                            let message = ServerMessages::SpawnProjectile {
-                                entity: fireball_entity,
-                                translation: [translation[0], translation[1]],
-                            };
-                            let message = bincode::serialize(&message).unwrap();
-                            server.broadcast_message(ServerChannel::ServerMessages.id(), message);
-                        }
-                    }
-                }
+                PlayerCommand::BasicAttack { .. } => {}
             }
         }
         while let Some(message) = server.receive_message(client_id, ClientChannel::Input.id()) {
@@ -215,33 +193,15 @@ fn server_network_sync(
 }
 
 // TODO
-fn move_players_system(mut query: Query<(&mut Transform, &PlayerInput)>) {
-    for (mut transform, input) in query.iter_mut() {
-        let x = (input.right as i8 - input.left as i8) as f32;
-        let y = (input.down as i8 - input.up as i8) as f32;
-        let direction = Vec2::new(x, y).normalize_or_zero();
-        transform.translation.x += direction.x * 0.1;
-        transform.translation.y += direction.y * 0.1;
-    }
-}
-
-fn update_projectiles_system(mut commands: Commands, mut projectiles: Query<(Entity, &mut Projectile)>, time: Res<Time>) {
-    for (entity, mut projectile) in projectiles.iter_mut() {
-        projectile.duration.tick(time.delta());
-        if projectile.duration.finished() {
-            commands.entity(entity).despawn();
-        }
-    }
-}
-
-fn projectile_on_removal_system(mut server: ResMut<RenetServer>, removed_projectiles: RemovedComponents<Projectile>) {
-    for entity in removed_projectiles.iter() {
-        let message = ServerMessages::DespawnProjectile { entity };
-        let message = bincode::serialize(&message).unwrap();
-
-        server.broadcast_message(ServerChannel::ServerMessages.id(), message);
-    }
-}
+// fn move_players_system(mut query: Query<(&mut Transform, &PlayerInput)>) {
+//     for (mut transform, input) in query.iter_mut() {
+//         let x = (input.right as i8 - input.left as i8) as f32;
+//         let y = (input.down as i8 - input.up as i8) as f32;
+//         let direction = Vec2::new(x, y).normalize_or_zero();
+//         transform.translation.x += direction.x * 0.1;
+//         transform.translation.y += direction.y * 0.1;
+//     }
+// }
 
 pub struct ServerPlugins;
 

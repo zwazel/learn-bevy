@@ -5,7 +5,7 @@ use std::net::UdpSocket;
 use std::time::SystemTime;
 
 use bevy::app::AppExit;
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget::Window;
 use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin, WindowSettings};
@@ -62,8 +62,6 @@ fn main() {
         .insert_resource(NetworkMapping::default())
 
         .add_plugins(DefaultPlugins)
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(RenetClientPlugin)
         .add_plugin(EguiPlugin)
 
@@ -132,10 +130,7 @@ fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
 fn player_input(
     keyboard_input: Res<Input<KeyCode>>,
     mut player_input: ResMut<PlayerInput>,
-    mouse_button_input: Res<Input<MouseButton>>,
-    mut player_commands: EventWriter<PlayerCommand>,
     most_recent_tick: Res<MostRecentTick>,
-    cursor_moved_events: Res<Events<CursorMoved>>,
 ) {
     player_input.left = keyboard_input.pressed(KeyCode::A) || keyboard_input.pressed(KeyCode::Left);
     player_input.right = keyboard_input.pressed(KeyCode::D) || keyboard_input.pressed(KeyCode::Right);

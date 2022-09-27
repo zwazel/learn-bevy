@@ -74,8 +74,8 @@ pub struct NetworkFrame {
 impl ClientChannel {
     pub fn id(&self) -> u8 {
         match self {
-            Self::Input => 0,
-            Self::Command => 1,
+            Self::Input => 1,
+            Self::Command => 2,
         }
     }
 
