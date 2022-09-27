@@ -26,8 +26,15 @@ pub struct PlayerInput {
     pub down: bool,
     pub left: bool,
     pub right: bool,
-    pub velocity: Vec2,
 }
+
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, Component)]
+pub struct Velocity(Vec2);
+
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, Component)]
+pub struct MaxSpeed(f32);
+
+pub const PLAYER_SPEED: f32 = 10.0;
 
 #[derive(Debug, Serialize, Deserialize, Component)]
 pub enum PlayerCommand {
@@ -186,8 +193,8 @@ pub struct Projectile {
 
 pub fn spawn_bullet(
     commands: &mut Commands,
-    atlases: &mut ResMut<Assets<TextureAtlas>>,
-    asset_server: &Res<AssetServer>,
+    atlases: Option<&mut ResMut<Assets<TextureAtlas>>>,
+    asset_server: Option<&Res<AssetServer>>,
     translation: Vec3,
     mut direction: Vec3,
 ) -> Entity {
@@ -195,21 +202,31 @@ pub fn spawn_bullet(
         direction = Vec3::X;
     }
 
-    let texture_handle_bullet = asset_server.load("sprites/bullet.png");
-    let texture_atlas_bullet = TextureAtlas::from_grid(texture_handle_bullet, Vec2::new(16.0, 16.0), 1, 1);
-    let texture_atlas_handle_bullet = atlases.add(texture_atlas_bullet);
+    // check if asset server is available
+    let entity: Option<Entity> = match asset_server {
+        Some(asset_server) => {
+            let atlases = atlases.unwrap();
 
-    commands
-        .spawn_bundle(SpriteSheetBundle {
-            texture_atlas: texture_atlas_handle_bullet.clone(),
-            sprite: TextureAtlasSprite::new(0),
-            transform: Transform::from_translation(translation),
-            ..Default::default()
-        })
-        .insert(Projectile {
-            duration: Timer::from_seconds(1.5, false),
-        })
-        .id()
+            let texture_handle_bullet = asset_server.load("sprites/bullet.png");
+            let texture_atlas_bullet = TextureAtlas::from_grid(texture_handle_bullet, Vec2::new(16.0, 16.0), 1, 1);
+            let texture_atlas_handle_bullet = atlases.add(texture_atlas_bullet);
+
+            return commands
+                .spawn_bundle(SpriteSheetBundle {
+                    texture_atlas: texture_atlas_handle_bullet.clone(),
+                    sprite: TextureAtlasSprite::new(0),
+                    transform: Transform::from_translation(translation),
+                    ..Default::default()
+                })
+                .insert(Projectile {
+                    duration: Timer::from_seconds(1.5, false),
+                })
+                .id();
+        }
+        None => { None }
+    };
+
+    entity.unwrap()
 }
 
 pub fn translate_port(port: &str) -> i32 {

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, Instant, SystemTime};
 
-use bevy::app::{App, CoreStage};
+use bevy::app::{App, CoreStage, PluginGroup, PluginGroupBuilder};
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_egui::{EguiContext, EguiPlugin};
@@ -44,8 +44,6 @@ struct NetworkTick(u32);
 #[derive(Debug, Default)]
 struct ClientTicks(HashMap<u64, Option<u32>>);
 
-const PLAYER_MOVE_SPEED: f32 = 5.0;
-
 fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> RenetServer {
     let server_addr: SocketAddr = format!("{}:{}", host, port)
         .parse()
@@ -85,14 +83,8 @@ fn main() {
     };
 
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins);
-
+    app.add_plugins(ServerPlugins);
     app.add_plugin(RenetServerPlugin);
-    app.add_plugin(RapierPhysicsPlugin::<NoUserData>::default());
-    app.add_plugin(RapierDebugRenderPlugin::default());
-    app.add_plugin(FrameTimeDiagnosticsPlugin::default());
-    app.add_plugin(LogDiagnosticsPlugin::default());
-    app.add_plugin(EguiPlugin);
 
     app.insert_resource(ServerLobby::default());
     app.insert_resource(NetworkTick(0));
@@ -116,13 +108,7 @@ fn server_update_system(
     mut server: ResMut<RenetServer>,
     mut client_ticks: ResMut<ClientTicks>,
     players: Query<(Entity, &Player, &Transform)>,
-    asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
-    let texture_handle_self = asset_server.load("sprites/bob.png");
-    let texture_atlas_self = TextureAtlas::from_grid(texture_handle_self, Vec2::new(32.0, 32.0), 1, 1);
-    let texture_atlas_handle_self = texture_atlases.add(texture_atlas_self);
-
     for event in server_events.iter() {
         match event {
             ServerEvent::ClientConnected(id, _) => {
@@ -144,12 +130,7 @@ fn server_update_system(
                 let transform = Transform::from_xyz(0.0, 0.51, 0.0);
 
                 let player_entity = commands
-                    .spawn_bundle(SpriteSheetBundle {
-                        texture_atlas: texture_atlas_handle_self.clone(),
-                        sprite: TextureAtlasSprite::new(0),
-                        transform,
-                        ..Default::default()
-                    })
+                    .spawn()
                     .insert(Player { id: *id })
                     .insert(PlayerInput::default())
                     .id();
@@ -193,7 +174,7 @@ fn server_update_system(
                             let mut translation = player_transform.translation + (direction * 0.7);
                             translation[1] = 1.0;
 
-                            let fireball_entity = spawn_bullet(&mut commands, &mut texture_atlases, &asset_server, translation, direction);
+                            let fireball_entity = spawn_bullet(&mut commands, None, None, translation, direction);
                             let message = ServerMessages::SpawnProjectile {
                                 entity: fireball_entity,
                                 translation: [translation[0], translation[1]],
@@ -259,5 +240,20 @@ fn projectile_on_removal_system(mut server: ResMut<RenetServer>, removed_project
         let message = bincode::serialize(&message).unwrap();
 
         server.broadcast_message(ServerChannel::ServerMessages.id(), message);
+    }
+}
+
+pub struct ServerPlugins;
+
+impl PluginGroup for ServerPlugins {
+    fn build(&mut self, group: &mut PluginGroupBuilder) {
+        group.add(bevy::log::LogPlugin::default());
+        group.add(bevy::core::CorePlugin::default());
+        group.add(bevy::time::TimePlugin::default());
+        group.add(TransformPlugin::default());
+        group.add(HierarchyPlugin::default());
+        group.add(bevy::diagnostic::DiagnosticsPlugin::default());
+        group.add(bevy::input::InputPlugin::default());
+        group.add(bevy::app::ScheduleRunnerPlugin::default());
     }
 }
