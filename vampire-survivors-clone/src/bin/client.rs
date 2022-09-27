@@ -78,7 +78,7 @@ fn main() {
         .add_system(client_sync_players.with_run_criteria(run_if_client_connected))
 
         .insert_resource(RenetClientVisualizer::<200>::new(RenetVisualizerStyle::default()))
-        .add_system(update_visulizer_system)
+        .add_system(update_visualizer_system)
 
         .add_event::<PlayerCommand>()
 
@@ -137,7 +137,7 @@ fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
 }
 
 //noinspection RsTypeCheck
-fn update_visulizer_system(
+fn update_visualizer_system(
     mut egui_context: ResMut<EguiContext>,
     mut visualizer: ResMut<RenetClientVisualizer<200>>,
     client: Res<RenetClient>,

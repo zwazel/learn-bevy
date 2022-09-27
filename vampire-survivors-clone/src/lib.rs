@@ -3,10 +3,9 @@ use std::fmt::{Debug, Formatter};
 use std::time::Duration;
 
 use bevy::prelude::*;
+use bevy_rapier3d::prelude::*;
 use bevy_renet::renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
 use serde::{Deserialize, Serialize};
-
-use bevy_rapier3d::prelude::*;
 
 pub const PORT: i32 = 5000;
 pub const AMOUNT_PLAYERS: usize = 4;
@@ -177,6 +176,39 @@ impl Ray3d {
             None
         }
     }
+}
+
+#[derive(Debug, Component)]
+pub struct Projectile {
+    pub duration: Timer,
+}
+
+pub fn spawn_bullet(
+    commands: &mut Commands,
+    atlases: &mut ResMut<Assets<TextureAtlas>>,
+    asset_server: &Res<AssetServer>,
+    translation: Vec3,
+    mut direction: Vec3,
+) -> Entity {
+    if !direction.is_normalized() {
+        direction = Vec3::X;
+    }
+
+    let texture_handle_bullet = asset_server.load("sprites/bullet.png");
+    let texture_atlas_bullet = TextureAtlas::from_grid(texture_handle_bullet, Vec2::new(16.0, 16.0), 1, 1);
+    let texture_atlas_handle_bullet = atlases.add(texture_atlas_bullet);
+
+    commands
+        .spawn_bundle(SpriteSheetBundle {
+            texture_atlas: texture_atlas_handle_bullet.clone(),
+            sprite: TextureAtlasSprite::new(0),
+            transform: Transform::from_translation(translation),
+            ..Default::default()
+        })
+        .insert(Projectile {
+            duration: Timer::from_seconds(1.5, false),
+        })
+        .id()
 }
 
 pub fn translate_port(port: &str) -> i32 {

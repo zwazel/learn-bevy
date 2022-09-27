@@ -28,6 +28,7 @@ bevy_renet = "0.0.5"
 anyhow = "1.0"
 bevy_egui = "0.16.1"
 smooth-bevy-cameras = { git = "https://github.com/bonsairobo/smooth-bevy-cameras", rev="a1095b" }
+bevy_rapier3d = "0.16.0"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

@@ -1,12 +1,23 @@
 use std::{env, f32, thread};
+use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, Instant, SystemTime};
 
+use bevy::app::{App, CoreStage};
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy::prelude::*;
+use bevy_egui::{EguiContext, EguiPlugin};
+use bevy_rapier3d::dynamics::{LockedAxes, RigidBody, Velocity};
+use bevy_rapier3d::geometry::Collider;
+use bevy_rapier3d::plugin::{NoUserData, RapierPhysicsPlugin};
+use bevy_rapier3d::prelude::RapierDebugRenderPlugin;
+use bevy_renet::RenetServerPlugin;
 use log::{info, trace, warn};
 use rand::prelude::*;
 use renet::{NETCODE_USER_DATA_BYTES, RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
+use renet_visualizer::RenetServerVisualizer;
 
-use vampire_surviors_clone::{AMOUNT_PLAYERS, GameEvent, GameState, PORT, Position, PROTOCOL_ID, translate_host, translate_port};
+use vampire_surviors_clone::{AMOUNT_PLAYERS, ClientChannel, NetworkFrame, Player, PlayerCommand, PlayerInput, PORT, Projectile, PROTOCOL_ID, server_connection_config, ServerChannel, ServerMessages, spawn_bullet, translate_host, translate_port};
 
 /// Utility function for extracting a players name from renet user data
 fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
@@ -20,6 +31,31 @@ fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
 
 fn translate_amount_players(amount_players: &str) -> usize {
     amount_players.parse::<usize>().unwrap_or(AMOUNT_PLAYERS)
+}
+
+#[derive(Debug, Default)]
+pub struct ServerLobby {
+    pub players: HashMap<u64, Entity>,
+}
+
+#[derive(Debug, Default)]
+struct NetworkTick(u32);
+
+// Clients last received ticks
+#[derive(Debug, Default)]
+struct ClientTicks(HashMap<u64, Option<u32>>);
+
+const PLAYER_MOVE_SPEED: f32 = 5.0;
+
+fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> RenetServer {
+    let server_addr: SocketAddr = format!("{}:{}", host, port)
+        .parse()
+        .unwrap();
+    let socket = UdpSocket::bind(server_addr).unwrap();
+    let connection_config = server_connection_config();
+    let server_config = ServerConfig::new(amount_of_player, PROTOCOL_ID, server_addr, ServerAuthentication::Unsecure);
+    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
+    RenetServer::new(current_time, server_config, connection_config, socket).unwrap()
 }
 
 fn main() {
@@ -49,105 +85,194 @@ fn main() {
         }
     };
 
-    let server_addr: SocketAddr = format!("{}:{}", host, port)
-        .parse()
-        .unwrap();
+    let mut app = App::new();
+    app.add_plugins(DefaultPlugins);
 
-    let mut server: RenetServer = RenetServer::new(
-        // Pass the current time to renet, so it can use it to order messages
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap(),
-        // Pass a server configuration specifying that we want to allow only 2 clients to connect
-        // and that we don't want to authenticate them. Everybody is welcome!
-        ServerConfig::new(amount_of_players, PROTOCOL_ID, server_addr, ServerAuthentication::Unsecure),
-        // Pass the default connection configuration. This will create a reliable, unreliable and blocking channel.
-        // We only actually need the reliable one, but we can just not use the other two.
-        RenetConnectionConfig::default(),
-        UdpSocket::bind(server_addr).unwrap(),
-    )
-        .unwrap();
+    app.add_plugin(RenetServerPlugin);
+    app.add_plugin(RapierPhysicsPlugin::<NoUserData>::default());
+    app.add_plugin(RapierDebugRenderPlugin::default());
+    app.add_plugin(FrameTimeDiagnosticsPlugin::default());
+    app.add_plugin(LogDiagnosticsPlugin::default());
+    app.add_plugin(EguiPlugin);
 
-    trace!("🕹  TicTacTussle server listening on {}", server_addr);
+    app.insert_resource(ServerLobby::default());
+    app.insert_resource(NetworkTick(0));
+    app.insert_resource(ClientTicks::default());
+    app.insert_resource(new_renet_server(amount_of_players, host, port));
+    app.insert_resource(RenetServerVisualizer::<200>::default());
 
-    let mut game_state = GameState::default();
-    let mut last_updated = Instant::now();
+    app.add_system(server_update_system);
+    app.add_system(server_network_sync);
+    app.add_system(move_players_system);
+    app.add_system(update_projectiles_system);
+    app.add_system(update_visulizer_system);
+    app.add_system_to_stage(CoreStage::PostUpdate, projectile_on_removal_system);
 
-    loop {
-        // Update server time
-        let now = Instant::now();
-        server.update(now - last_updated).unwrap();
-        last_updated = now;
+    app.run();
+}
 
-        // Receive connection events from clients
-        while let Some(event) = server.get_event() {
-            match event {
-                ServerEvent::ClientConnected(id, user_data) => {
-                    // random position for new player
-                    let mut rng = thread_rng();
-                    let x = rng.gen_range(10..51);
-                    let y = rng.gen_range(10..51);
-                    let x = x as f32;
-                    let y = y as f32;
+#[allow(clippy::too_many_arguments)]
+fn server_update_system(
+    mut server_events: EventReader<ServerEvent>,
+    mut commands: Commands,
+    mut lobby: ResMut<ServerLobby>,
+    mut server: ResMut<RenetServer>,
+    mut client_ticks: ResMut<ClientTicks>,
+    mut visualizer: ResMut<RenetServerVisualizer<200>>,
+    players: Query<(Entity, &Player, &Transform)>,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+) {
+    let texture_handle_self = asset_server.load("sprites/bob.png");
+    let texture_atlas_self = TextureAtlas::from_grid(texture_handle_self, Vec2::new(32.0, 32.0), 1, 1);
+    let texture_atlas_handle_self = texture_atlases.add(texture_atlas_self);
 
-                    // Tell the recently joined player about the other player
-                    for (player_id, player) in game_state.players.iter() {
-                        let event = GameEvent::PlayerJoined {
-                            player_id: *player_id,
-                            name: player.name.clone(),
-                            pos: player.pos,
-                        };
-                        server.send_message(id, 0, bincode::serialize(&event).unwrap());
-                    }
+    for event in server_events.iter() {
+        match event {
+            ServerEvent::ClientConnected(id, _) => {
+                println!("Player {} connected.", id);
+                visualizer.add_client(*id);
 
-                    // Add the new player to the game
-                    let event = GameEvent::PlayerJoined {
-                        player_id: id,
-                        name: name_from_user_data(&user_data),
-                        pos: Position { x, y },
-                    };
-                    game_state.consume(&event);
-
-                    // Tell all players that a new player has joined
-                    server.broadcast_message(0, bincode::serialize(&event).unwrap());
-
-                    info!("Client {} connected.", id);
-                    // once two players have joined, start it
-                    if game_state.players.len() == 2 {
-                        let event = GameEvent::BeginGame;
-                        game_state.consume(&event);
-                        server.broadcast_message(0, bincode::serialize(&event).unwrap());
-                        trace!("The game gas begun");
-                    }
+                // Initialize other players for this new client
+                for (entity, player, transform) in players.iter() {
+                    let translation: [f32; 3] = transform.translation.into();
+                    let message = bincode::serialize(&ServerMessages::PlayerCreate {
+                        id: player.id,
+                        entity,
+                        translation: [translation[0], translation[1]],
+                    })
+                        .unwrap();
+                    server.send_message(*id, ServerChannel::ServerMessages.id(), message);
                 }
-                ServerEvent::ClientDisconnected(id) => {
-                    // First consume a disconnect event
-                    let event = GameEvent::PlayerDisconnected { player_id: id };
-                    game_state.consume(&event);
-                    server.broadcast_message(0, bincode::serialize(&event).unwrap());
 
-                    // NOTE: Since we don't authenticate users we can't do any reconnection attempts.
-                    // We simply have no way to know if the next user is the same as the one that disconnected.
+                // Spawn new player
+                let transform = Transform::from_xyz(0.0, 0.51, 0.0);
+
+                let player_entity = commands
+                    .spawn_bundle(SpriteSheetBundle {
+                        texture_atlas: texture_atlas_handle_self.clone(),
+                        sprite: TextureAtlasSprite::new(0),
+                        transform,
+                        ..Default::default()
+                    })
+                    .insert(Player { id: *id })
+                    .insert(PlayerInput::default())
+                    .id();
+
+                lobby.players.insert(*id, player_entity);
+
+                let translation: [f32; 3] = transform.translation.into();
+                let message = bincode::serialize(&ServerMessages::PlayerCreate {
+                    id: *id,
+                    entity: player_entity,
+                    translation: [translation[0], translation[1]],
+                })
+                    .unwrap();
+                server.broadcast_message(ServerChannel::ServerMessages.id(), message);
+            }
+            ServerEvent::ClientDisconnected(id) => {
+                println!("Player {} disconnected.", id);
+                visualizer.remove_client(*id);
+                client_ticks.0.remove(id);
+                if let Some(player_entity) = lobby.players.remove(id) {
+                    commands.entity(player_entity).despawn();
+                }
+
+                let message = bincode::serialize(&ServerMessages::PlayerRemove { id: *id }).unwrap();
+                server.broadcast_message(ServerChannel::ServerMessages.id(), message);
+            }
+        }
+    }
+
+    for client_id in server.clients_id().into_iter() {
+        while let Some(message) = server.receive_message(client_id, ClientChannel::Command.id()) {
+            let command: PlayerCommand = bincode::deserialize(&message).unwrap();
+            match command {
+                PlayerCommand::BasicAttack { mut cast_at } => {
+                    println!("Received basic attack from client {}: {:?}", client_id, cast_at);
+
+                    if let Some(player_entity) = lobby.players.get(&client_id) {
+                        if let Ok((_, _, player_transform)) = players.get(*player_entity) {
+                            cast_at[1] = player_transform.translation[1];
+
+                            let direction = (cast_at - player_transform.translation).normalize_or_zero();
+                            let mut translation = player_transform.translation + (direction * 0.7);
+                            translation[1] = 1.0;
+
+                            let fireball_entity = spawn_bullet(&mut commands, &mut texture_atlases, &asset_server, translation, direction);
+                            let message = ServerMessages::SpawnProjectile {
+                                entity: fireball_entity,
+                                translation: [translation[0], translation[1]],
+                            };
+                            let message = bincode::serialize(&message).unwrap();
+                            server.broadcast_message(ServerChannel::ServerMessages.id(), message);
+                        }
+                    }
                 }
             }
         }
-
-        // Receive GameEvents from clients. Broadcast valid events.
-        for client_id in server.clients_id().into_iter() {
-            while let Some(message) = server.receive_message(client_id, 0) {
-                if let Ok(event) = bincode::deserialize::<GameEvent>(&message) {
-                    if game_state.validate(&event) {
-                        game_state.consume(&event);
-                        trace!("Player {} sent:\n\t{:#?}", client_id, event);
-                        server.broadcast_message(0, bincode::serialize(&event).unwrap());
-                    } else {
-                        warn!("Player {} sent invalid event:\n\t{:#?}", client_id, event);
-                    }
-                }
+        while let Some(message) = server.receive_message(client_id, ClientChannel::Input.id()) {
+            let input: PlayerInput = bincode::deserialize(&message).unwrap();
+            client_ticks.0.insert(client_id, input.most_recent_tick);
+            if let Some(player_entity) = lobby.players.get(&client_id) {
+                commands.entity(*player_entity).insert(input);
             }
         }
+    }
+}
 
-        server.send_packets().unwrap();
-        thread::sleep(Duration::from_millis(50));
+fn update_visulizer_system(
+    mut egui_context: ResMut<EguiContext>,
+    mut visualizer: ResMut<RenetServerVisualizer<200>>,
+    server: Res<RenetServer>,
+) {
+    visualizer.update(&server);
+    visualizer.show_window(egui_context.ctx_mut());
+}
+
+#[allow(clippy::type_complexity)]
+fn server_network_sync(
+    mut tick: ResMut<NetworkTick>,
+    mut server: ResMut<RenetServer>,
+    networked_entities: Query<(Entity, &Transform), Or<(With<Player>, With<Projectile>)>>,
+) {
+    let mut frame = NetworkFrame::default();
+    for (entity, transform) in networked_entities.iter() {
+        frame.entities.entities.push(entity);
+        frame.entities.translations.push(transform.translation.into());
+    }
+
+    frame.tick = tick.0;
+    tick.0 += 1;
+    let sync_message = bincode::serialize(&frame).unwrap();
+    server.broadcast_message(ServerChannel::NetworkFrame.id(), sync_message);
+}
+
+// TODO
+fn move_players_system(mut query: Query<(&mut Transform, &PlayerInput)>) {
+    for (mut velocity, input) in query.iter_mut() {
+        let x = (input.right as i8 - input.left as i8) as f32;
+        let y = (input.down as i8 - input.up as i8) as f32;
+        let direction = Vec2::new(x, y).normalize_or_zero();
+        velocity.linvel.x = direction.x * PLAYER_MOVE_SPEED;
+        velocity.linvel.z = direction.y * PLAYER_MOVE_SPEED;
+    }
+}
+
+fn update_projectiles_system(mut commands: Commands, mut projectiles: Query<(Entity, &mut Projectile)>, time: Res<Time>) {
+    for (entity, mut projectile) in projectiles.iter_mut() {
+        projectile.duration.tick(time.delta());
+        if projectile.duration.finished() {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn projectile_on_removal_system(mut server: ResMut<RenetServer>, removed_projectiles: RemovedComponents<Projectile>) {
+    for entity in removed_projectiles.iter() {
+        let message = ServerMessages::DespawnProjectile { entity };
+        let message = bincode::serialize(&message).unwrap();
+
+        server.broadcast_message(ServerChannel::ServerMessages.id(), message);
     }
 }
