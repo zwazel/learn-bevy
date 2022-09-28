@@ -9,7 +9,6 @@ use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget::Window;
 use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin, WindowSettings};
-use bevy_egui::{EguiContext, EguiPlugin};
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
 use smooth_bevy_cameras::{LookTransform, LookTransformBundle, Smoother};
@@ -63,7 +62,6 @@ fn main() {
 
         .add_plugins(DefaultPlugins)
         .add_plugin(RenetClientPlugin)
-        .add_plugin(EguiPlugin)
 
         .add_system(player_input)
         .add_system(camera_follow)

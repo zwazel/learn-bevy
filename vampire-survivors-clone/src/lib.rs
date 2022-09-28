@@ -100,8 +100,8 @@ impl ClientChannel {
 impl ServerChannel {
     pub fn id(&self) -> u8 {
         match self {
-            Self::NetworkFrame => 0,
-            Self::ServerMessages => 1,
+            Self::NetworkFrame => 3,
+            Self::ServerMessages => 4,
         }
     }
 
