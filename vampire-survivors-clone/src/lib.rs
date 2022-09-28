@@ -103,8 +103,9 @@ impl ServerChannel {
 
     pub fn channels_config() -> Vec<ChannelConfig> {
         vec![
-            UnreliableChannelConfig {
+            ReliableChannelConfig {
                 channel_id: Self::NetworkFrame.id(),
+                message_resend_time: Duration::ZERO,
                 ..Default::default()
             }
                 .into(),

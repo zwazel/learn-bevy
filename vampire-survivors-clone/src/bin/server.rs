@@ -182,7 +182,6 @@ fn server_network_sync(
     tick.0 += 1;
     let sync_message = bincode::serialize(&frame).unwrap();
 
-
     server.broadcast_message(ServerChannel::NetworkFrame.id(), sync_message);
 }
 
@@ -207,7 +206,6 @@ impl PluginGroup for ServerPlugins {
         group.add(TransformPlugin::default());
         group.add(HierarchyPlugin::default());
         group.add(bevy::diagnostic::DiagnosticsPlugin::default());
-        group.add(bevy::input::InputPlugin::default());
         group.add(bevy::app::ScheduleRunnerPlugin::default());
     }
 }
