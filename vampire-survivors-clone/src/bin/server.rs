@@ -1,20 +1,12 @@
-use std::{env, f32, thread};
+use std::{env, f32};
 use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::SystemTime;
 
-use bevy::app::{App, CoreStage, PluginGroup, PluginGroupBuilder};
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy::app::{App, PluginGroup, PluginGroupBuilder};
 use bevy::prelude::*;
-use bevy_egui::{EguiContext, EguiPlugin};
-use bevy_rapier3d::dynamics::{LockedAxes, RigidBody, Velocity};
-use bevy_rapier3d::geometry::Collider;
-use bevy_rapier3d::plugin::{NoUserData, RapierPhysicsPlugin};
-use bevy_rapier3d::prelude::RapierDebugRenderPlugin;
 use bevy_renet::RenetServerPlugin;
-use log::{info, trace, warn};
-use rand::prelude::*;
-use renet::{NETCODE_USER_DATA_BYTES, RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
+use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
 use vampire_surviors_clone::{AMOUNT_PLAYERS, ClientChannel, NetworkFrame, Player, PlayerCommand, PlayerInput, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerMessages, translate_host, translate_port};
 
@@ -189,7 +181,6 @@ fn server_network_sync(
     frame.tick = tick.0;
     tick.0 += 1;
     let sync_message = bincode::serialize(&frame).unwrap();
-
 
 
     server.broadcast_message(ServerChannel::NetworkFrame.id(), sync_message);
