@@ -5,15 +5,12 @@ use std::net::UdpSocket;
 use std::time::SystemTime;
 
 use bevy::app::AppExit;
-use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
-use bevy::render::camera::RenderTarget::Window;
-use bevy::window::{WindowClosed, WindowCloseRequested, WindowPlugin, WindowSettings};
+use bevy::window::{WindowSettings};
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
-use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetConnectionConfig, RenetError};
-use smooth_bevy_cameras::{LookTransform, LookTransformBundle, Smoother};
+use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError};
 
-use vampire_surviors_clone::{client_connection_config, ClientChannel, NetworkFrame, PlayerCommand, PlayerInput, PORT, PROTOCOL_ID, Ray3d, ServerChannel, ServerMessages, translate_host, translate_port};
+use vampire_surviors_clone::{client_connection_config, ClientChannel, NetworkFrame, PlayerCommand, PlayerInput, PORT, PROTOCOL_ID, ServerChannel, ServerMessages, translate_host, translate_port};
 
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
