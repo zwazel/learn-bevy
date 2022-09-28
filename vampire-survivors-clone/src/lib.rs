@@ -55,8 +55,6 @@ pub enum ServerChannel {
 pub enum ServerMessages {
     PlayerCreate { entity: Entity, id: u64, translation: [f32; 2] },
     PlayerRemove { id: u64 },
-    SpawnProjectile { entity: Entity, translation: [f32; 2] },
-    DespawnProjectile { entity: Entity },
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -184,49 +182,6 @@ impl Ray3d {
             None
         }
     }
-}
-
-#[derive(Debug, Component)]
-pub struct Projectile {
-    pub duration: Timer,
-}
-
-pub fn spawn_bullet(
-    commands: &mut Commands,
-    atlases: Option<&mut ResMut<Assets<TextureAtlas>>>,
-    asset_server: Option<&Res<AssetServer>>,
-    translation: Vec3,
-    mut direction: Vec3,
-) -> Entity {
-    if !direction.is_normalized() {
-        direction = Vec3::X;
-    }
-
-    // check if asset server is available
-    let entity: Option<Entity> = match asset_server {
-        Some(asset_server) => {
-            let atlases = atlases.unwrap();
-
-            let texture_handle_bullet = asset_server.load("sprites/bullet.png");
-            let texture_atlas_bullet = TextureAtlas::from_grid(texture_handle_bullet, Vec2::new(16.0, 16.0), 1, 1);
-            let texture_atlas_handle_bullet = atlases.add(texture_atlas_bullet);
-
-            return commands
-                .spawn_bundle(SpriteSheetBundle {
-                    texture_atlas: texture_atlas_handle_bullet.clone(),
-                    sprite: TextureAtlasSprite::new(0),
-                    transform: Transform::from_translation(translation),
-                    ..Default::default()
-                })
-                .insert(Projectile {
-                    duration: Timer::from_seconds(1.5, false),
-                })
-                .id();
-        }
-        None => { None }
-    };
-
-    entity.unwrap()
 }
 
 pub fn translate_port(port: &str) -> i32 {

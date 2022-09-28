@@ -163,13 +163,10 @@ fn client_sync_players(
 
     let texture_handle_self = asset_server.load("sprites/bob.png");
     let texture_handle_others = asset_server.load("sprites/fritz.png");
-    let texture_handle_bullet = asset_server.load("sprites/bullet.png");
     let texture_atlas_self = TextureAtlas::from_grid(texture_handle_self, Vec2::new(32.0, 32.0), 1, 1);
     let texture_atlas_others = TextureAtlas::from_grid(texture_handle_others, Vec2::new(32.0, 32.0), 1, 1);
-    let texture_atlas_bullet = TextureAtlas::from_grid(texture_handle_bullet, Vec2::new(16.0, 16.0), 1, 1);
     let texture_atlas_handle_self = texture_atlases.add(texture_atlas_self);
     let texture_atlas_handle_others = texture_atlases.add(texture_atlas_others);
-    let texture_atlas_handle_bullet = texture_atlases.add(texture_atlas_bullet);
 
     while let Some(message) = client.receive_message(ServerChannel::ServerMessages.id()) {
         let server_message = bincode::deserialize(&message).unwrap();
@@ -212,21 +209,6 @@ fn client_sync_players(
                 {
                     commands.entity(client_entity).despawn();
                     network_mapping.0.remove(&server_entity);
-                }
-            }
-            ServerMessages::SpawnProjectile { entity, translation } => {
-                let projectile_entity = commands
-                    .spawn_bundle(SpriteSheetBundle {
-                        texture_atlas: texture_atlas_handle_bullet.clone(),
-                        sprite: TextureAtlasSprite::new(0),
-                        transform: Transform::from_xyz(translation[0], translation[1], 0.0),
-                        ..Default::default()
-                    });
-                network_mapping.0.insert(entity, projectile_entity.id());
-            }
-            ServerMessages::DespawnProjectile { entity } => {
-                if let Some(entity) = network_mapping.0.remove(&entity) {
-                    commands.entity(entity).despawn();
                 }
             }
         }

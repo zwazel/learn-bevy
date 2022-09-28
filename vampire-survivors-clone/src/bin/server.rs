@@ -16,7 +16,7 @@ use log::{info, trace, warn};
 use rand::prelude::*;
 use renet::{NETCODE_USER_DATA_BYTES, RenetConnectionConfig, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use vampire_surviors_clone::{AMOUNT_PLAYERS, ClientChannel, NetworkFrame, Player, PlayerCommand, PlayerInput, PORT, Projectile, PROTOCOL_ID, server_connection_config, ServerChannel, ServerMessages, spawn_bullet, translate_host, translate_port};
+use vampire_surviors_clone::{AMOUNT_PLAYERS, ClientChannel, NetworkFrame, Player, PlayerCommand, PlayerInput, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerMessages, translate_host, translate_port};
 
 /// Utility function for extracting a players name from renet user data
 fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
@@ -178,7 +178,7 @@ fn server_update_system(
 fn server_network_sync(
     mut tick: ResMut<NetworkTick>,
     mut server: ResMut<RenetServer>,
-    networked_entities: Query<(Entity, &Transform), Or<(With<Player>, With<Projectile>)>>,
+    networked_entities: Query<(Entity, &Transform), With<Player>>,
 ) {
     let mut frame = NetworkFrame::default();
     for (entity, transform) in networked_entities.iter() {
@@ -189,6 +189,9 @@ fn server_network_sync(
     frame.tick = tick.0;
     tick.0 += 1;
     let sync_message = bincode::serialize(&frame).unwrap();
+
+
+
     server.broadcast_message(ServerChannel::NetworkFrame.id(), sync_message);
 }
 
