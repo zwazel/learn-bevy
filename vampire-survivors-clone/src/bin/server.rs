@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use bevy_renet::RenetServerPlugin;
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use vampire_surviors_clone::{AMOUNT_PLAYERS, ClientChannel, NetworkFrame, Player, PlayerCommand, PlayerInput, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerMessages, translate_host, translate_port};
+use vampire_surviors_clone::{AMOUNT_PLAYERS, ClientChannel, MaxSpeed, NetworkFrame, Player, PLAYER_SPEED, PlayerCommand, PlayerInput, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerMessages, translate_host, translate_port, Velocity};
 
 /// Utility function for extracting a players name from renet user data
 fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
@@ -85,6 +85,7 @@ fn main() {
 
     app.add_system(server_update_system);
     app.add_system(server_network_sync);
+    app.add_system(move_players_system);
 
     app.run();
 }
@@ -186,15 +187,18 @@ fn server_network_sync(
 }
 
 // TODO
-// fn move_players_system(mut query: Query<(&mut Transform, &PlayerInput)>) {
-//     for (mut transform, input) in query.iter_mut() {
-//         let x = (input.right as i8 - input.left as i8) as f32;
-//         let y = (input.down as i8 - input.up as i8) as f32;
-//         let direction = Vec2::new(x, y).normalize_or_zero();
-//         transform.translation.x += direction.x * 0.1;
-//         transform.translation.y += direction.y * 0.1;
-//     }
-// }
+fn move_players_system(mut query: Query<(&mut Transform, &PlayerInput, &mut Velocity, &MaxSpeed)>) {
+    for (mut transform, input, mut velocity, max_speed) in query.iter_mut() {
+        let x = (input.right as i8 - input.left as i8) as f32;
+        let y = (input.down as i8 - input.up as i8) as f32;
+        let direction = Vec2::new(x, y).normalize_or_zero();
+        velocity.0.x = direction.x * PLAYER_SPEED;
+        velocity.0.y = direction.y * PLAYER_SPEED;
+
+        transform.translation.x += velocity.0.x;
+        transform.translation.y += velocity.0.y;
+    }
+}
 
 pub struct ServerPlugins;
 

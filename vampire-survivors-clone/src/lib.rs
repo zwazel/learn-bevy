@@ -27,10 +27,10 @@ pub struct PlayerInput {
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, Component)]
-pub struct Velocity(Vec2);
+pub struct Velocity(pub Vec2);
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, Component)]
-pub struct MaxSpeed(f32);
+pub struct MaxSpeed(pub f32);
 
 pub const PLAYER_SPEED: f32 = 10.0;
 
