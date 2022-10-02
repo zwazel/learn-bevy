@@ -124,6 +124,8 @@ fn server_update_system(
                     .spawn()
                     .insert(Player { id: *id })
                     .insert(PlayerInput::default())
+                    .insert(transform)
+                    .insert(Velocity(Vec2::ZERO))
                     .id();
 
                 lobby.players.insert(*id, player_entity);
