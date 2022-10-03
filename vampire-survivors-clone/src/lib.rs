@@ -11,6 +11,8 @@ pub const AMOUNT_PLAYERS: usize = 4;
 pub const PRIVATE_KEY: &[u8; NETCODE_KEY_BYTES] = b"an example very very secret key.";
 pub const PROTOCOL_ID: u64 = 6969;
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// Struct for storing player related data.
 #[derive(Debug, Component)]
 pub struct Player {

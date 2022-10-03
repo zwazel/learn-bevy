@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use bevy_renet::RenetServerPlugin;
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use vampire_surviors_clone::{AMOUNT_PLAYERS, ClientChannel, MaxSpeed, NetworkFrame, Player, PLAYER_SPEED, PlayerCommand, PlayerInput, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerMessages, translate_host, translate_port, Velocity};
+use vampire_surviors_clone::{AMOUNT_PLAYERS, ClientChannel, MaxSpeed, NetworkFrame, Player, PLAYER_SPEED, PlayerCommand, PlayerInput, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerMessages, translate_host, translate_port, Velocity, VERSION};
 
 /// Utility function for extracting a players name from renet user data
 fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
@@ -73,6 +73,8 @@ fn main() {
             println!("Default values: amount of players: {}, port: {}, host: {}", AMOUNT_PLAYERS, PORT, host);
         }
     };
+
+    println!("Version: {}", VERSION);
 
     let mut app = App::new();
     app.add_plugins(ServerPlugins);
