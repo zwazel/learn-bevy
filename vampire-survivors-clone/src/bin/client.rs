@@ -6,7 +6,7 @@ use std::time::SystemTime;
 
 use bevy::app::AppExit;
 use bevy::prelude::*;
-use bevy::window::{WindowSettings};
+use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError};
 
@@ -171,7 +171,7 @@ fn client_sync_players(
             ServerMessages::PlayerCreate { id, translation, entity } => {
                 println!("Player {} connected.", id);
 
-                let is_player = client_id == client.client_id();
+                let is_player = client_id == id;
                 let texture_atlas_handle = if is_player {
                     texture_atlas_handle_self.clone()
                 } else {
@@ -234,6 +234,7 @@ fn client_sync_players(
 
 fn setup_camera(mut commands: Commands) {
     commands.spawn_bundle(Camera2dBundle {
+        transform: Transform::from_xyz(0.0, 0.0, 1000.0),
         ..default()
     });
 }

@@ -32,7 +32,7 @@ pub struct Velocity(pub Vec2);
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, Component)]
 pub struct MaxSpeed(pub f32);
 
-pub const PLAYER_SPEED: f32 = 10.0;
+pub const PLAYER_SPEED: f32 = 100.0;
 
 #[derive(Debug, Serialize, Deserialize, Component)]
 pub enum PlayerCommand {

@@ -126,6 +126,7 @@ fn server_update_system(
                     .insert(PlayerInput::default())
                     .insert(transform)
                     .insert(Velocity(Vec2::ZERO))
+                    .insert(MaxSpeed(PLAYER_SPEED))
                     .id();
 
                 lobby.players.insert(*id, player_entity);
@@ -189,13 +190,13 @@ fn server_network_sync(
 }
 
 // TODO
-fn move_players_system(mut query: Query<(&mut Transform, &PlayerInput, &mut Velocity, &MaxSpeed)>) {
+fn move_players_system(time: Res<Time>, mut query: Query<(&mut Transform, &PlayerInput, &mut Velocity, &MaxSpeed), With<Player>>) {
     for (mut transform, input, mut velocity, max_speed) in query.iter_mut() {
         let x = (input.right as i8 - input.left as i8) as f32;
-        let y = (input.down as i8 - input.up as i8) as f32;
+        let y = (input.up as i8 - input.down as i8) as f32;
         let direction = Vec2::new(x, y).normalize_or_zero();
-        velocity.0.x = direction.x * PLAYER_SPEED;
-        velocity.0.y = direction.y * PLAYER_SPEED;
+        velocity.0.x = (direction.x * PLAYER_SPEED) * time.delta().as_secs_f32();
+        velocity.0.y = (direction.y * PLAYER_SPEED) * time.delta().as_secs_f32();
 
         transform.translation.x += velocity.0.x;
         transform.translation.y += velocity.0.y;
