@@ -4,6 +4,7 @@ use std::net::{SocketAddr, UdpSocket};
 use std::time::SystemTime;
 
 use bevy::app::{App, PluginGroup, PluginGroupBuilder};
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_renet::RenetServerPlugin;
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
@@ -79,6 +80,9 @@ fn main() {
     let mut app = App::new();
     app.add_plugins(ServerPlugins);
     app.add_plugin(RenetServerPlugin);
+
+    app.add_plugin(LogDiagnosticsPlugin::default());
+    app.add_plugin(FrameTimeDiagnosticsPlugin::default());
 
     app.insert_resource(ServerLobby::default());
     app.insert_resource(NetworkTick(0));
