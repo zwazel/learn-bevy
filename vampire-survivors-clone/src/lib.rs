@@ -105,9 +105,10 @@ impl ServerChannel {
 
     pub fn channels_config() -> Vec<ChannelConfig> {
         vec![
-            ReliableChannelConfig {
+            UnreliableChannelConfig {
                 channel_id: Self::NetworkFrame.id(),
-                message_resend_time: Duration::ZERO,
+                // message_resend_time: Duration::ZERO,
+                message_receive_queue_size: 2048,
                 ..Default::default()
             }
                 .into(),

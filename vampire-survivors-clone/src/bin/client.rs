@@ -10,7 +10,7 @@ use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError};
 
-use vampire_surviors_clone::{client_connection_config, ClientChannel, NetworkFrame, PlayerCommand, PlayerInput, PORT, PROTOCOL_ID, ServerChannel, ServerMessages, translate_host, translate_port};
+use vampire_surviors_clone::{client_connection_config, ClientChannel, NetworkFrame, PlayerCommand, PlayerInput, PORT, PROTOCOL_ID, ServerChannel, ServerMessages, translate_host, translate_port, VERSION};
 
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
@@ -39,6 +39,8 @@ fn main() {
             println!("Default values: username: {}, host: {}, port: {}", username, host, port);
         }
     }
+
+    println!("Version: {}", VERSION);
 
     App::new()
         .insert_resource(WindowDescriptor {
