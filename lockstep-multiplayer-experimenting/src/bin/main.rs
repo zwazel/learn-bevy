@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, SystemTime};
@@ -7,7 +8,7 @@ use bevy::prelude::*;
 use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig};
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientType, PORT, PROTOCOL_ID, server_connection_config, Tick, TICKRATE, translate_host, translate_port, VERSION};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientLobby, ClientTicks, ClientType, PORT, PROTOCOL_ID, server_connection_config, ServerLobby, Tick, TICKRATE, translate_host, translate_port, VERSION};
 use iyes_loopless::prelude::*;
 
 fn resolve_type(my_type: &str) -> ClientType {
@@ -109,13 +110,17 @@ fn main() {
     match my_type {
         ClientType::Server => {
             app.insert_resource(new_renet_server(amount_of_players, host, port));
+            app.insert_resource(ClientTicks::default());
+            app.insert_resource(ServerLobby::default());
         }
-        _ => {}
+        ClientType::Client => {
+            app.insert_resource(ClientLobby::default());
+        }
     }
 
     app.insert_resource(new_renet_client(&username, host, port));
 
-    app.insert_resource(Tick(0));
+    app.insert_resource(Tick(Some(0)));
 
     app.run();
 }
@@ -125,8 +130,8 @@ fn fixed_time_step(
     mut client: ResMut<RenetClient>,
     mut server: Option<ResMut<RenetServer>>,
 ) {
-    tick.0 += 1;
-    println!("Tick: {}", tick.0);
+    tick.increment();
+    println!("Tick: {}", tick.get());
 
     if let Some(server) = server.as_mut() {
         println!("Is Server!");

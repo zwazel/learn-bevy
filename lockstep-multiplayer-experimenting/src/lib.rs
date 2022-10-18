@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::time::Duration;
+use bevy::prelude::{Component, Entity};
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
 
 pub const PORT: i32 = 5000;
@@ -12,7 +14,61 @@ pub const TICKRATE: u64 = 250;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub struct Tick(pub i128);
+#[derive(Debug)]
+pub struct Tick(pub Option<i128>);
+
+impl Tick {
+    pub fn new() -> Self {
+        Self(None)
+    }
+
+    pub fn get(&self) -> i128 {
+        self.0.unwrap()
+    }
+
+    pub fn set(&mut self, tick: i128) {
+        self.0 = Some(tick);
+    }
+
+    pub fn is_set(&self) -> bool {
+        self.0.is_some()
+    }
+
+    pub fn increment(&mut self) {
+        if self.is_set() {
+            self.0 = Some(self.get() + 1);
+        } else {
+            self.0 = Some(0);
+        }
+    }
+}
+
+
+#[derive(Debug)]
+pub struct PlayerId(pub u64);
+
+// Clients last received ticks
+#[derive(Debug, Default)]
+pub struct ClientTicks(pub HashMap<PlayerId, Tick>);
+
+#[derive(Debug, Component)]
+pub struct Player {
+    pub id: PlayerId,
+}
+
+#[derive(Debug, Default)]
+pub struct ServerLobby(pub HashMap<PlayerId, Entity>);
+
+#[derive(Debug, Default)]
+pub struct ClientLobby {
+    pub players: HashMap<u64, PlayerInfo>,
+}
+
+#[derive(Debug)]
+pub struct PlayerInfo {
+    pub client_entity: Entity,
+    pub server_entity: Entity,
+}
 
 pub enum ClientType {
     Client,
