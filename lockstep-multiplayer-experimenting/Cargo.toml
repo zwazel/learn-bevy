@@ -6,7 +6,6 @@ name = "lockstep-multiplayer-experimenting"
 version = "0.1.0"
 edition = "2021"
 
-
 [[bin]]
 name = "main"
 path = "src/bin/main.rs"

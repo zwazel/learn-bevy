@@ -1,8 +1,11 @@
+pub mod commands;
+
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use bevy::prelude::{Component, Entity};
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
+use serde::{Deserialize, Serialize};
 
 pub const PORT: i32 = 5000;
 pub const AMOUNT_PLAYERS: usize = 4;
@@ -43,7 +46,7 @@ impl Tick {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Component)]
 pub struct PlayerId(pub u64);
 
 impl Display for PlayerId {
@@ -59,15 +62,28 @@ pub struct ClientTicks(pub HashMap<PlayerId, Tick>);
 #[derive(Debug, Component)]
 pub struct Player {
     pub id: PlayerId,
+    pub username: String,
+    pub entity: Option<Entity>,
+}
+
+impl Player {
+    pub fn default_username() -> String {
+        format!("Player_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis())
+    }
+}
+
+impl Default for Player {
+    fn default() -> Self {
+        Self {
+            id: PlayerId(0),
+            username: Self::default_username(),
+            entity: None,
+        }
+    }
 }
 
 #[derive(Debug, Default)]
-pub struct ServerLobby(pub HashMap<PlayerId, Entity>);
-
-#[derive(Debug, Default)]
-pub struct ClientLobby {
-    pub players: HashMap<u64, PlayerInfo>,
-}
+pub struct Lobby(pub HashMap<PlayerId, Player>);
 
 #[derive(Debug)]
 pub struct PlayerInfo {
@@ -106,6 +122,12 @@ pub enum ClientChannel {
 pub enum ServerChannel {
     ServerMessages,
     NetworkFrame,
+}
+
+#[derive(Debug, Serialize, Deserialize, Component)]
+pub enum ServerMessages {
+    PlayerCreate { entity: Entity, id: PlayerId },
+    PlayerRemove { id: PlayerId },
 }
 
 impl ClientChannel {
