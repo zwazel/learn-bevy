@@ -8,11 +8,11 @@ use bevy::prelude::*;
 use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientTicks, ClientType, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, Lobby, Tick, TICKRATE, translate_host, translate_port, VERSION};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientTicks, ClientType, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, Lobby, Tick, TICKRATE, translate_host, translate_port, VERSION, ServerTick};
 use iyes_loopless::prelude::*;
 use lockstep_multiplayer_experimenting::commands::PlayerCommand;
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
-use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove};
+use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
 
 fn resolve_type(my_type: &str) -> ClientType {
     let my_type = my_type.to_lowercase();
@@ -115,10 +115,10 @@ fn main() {
             app.insert_resource(new_renet_server(amount_of_players, host, port));
             app.insert_resource(ClientTicks::default());
             app.insert_resource(Lobby::default());
+            app.insert_resource(ServerTick::new());
             app.add_system(server_update_system);
         }
-        ClientType::Client => {
-        }
+        ClientType::Client => {}
     }
 
     app.insert_resource(new_renet_client(&username, host, port));
@@ -129,26 +129,37 @@ fn main() {
 }
 
 fn fixed_time_step(
+    // Client
     mut tick: ResMut<Tick>,
     mut client: ResMut<RenetClient>,
+    // Server
     mut server: Option<ResMut<RenetServer>>,
     mut client_ticks: Option<ResMut<ClientTicks>>,
+    mut server_tick: Option<ResMut<ServerTick>>,
+    mut lobby: Option<ResMut<Lobby>>,
 ) {
     if let Some(server) = server.as_mut() {
+        let server_tick = server_tick.as_mut().unwrap();
         if let Some(client_ticks) = client_ticks.as_mut() {
             let mut client_iter = client_ticks.0.iter().peekable();
             let mut clients_ready = client_iter.len() > 0;
             while let Some((client_id, client_tick)) = client_iter.next() {
-                if client_tick.get() != tick.get() {
-                    println!("Waiting for Client {}!", client_id);
+                if client_tick.get() != server_tick.get() {
+                    let username = lobby.as_ref().unwrap().0.get(&client_id).unwrap().username.clone();
+                    println!("Waiting for Client {}!", username);
                     clients_ready = false;
                 }
             }
 
             if clients_ready {
                 println!("All clients ready!");
-                tick.increment();
-                println!("Tick: {}", tick.get());
+                server_tick.increment();
+                println!("Server Tick: {}", server_tick.get());
+
+                let message = bincode::serialize(&UpdateTick {
+                    tick: server_tick.0,
+                }).unwrap();
+                server.broadcast_message(ServerChannel::ServerMessages.id(), message);
             }
         }
     }
@@ -219,6 +230,8 @@ fn server_update_system(
                     username: username.clone(),
                     entity: Some(player_entity),
                 });
+
+                client_ticks.0.insert(PlayerId(*id), Tick::new());
 
                 let message = bincode::serialize(&PlayerCreate {
                     id: PlayerId(*id),

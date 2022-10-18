@@ -17,12 +17,32 @@ pub const TICKRATE: u64 = 250;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[derive(Debug)]
+pub struct ServerTick(pub Tick);
+
+impl ServerTick {
+    pub fn new() -> Self {
+        Self(Tick::new())
+    }
+
+    pub fn get(&self) -> i128 {
+        self.0.get()
+    }
+
+    pub fn set(&mut self, tick: i128) {
+        self.0.set(tick);
+    }
+
+    pub fn increment(&mut self) {
+        self.0.increment();
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Component)]
 pub struct Tick(pub Option<i128>);
 
 impl Tick {
     pub fn new() -> Self {
-        Self(None)
+        Self(Some(0))
     }
 
     pub fn get(&self) -> i128 {
@@ -128,6 +148,7 @@ pub enum ServerChannel {
 pub enum ServerMessages {
     PlayerCreate { entity: Entity, id: PlayerId },
     PlayerRemove { id: PlayerId },
+    UpdateTick { tick: Tick },
 }
 
 impl ClientChannel {
