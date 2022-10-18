@@ -7,6 +7,8 @@ pub const AMOUNT_PLAYERS: usize = 4;
 pub const PRIVATE_KEY: &[u8; NETCODE_KEY_BYTES] = b"an example very very secret key.";
 pub const PROTOCOL_ID: u64 = 6969;
 
+pub const TICKRATE: u64 = 250;
+
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub enum ClientChannel {

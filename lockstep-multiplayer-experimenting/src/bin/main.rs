@@ -1,13 +1,16 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::net::{SocketAddr, UdpSocket};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use bevy::app::{App, AppExit, CoreStage};
 use bevy::DefaultPlugins;
 use bevy::prelude::*;
 use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig};
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, PORT, PROTOCOL_ID, server_connection_config, translate_host, translate_port, VERSION};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, PORT, PROTOCOL_ID, server_connection_config, TICKRATE, translate_host, translate_port, VERSION};
+use iyes_loopless::prelude::*;
+
+struct Tick(i128);
 
 enum NetworkType {
     Client,
@@ -115,6 +118,19 @@ fn main() {
     app.add_system(panic_on_error_system);
     app.add_system_to_stage(CoreStage::Last, disconnect);
 
+    let mut fixed_update = SystemStage::parallel();
+    fixed_update.add_system(
+        fixed_time_step
+            // only do it in-game
+            .with_run_criteria(run_if_client_connected)
+    );
+
+    app.add_stage_before(
+        CoreStage::Update,
+        "FixedUpdate",
+        FixedTimestepStage::from_stage(Duration::from_millis(TICKRATE), fixed_update)
+    );
+
     match my_type {
         NetworkType::Server => {
             app.insert_resource(new_renet_server(amount_of_players, host, port));
@@ -124,7 +140,16 @@ fn main() {
 
     app.insert_resource(new_renet_client(&username, host, port));
 
+    app.insert_resource(Tick(0));
+
     app.run();
+}
+
+fn fixed_time_step(
+    mut tick: ResMut<Tick>,
+) {
+    tick.0 += 1;
+    println!("Tick: {}", tick.0);
 }
 
 ////////// RENET NETWORKING //////////
