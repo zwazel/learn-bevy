@@ -129,12 +129,25 @@ fn fixed_time_step(
     mut tick: ResMut<Tick>,
     mut client: ResMut<RenetClient>,
     mut server: Option<ResMut<RenetServer>>,
+    mut client_ticks: Option<ResMut<ClientTicks>>,
 ) {
-    tick.increment();
-    println!("Tick: {}", tick.get());
-
     if let Some(server) = server.as_mut() {
-        println!("Is Server!");
+        if let Some(client_ticks) = client_ticks.as_mut() {
+            let mut client_iter = client_ticks.0.iter().peekable();
+            let mut clients_ready = client_iter.len() > 0;
+            while let Some((client_id, client_tick)) = client_iter.next() {
+                if client_tick.get() != tick.get() {
+                    println!("Waiting for Client {}!", client_id);
+                    clients_ready = false;
+                }
+            }
+
+            if clients_ready {
+                println!("All clients ready!");
+                tick.increment();
+                println!("Tick: {}", tick.get());
+            }
+        }
     }
 }
 

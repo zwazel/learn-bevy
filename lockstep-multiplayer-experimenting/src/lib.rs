@@ -43,9 +43,14 @@ impl Tick {
     }
 }
 
-
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlayerId(pub u64);
+
+impl Display for PlayerId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 // Clients last received ticks
 #[derive(Debug, Default)]
