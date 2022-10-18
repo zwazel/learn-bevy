@@ -3,7 +3,7 @@ use std::net::{SocketAddr, UdpSocket};
 use std::time::SystemTime;
 use bevy::app::{App, AppExit, CoreStage};
 use bevy::DefaultPlugins;
-use bevy::prelude::{ClearColor, Color, default, EventReader, ResMut, WindowDescriptor};
+use bevy::prelude::*;
 use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig};
@@ -109,20 +109,22 @@ fn main() {
     });
 
     app.add_plugins(DefaultPlugins);
+    app.add_plugin(RenetServerPlugin);
+    app.add_plugin(RenetClientPlugin);
 
     app.add_system(panic_on_error_system);
+    app.add_system_to_stage(CoreStage::Last, disconnect);
 
     match my_type {
-        NetworkType::Client => {
-            app.add_plugin(RenetClientPlugin);
-            app.add_system_to_stage(CoreStage::Last, disconnect);
-            app.insert_resource(new_renet_client(&username, host, port))
-        }
         NetworkType::Server => {
-            app.add_plugin(RenetServerPlugin);
-            app.insert_resource(new_renet_server(amount_of_players, host, port))
+            app.insert_resource(new_renet_server(amount_of_players, host, port));
         }
-    }.run();
+        _ => {}
+    }
+
+    app.insert_resource(new_renet_client(&username, host, port));
+
+    app.run();
 }
 
 ////////// RENET NETWORKING //////////
