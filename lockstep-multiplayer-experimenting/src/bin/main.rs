@@ -122,9 +122,15 @@ fn main() {
 
 fn fixed_time_step(
     mut tick: ResMut<Tick>,
+    mut client: ResMut<RenetClient>,
+    mut server: Option<ResMut<RenetServer>>,
 ) {
     tick.0 += 1;
     println!("Tick: {}", tick.0);
+
+    if let Some(server) = server.as_mut() {
+        println!("Is Server!");
+    }
 }
 
 ////////// RENET NETWORKING //////////
