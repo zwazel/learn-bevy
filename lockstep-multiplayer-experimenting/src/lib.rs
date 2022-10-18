@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Display, Formatter};
 use std::time::Duration;
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
 
@@ -10,6 +11,31 @@ pub const PROTOCOL_ID: u64 = 6969;
 pub const TICKRATE: u64 = 250;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub struct Tick(pub i128);
+
+pub enum ClientType {
+    Client,
+    Server,
+}
+
+impl Debug for ClientType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClientType::Client => write!(f, "Client"),
+            ClientType::Server => write!(f, "Server"),
+        }
+    }
+}
+
+impl Display for ClientType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClientType::Client => write!(f, "Client"),
+            ClientType::Server => write!(f, "Server"),
+        }
+    }
+}
 
 pub enum ClientChannel {
     Input,

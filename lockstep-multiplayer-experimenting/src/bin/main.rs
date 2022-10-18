@@ -7,40 +7,15 @@ use bevy::prelude::*;
 use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig};
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, PORT, PROTOCOL_ID, server_connection_config, TICKRATE, translate_host, translate_port, VERSION};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientType, PORT, PROTOCOL_ID, server_connection_config, Tick, TICKRATE, translate_host, translate_port, VERSION};
 use iyes_loopless::prelude::*;
 
-struct Tick(i128);
-
-enum NetworkType {
-    Client,
-    Server,
-}
-
-impl Debug for NetworkType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NetworkType::Client => write!(f, "Client"),
-            NetworkType::Server => write!(f, "Server"),
-        }
-    }
-}
-
-impl Display for NetworkType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NetworkType::Client => write!(f, "Client"),
-            NetworkType::Server => write!(f, "Server"),
-        }
-    }
-}
-
-fn resolve_type(my_type: &str) -> NetworkType {
+fn resolve_type(my_type: &str) -> ClientType {
     let my_type = my_type.to_lowercase();
     match my_type.as_str() {
-        "client" => NetworkType::Client,
-        "server" => NetworkType::Server,
-        _ => NetworkType::Client,
+        "client" => ClientType::Client,
+        "server" => ClientType::Server,
+        _ => ClientType::Client,
     }
 }
 
@@ -54,7 +29,7 @@ fn main() {
     let mut username = format!("Player_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis());
     let mut host = "127.0.0.1";
     let mut port = PORT;
-    let mut my_type = NetworkType::Client;
+    let mut my_type = ClientType::Client;
     let mut amount_of_players = AMOUNT_PLAYERS;
     match args.len() {
         2 => {
@@ -128,11 +103,11 @@ fn main() {
     app.add_stage_before(
         CoreStage::Update,
         "FixedUpdate",
-        FixedTimestepStage::from_stage(Duration::from_millis(TICKRATE), fixed_update)
+        FixedTimestepStage::from_stage(Duration::from_millis(TICKRATE), fixed_update),
     );
 
     match my_type {
-        NetworkType::Server => {
+        ClientType::Server => {
             app.insert_resource(new_renet_server(amount_of_players, host, port));
         }
         _ => {}
