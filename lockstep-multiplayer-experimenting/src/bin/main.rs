@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::net::UdpSocket;
 use std::time::SystemTime;
 use bevy::app::{App, AppExit, CoreStage};
@@ -9,26 +9,34 @@ use bevy_renet::{RenetClientPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError};
 use lockstep_multiplayer_experimenting::{client_connection_config, PORT, PROTOCOL_ID, translate_host, translate_port, VERSION};
 
-enum Type {
+enum NetworkType {
     Client,
     Server,
 }
 
-impl Debug for Type {
+impl Debug for NetworkType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::Client => write!(f, "Client"),
-            Type::Server => write!(f, "Server"),
+            NetworkType::Client => write!(f, "Client"),
+            NetworkType::Server => write!(f, "Server"),
         }
     }
 }
 
+impl Display for NetworkType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NetworkType::Client => write!(f, "Client"),
+            NetworkType::Server => write!(f, "Server"),
+        }
+    }
+}
 
-fn resolve_type(my_type: &str) -> Type {
+fn resolve_type(my_type: &str) -> NetworkType {
     match my_type {
-        "client" => Type::Client,
-        "server" => Type::Server,
-        _ => panic!("Invalid type"),
+        "client" => NetworkType::Client,
+        "server" => NetworkType::Server,
+        _ => NetworkType::Client,
     }
 }
 
@@ -38,29 +46,33 @@ fn main() {
     let mut username = format!("Player_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis());
     let mut host = "127.0.0.1";
     let mut port = PORT;
-    let mut my_type = Type::Client;
+    let mut my_type = NetworkType::Client;
     match args.len() {
         2 => {
-            username = args[1].clone();
-            println!("Username set to: {}", username);
+            my_type = resolve_type(&args[1]);
+
+            println!("Type has been set to {}", my_type);
         }
         3 => {
-            username = args[1].clone();
-            host = translate_host(&args[2], "");
-            println!("Host has been set to: {}, Username has been set to: {}", host, username);
+            my_type = resolve_type(&args[1]);
+            username = args[2].clone();
+
+            println!("Type has been set to {}, Username has been set to: {}", my_type, username);
         }
         4 => {
-            username = args[1].clone();
-            host = translate_host(&args[2], "");
-            port = translate_port(&args[3]);
-            println!("Port has been set to: {}, Host has been set to: {}, Username has been set to: {}", port, host, username);
+            my_type = resolve_type(&args[1]);
+            username = args[2].clone();
+            host = translate_host(&args[3], "");
+
+            println!("Type has been set to: {}, Username has been set to: {}, Host has been set to: {}", my_type, username, host);
         }
         5 => {
-            username = args[1].clone();
-            host = translate_host(&args[2], "");
-            port = translate_port(&args[3]);
-            my_type = resolve_type(&args[4]);
-            println!("Port has been set to: {}, Host has been set to: {}, Username has been set to: {}, Type has been set to: {:?}", port, host, username, my_type);
+            my_type = resolve_type(&args[1]);
+            username = args[2].clone();
+            host = translate_host(&args[3], "");
+            port = translate_port(&args[4]);
+
+            println!("Type has been set to: {}, Username has been set to: {}, Host has been set to: {}, Port has been set to: {}", my_type, username, host, port);
         }
         _ => {
             println!("Usage: client [username] [host] [port]");
