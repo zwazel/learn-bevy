@@ -1,4 +1,6 @@
 pub mod commands;
+pub mod server_functionality;
+pub mod client_functionality;
 
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
@@ -148,7 +150,7 @@ pub enum ServerChannel {
 pub enum ServerMessages {
     PlayerCreate { entity: Entity, id: PlayerId },
     PlayerRemove { id: PlayerId },
-    UpdateTick { tick: Tick },
+    UpdateTick { targetTick: Tick },
 }
 
 impl ClientChannel {

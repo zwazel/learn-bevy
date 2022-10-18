@@ -4,13 +4,16 @@ use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, SystemTime};
 use bevy::app::{App, AppExit, CoreStage};
 use bevy::DefaultPlugins;
+use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientTicks, ClientType, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, Lobby, Tick, TICKRATE, translate_host, translate_port, VERSION, ServerTick};
 use iyes_loopless::prelude::*;
+use lockstep_multiplayer_experimenting::client_functionality::new_renet_client;
 use lockstep_multiplayer_experimenting::commands::PlayerCommand;
+use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
 use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
 
@@ -110,12 +113,17 @@ fn main() {
         FixedTimestepStage::from_stage(Duration::from_millis(TICKRATE), fixed_update),
     );
 
+    /*
+        Defines the tick the server is on currently
+        The client isn't yet on this tick, it's the target tick.
+     */
+    app.insert_resource(ServerTick::new());
+
     match my_type {
         ClientType::Server => {
             app.insert_resource(new_renet_server(amount_of_players, host, port));
             app.insert_resource(ClientTicks::default());
             app.insert_resource(Lobby::default());
-            app.insert_resource(ServerTick::new());
             app.add_system(server_update_system);
         }
         ClientType::Client => {}
@@ -128,18 +136,30 @@ fn main() {
     app.run();
 }
 
+fn run_if_tick_in_sync(
+    tick: Res<Tick>,
+    serverTick: Res<ServerTick>,
+    clientTicks: Option<Res<ClientTicks>>,
+) -> ShouldRun {
+    if tick.0.is_some() {
+        ShouldRun::Yes
+    } else {
+        ShouldRun::No
+    }
+}
+
 fn fixed_time_step(
-    // Client
+    // Client/All
     mut tick: ResMut<Tick>,
     mut client: ResMut<RenetClient>,
+    mut server_tick: ResMut<ServerTick>,
     // Server
     mut server: Option<ResMut<RenetServer>>,
     mut client_ticks: Option<ResMut<ClientTicks>>,
-    mut server_tick: Option<ResMut<ServerTick>>,
     mut lobby: Option<ResMut<Lobby>>,
 ) {
     if let Some(server) = server.as_mut() {
-        let server_tick = server_tick.as_mut().unwrap();
+        let server_tick = server_tick.as_mut();
         if let Some(client_ticks) = client_ticks.as_mut() {
             let mut client_iter = client_ticks.0.iter().peekable();
             let mut clients_ready = client_iter.len() > 0;
@@ -157,7 +177,7 @@ fn fixed_time_step(
                 println!("Server Tick: {}", server_tick.get());
 
                 let message = bincode::serialize(&UpdateTick {
-                    tick: server_tick.0,
+                    targetTick: server_tick.0,
                 }).unwrap();
                 server.broadcast_message(ServerChannel::ServerMessages.id(), message);
             }
@@ -166,122 +186,6 @@ fn fixed_time_step(
 }
 
 ////////// RENET NETWORKING //////////
-fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> RenetServer {
-    let server_addr: SocketAddr = format!("{}:{}", host, port)
-        .parse()
-        .unwrap();
-    let socket = UdpSocket::bind(server_addr).unwrap();
-    let connection_config = server_connection_config();
-    let server_config = ServerConfig::new(amount_of_player, PROTOCOL_ID, server_addr, ServerAuthentication::Unsecure);
-    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-    RenetServer::new(current_time, server_config, connection_config, socket).unwrap()
-}
-
-fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
-    let server_addr = format!("{}:{}", host, port).parse().unwrap();
-    let socket = UdpSocket::bind(format!("0.0.0.0:0")).unwrap();
-    let connection_config = client_connection_config();
-    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-    let client_id = current_time.as_millis() as u64;
-
-    // Place username in user data
-    let mut user_data = [0u8; NETCODE_USER_DATA_BYTES];
-    if username.len() > NETCODE_USER_DATA_BYTES - 8 {
-        panic!("Username is too big");
-    }
-    user_data[0..8].copy_from_slice(&(username.len() as u64).to_le_bytes());
-    user_data[8..username.len() + 8].copy_from_slice(username.as_bytes());
-
-    let authentication = ClientAuthentication::Unsecure {
-        client_id,
-        protocol_id: PROTOCOL_ID,
-        server_addr,
-        user_data: Some(user_data),
-    };
-
-    RenetClient::new(current_time, socket, client_id, connection_config, authentication).unwrap()
-}
-
-#[allow(clippy::too_many_arguments)]
-fn server_update_system(
-    mut server_events: EventReader<ServerEvent>,
-    mut commands: Commands,
-    mut lobby: ResMut<Lobby>,
-    mut server: ResMut<RenetServer>,
-    mut client_ticks: ResMut<ClientTicks>,
-) {
-    for event in server_events.iter() {
-        match event {
-            ServerEvent::ClientConnected(id, user_data) => {
-                let username = name_from_user_data(&user_data);
-                println!("Player {} connected.", username);
-
-                let player_entity = commands
-                    .spawn()
-                    .insert(Player {
-                        id: PlayerId(*id),
-                        username: username.clone(),
-                        ..default()
-                    })
-                    .id();
-
-                lobby.0.insert(PlayerId(*id), Player {
-                    id: PlayerId(*id),
-                    username: username.clone(),
-                    entity: Some(player_entity),
-                });
-
-                client_ticks.0.insert(PlayerId(*id), Tick::new());
-
-                let message = bincode::serialize(&PlayerCreate {
-                    id: PlayerId(*id),
-                    entity: player_entity,
-                })
-                    .unwrap();
-                server.broadcast_message(ServerMessages.id(), message);
-            }
-            ServerEvent::ClientDisconnected(id) => {
-                let username = lobby.0.get(&PlayerId(*id)).unwrap().username.clone();
-
-                println!("Player {} disconnected.", username);
-                client_ticks.0.remove(&PlayerId(*id));
-                if let Some(player_entity) = lobby.0.remove(&PlayerId(*id)) {
-                    commands.entity(player_entity.entity.unwrap()).despawn();
-                }
-
-                let message = bincode::serialize(&PlayerRemove { id: PlayerId(*id) }).unwrap();
-                server.broadcast_message(ServerMessages.id(), message);
-            }
-        }
-    }
-
-    for client_id in server.clients_id().into_iter() {
-        while let Some(message) = server.receive_message(client_id, ClientChannel::Command.id()) {
-            let command: PlayerCommand = bincode::deserialize(&message).unwrap();
-            match command {
-                PlayerCommand::Test { .. } => {}
-            }
-        }
-        // while let Some(message) = server.receive_message(client_id, ClientChannel::Input.id()) {
-        //     let input: PlayerInput = bincode::deserialize(&message).unwrap();
-        //     client_ticks.0.insert(PlayerId(client_id), input.most_recent_tick);
-        //     if let Some(player_entity) = lobby.players.get(&client_id) {
-        //         commands.entity(*player_entity).insert(input);
-        //     }
-        // }
-    }
-}
-
-/// Utility function for extracting a players name from renet user data
-fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
-    let mut buffer = [0u8; 8];
-    buffer.copy_from_slice(&user_data[0..8]);
-    let mut len = u64::from_le_bytes(buffer) as usize;
-    len = len.min(NETCODE_USER_DATA_BYTES - 8);
-    let data = user_data[8..len + 8].to_vec();
-    String::from_utf8(data).unwrap()
-}
-
 fn disconnect(
     mut events: EventReader<AppExit>,
     mut client: ResMut<RenetClient>,
