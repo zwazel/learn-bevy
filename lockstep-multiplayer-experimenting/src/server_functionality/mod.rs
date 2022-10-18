@@ -2,7 +2,7 @@ use std::net::{SocketAddr, UdpSocket};
 use std::time::SystemTime;
 use bevy::prelude::{Commands, default, EventReader, ResMut};
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
-use crate::{ClientChannel, ClientTicks, Lobby, Player, PlayerId, PROTOCOL_ID, server_connection_config, Tick};
+use crate::{ClientChannel, ClientTicks, ServerLobby, Player, PlayerId, PROTOCOL_ID, server_connection_config, Tick, Username};
 use crate::commands::PlayerCommand;
 use crate::ServerChannel::ServerMessages;
 use crate::ServerMessages::{PlayerCreate, PlayerRemove};
@@ -32,7 +32,7 @@ pub fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> Renet
 pub fn server_update_system(
     mut server_events: EventReader<ServerEvent>,
     mut commands: Commands,
-    mut lobby: ResMut<Lobby>,
+    mut lobby: ResMut<ServerLobby>,
     mut server: ResMut<RenetServer>,
     mut client_ticks: ResMut<ClientTicks>,
 ) {
@@ -41,6 +41,8 @@ pub fn server_update_system(
             ServerEvent::ClientConnected(id, user_data) => {
                 let username = name_from_user_data(&user_data);
                 println!("Player {} connected.", username);
+
+                let username = Username(username);
 
                 let player_entity = commands
                     .spawn()
@@ -60,7 +62,11 @@ pub fn server_update_system(
                 client_ticks.0.insert(PlayerId(*id), Tick::new());
 
                 let message = bincode::serialize(&PlayerCreate {
-                    id: PlayerId(*id),
+                    player: Player {
+                        id: PlayerId(*id),
+                        username: username.clone(),
+                        entity: Some(player_entity),
+                    },
                     entity: player_entity,
                 })
                     .unwrap();

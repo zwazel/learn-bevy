@@ -9,9 +9,9 @@ use bevy::prelude::*;
 use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientTicks, ClientType, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, Lobby, Tick, TICKRATE, translate_host, translate_port, VERSION, ServerTick};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientTicks, ClientType, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, Tick, TICKRATE, translate_host, translate_port, VERSION, ServerTick, ClientLobby, Username, NetworkMapping};
 use iyes_loopless::prelude::*;
-use lockstep_multiplayer_experimenting::client_functionality::new_renet_client;
+use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::PlayerCommand;
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
@@ -33,7 +33,7 @@ fn translate_amount_players(amount_players: &str) -> usize {
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
 
-    let mut username = Player::default_username();
+    let mut username = Player::default_username().0;
     let mut host = "127.0.0.1";
     let mut port = PORT;
     let mut my_type = ClientType::Client;
@@ -100,8 +100,8 @@ fn main() {
     app.add_system(panic_on_error_system);
     app.add_system_to_stage(CoreStage::Last, disconnect);
 
-    let mut fixed_update = SystemStage::parallel();
-    fixed_update.add_system(
+    let mut fixed_update_server = SystemStage::parallel();
+    fixed_update_server.add_system(
         fixed_time_step
             // only do it in-game
             .with_run_criteria(run_if_client_connected)
@@ -110,7 +110,7 @@ fn main() {
     app.add_stage_before(
         CoreStage::Update,
         "FixedUpdate",
-        FixedTimestepStage::from_stage(Duration::from_millis(TICKRATE), fixed_update),
+        FixedTimestepStage::from_stage(Duration::from_millis(TICKRATE), fixed_update_server),
     );
 
     /*
@@ -123,15 +123,18 @@ fn main() {
         ClientType::Server => {
             app.insert_resource(new_renet_server(amount_of_players, host, port));
             app.insert_resource(ClientTicks::default());
-            app.insert_resource(Lobby::default());
+            app.insert_resource(ServerLobby::default());
             app.add_system(server_update_system);
         }
         ClientType::Client => {}
     }
 
-    app.insert_resource(new_renet_client(&username, host, port));
+    app.add_system(client_update_system);
 
+    app.insert_resource(new_renet_client(&username, host, port));
+    app.insert_resource(ClientLobby::default());
     app.insert_resource(Tick(Some(0)));
+    app.insert_resource(NetworkMapping::default());
 
     app.run();
 }
@@ -156,7 +159,7 @@ fn fixed_time_step(
     // Server
     mut server: Option<ResMut<RenetServer>>,
     mut client_ticks: Option<ResMut<ClientTicks>>,
-    mut lobby: Option<ResMut<Lobby>>,
+    mut lobby: Option<ResMut<ServerLobby>>,
 ) {
     if let Some(server) = server.as_mut() {
         let server_tick = server_tick.as_mut();
@@ -177,7 +180,7 @@ fn fixed_time_step(
                 println!("Server Tick: {}", server_tick.get());
 
                 let message = bincode::serialize(&UpdateTick {
-                    targetTick: server_tick.0,
+                    target_tick: server_tick.0,
                 }).unwrap();
                 server.broadcast_message(ServerChannel::ServerMessages.id(), message);
             }

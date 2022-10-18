@@ -1,7 +1,10 @@
 use std::net::UdpSocket;
 use std::time::SystemTime;
+use bevy::asset::{Assets, AssetServer};
+use bevy::math::Vec2;
+use bevy::prelude::{Commands, default, Res, ResMut, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite, Transform};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
-use crate::{client_connection_config, PROTOCOL_ID};
+use crate::{client_connection_config, ServerLobby, NetworkMapping, Player, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerMessages, Tick, ClientLobby};
 
 pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
     let server_addr = format!("{}:{}", host, port).parse().unwrap();
@@ -26,4 +29,64 @@ pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient
     };
 
     RenetClient::new(current_time, socket, client_id, connection_config, authentication).unwrap()
+}
+
+pub fn client_update_system(
+    mut commands: Commands,
+    mut client: ResMut<RenetClient>,
+    mut lobby: ResMut<ClientLobby>,
+    mut network_mapping: ResMut<NetworkMapping>,
+    mut most_recent_tick: ResMut<Tick>,
+) {
+    let client_id = client.client_id();
+
+    while let Some(message) = client.receive_message(ServerChannel::ServerMessages.id()) {
+        let server_message = bincode::deserialize(&message).unwrap();
+        match server_message {
+            ServerMessages::PlayerCreate { player, entity } => {
+                println!("Player {} connected.", player.username);
+
+                let is_player = client_id == player.id.0;
+
+                let client_entity = commands
+                    .spawn()
+                    .insert(Player {
+                        id: player.id,
+                        username: player.username.clone(),
+                        entity: None,
+                    })
+                    .id();
+
+                if is_player {
+                    // client_entity.insert(ControlledPlayer);
+                }
+
+                let player_info = PlayerInfo {
+                    server_entity: entity,
+                    client_entity,
+                    username: player.username.clone(),
+                };
+                lobby.0.insert(player.id, player_info);
+                network_mapping.0.insert(entity, client_entity);
+            }
+            ServerMessages::PlayerRemove { id } => {
+                let username = lobby.get_username(id).unwrap();
+                println!("Player {} disconnected.", username);
+                if let Some(PlayerInfo {
+                                server_entity,
+                                client_entity,
+                                ..
+                            }) = lobby.0.remove(&id)
+                {
+                    commands.entity(client_entity).despawn();
+                    network_mapping.0.remove(&server_entity);
+                }
+            }
+            ServerMessages::UpdateTick { target_tick } => {
+                most_recent_tick.0 = target_tick.0;
+
+                println!("Client {} Tick: {}", lobby.get_username(PlayerId(client_id)).unwrap(), most_recent_tick.get());
+            }
+        }
+    }
 }

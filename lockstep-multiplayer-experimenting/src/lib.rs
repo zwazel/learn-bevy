@@ -81,16 +81,25 @@ impl Display for PlayerId {
 #[derive(Debug, Default)]
 pub struct ClientTicks(pub HashMap<PlayerId, Tick>);
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Serialize, Deserialize)]
 pub struct Player {
     pub id: PlayerId,
-    pub username: String,
+    pub username: Username,
     pub entity: Option<Entity>,
 }
 
+#[derive(Debug, Clone, Component, Serialize, Deserialize)]
+pub struct Username(pub String);
+
+impl Display for Username {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl Player {
-    pub fn default_username() -> String {
-        format!("Player_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis())
+    pub fn default_username() -> Username {
+        Username(format!("Player_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis()))
     }
 }
 
@@ -105,12 +114,33 @@ impl Default for Player {
 }
 
 #[derive(Debug, Default)]
-pub struct Lobby(pub HashMap<PlayerId, Player>);
+pub struct ServerLobby(pub HashMap<PlayerId, Player>);
+
+impl ServerLobby {
+    pub fn get_username(&self, player_id: PlayerId) -> Option<String> {
+        self.0.get(&player_id).map(|player| player.username.0.clone())
+    }
+}
+
+pub struct ClientLobby(pub HashMap<PlayerId, PlayerInfo>);
+
+impl Default for ClientLobby {
+    fn default() -> Self {
+        Self(HashMap::new())
+    }
+}
+
+impl ClientLobby {
+    pub fn get_username(&self, player_id: PlayerId) -> Option<String> {
+        self.0.get(&player_id).map(|player| player.username.0.clone())
+    }
+}
 
 #[derive(Debug)]
 pub struct PlayerInfo {
     pub client_entity: Entity,
     pub server_entity: Entity,
+    pub username: Username,
 }
 
 pub enum ClientType {
@@ -136,6 +166,9 @@ impl Display for ClientType {
     }
 }
 
+#[derive(Default)]
+pub struct NetworkMapping(HashMap<Entity, Entity>);
+
 pub enum ClientChannel {
     Input,
     Command,
@@ -143,14 +176,13 @@ pub enum ClientChannel {
 
 pub enum ServerChannel {
     ServerMessages,
-    NetworkFrame,
 }
 
 #[derive(Debug, Serialize, Deserialize, Component)]
 pub enum ServerMessages {
-    PlayerCreate { entity: Entity, id: PlayerId },
+    PlayerCreate { entity: Entity, player: Player },
     PlayerRemove { id: PlayerId },
-    UpdateTick { targetTick: Tick },
+    UpdateTick { target_tick: Tick },
 }
 
 impl ClientChannel {
@@ -182,20 +214,12 @@ impl ClientChannel {
 impl ServerChannel {
     pub fn id(&self) -> u8 {
         match self {
-            Self::NetworkFrame => 3,
-            Self::ServerMessages => 4,
+            Self::ServerMessages => 3,
         }
     }
 
     pub fn channels_config() -> Vec<ChannelConfig> {
         vec![
-            UnreliableChannelConfig {
-                channel_id: Self::NetworkFrame.id(),
-                // message_resend_time: Duration::ZERO,
-                message_receive_queue_size: 2048,
-                ..Default::default()
-            }
-                .into(),
             ReliableChannelConfig {
                 channel_id: Self::ServerMessages.id(),
                 message_resend_time: Duration::from_millis(200),
