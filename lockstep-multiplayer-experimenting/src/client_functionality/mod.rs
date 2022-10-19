@@ -1,10 +1,12 @@
 use std::net::UdpSocket;
 use std::time::SystemTime;
+
 use bevy::asset::{Assets, AssetServer};
 use bevy::math::Vec2;
 use bevy::prelude::{Commands, default, Res, ResMut, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite, Transform};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
-use crate::{client_connection_config, ServerLobby, NetworkMapping, Player, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerMessages, Tick, ClientLobby};
+
+use crate::{client_connection_config, ClientLobby, NetworkMapping, Player, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMessages, Tick};
 
 pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
     let server_addr = format!("{}:{}", host, port).parse().unwrap();
@@ -57,9 +59,9 @@ pub fn client_update_system(
 
                 if is_player {
                     // client_entity.insert(ControlledPlayer);
-                    println!("You're now connected!")
+                    println!("You're now connected to the server!")
                 } else {
-                    println!("Player {} connected.", player.username);
+                    println!("Player {} connected to the server.", player.username);
                 }
 
                 let player_info = PlayerInfo {
