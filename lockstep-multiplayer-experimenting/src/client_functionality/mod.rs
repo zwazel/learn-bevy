@@ -44,8 +44,6 @@ pub fn client_update_system(
         let server_message = bincode::deserialize(&message).unwrap();
         match server_message {
             ServerMessages::PlayerCreate { player, entity } => {
-                println!("Player {} connected.", player.username);
-
                 let is_player = client_id == player.id.0;
 
                 let client_entity = commands
@@ -59,6 +57,9 @@ pub fn client_update_system(
 
                 if is_player {
                     // client_entity.insert(ControlledPlayer);
+                    println!("You're now connected!")
+                } else {
+                    println!("Player {} connected.", player.username);
                 }
 
                 let player_info = PlayerInfo {
@@ -70,8 +71,15 @@ pub fn client_update_system(
                 network_mapping.0.insert(entity, client_entity);
             }
             ServerMessages::PlayerRemove { id } => {
+                let is_player = client_id == id.0;
+
                 let username = lobby.get_username(id).unwrap();
-                println!("Player {} disconnected.", username);
+
+                if is_player {
+                    println!("You've been disconnected from the server!");
+                } else {
+                    println!("Player {} disconnected from the server.", username);
+                }
                 if let Some(PlayerInfo {
                                 server_entity,
                                 client_entity,
