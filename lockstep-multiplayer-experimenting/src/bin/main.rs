@@ -2,15 +2,17 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, SystemTime};
+
 use bevy::app::{App, AppExit, CoreStage};
 use bevy::DefaultPlugins;
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
-use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientTicks, ClientType, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, Tick, TICKRATE, translate_host, translate_port, VERSION, ServerTick, ClientLobby, Username, NetworkMapping};
 use iyes_loopless::prelude::*;
+use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
+
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::PlayerCommand;
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
@@ -105,6 +107,7 @@ fn main() {
         fixed_time_step
             // only do it in-game
             .with_run_criteria(run_if_client_connected)
+            .with_run_criteria(run_if_tick_in_sync)
     );
 
     app.add_stage_before(
@@ -141,14 +144,22 @@ fn main() {
 
 fn run_if_tick_in_sync(
     tick: Res<Tick>,
-    serverTick: Res<ServerTick>,
-    clientTicks: Option<Res<ClientTicks>>,
+    server_tick: Res<ServerTick>,
+    client_ticks: Option<Res<ClientTicks>>,
+    lobby: Option<Res<ServerLobby>>,
 ) -> ShouldRun {
-    if tick.0.is_some() {
-        ShouldRun::Yes
-    } else {
-        ShouldRun::No
+    if let Some(client_ticks) = client_ticks.as_ref() {
+        let mut client_iter = client_ticks.0.iter().peekable();
+        while let Some((client_id, client_tick)) = client_iter.next() {
+            if client_tick.get() != server_tick.get() {
+                let username = lobby.as_ref().unwrap().0.get(&client_id).unwrap().username.clone();
+                println!("Waiting for Client {}!", username);
+                return ShouldRun::No;
+            }
+        }
     }
+
+    ShouldRun::Yes
 }
 
 fn fixed_time_step(
@@ -161,30 +172,16 @@ fn fixed_time_step(
     mut client_ticks: Option<ResMut<ClientTicks>>,
     mut lobby: Option<ResMut<ServerLobby>>,
 ) {
-    if let Some(server) = server.as_mut() {
+    if let Some(server) = server.as_mut() { // we're server
         let server_tick = server_tick.as_mut();
-        if let Some(client_ticks) = client_ticks.as_mut() {
-            let mut client_iter = client_ticks.0.iter().peekable();
-            let mut clients_ready = client_iter.len() > 0;
-            while let Some((client_id, client_tick)) = client_iter.next() {
-                if client_tick.get() != server_tick.get() {
-                    let username = lobby.as_ref().unwrap().0.get(&client_id).unwrap().username.clone();
-                    println!("Waiting for Client {}!", username);
-                    clients_ready = false;
-                }
-            }
+        println!("All clients ready!");
+        server_tick.increment();
+        println!("Server Tick: {}", server_tick.get());
 
-            if clients_ready {
-                println!("All clients ready!");
-                server_tick.increment();
-                println!("Server Tick: {}", server_tick.get());
-
-                let message = bincode::serialize(&UpdateTick {
-                    target_tick: server_tick.0,
-                }).unwrap();
-                server.broadcast_message(ServerChannel::ServerMessages.id(), message);
-            }
-        }
+        let message = bincode::serialize(&UpdateTick {
+            target_tick: server_tick.0,
+        }).unwrap();
+        server.broadcast_message(ServerChannel::ServerMessages.id(), message);
     }
 }
 
