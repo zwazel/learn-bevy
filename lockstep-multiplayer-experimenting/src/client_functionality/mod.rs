@@ -109,21 +109,32 @@ pub fn client_update_system(
             UpdateTick { target_tick } => {
                 let username = lobby.get_username(PlayerId(client_id)).unwrap();
                 most_recent_server_tick.0.0 = target_tick.0;
-                println!("Client {} got server Tick to process: {}, was on tick: {}", username, most_recent_server_tick.get(), most_recent_tick.get());
+
+                let is_server = is_server.is_some();
+
+                if !is_server {
+                    println!("Client {} got server Tick to process: {}, was on tick: {}", username, most_recent_server_tick.get(), most_recent_tick.get());
+                }
 
                 most_recent_tick.0 = most_recent_server_tick.0.0;
 
-                println!("Client {} processed Tick, most recent tick now: {}", username, most_recent_tick.get());
+                if !is_server {
+                    println!("Client {} processed Tick, most recent tick now: {}", username, most_recent_tick.get());
+                }
 
                 let message = bincode::serialize(&ClientUpdateTick {
                     current_tick: *most_recent_tick,
                 }).unwrap();
 
-                if let None = is_server {
+                if !is_server {
                     // wait a random amount between 0 and 2 seconds if it isnt the server
-                    let wait_time = rand::thread_rng().gen_range(0..=2000);
-                    println!("Client {} waiting {} ms before sending tick", username, wait_time);
-                    std::thread::sleep(std::time::Duration::from_millis(wait_time));
+                    let chance_to_wait = rand::thread_rng().gen_range(0..=100);
+
+                    if chance_to_wait < 30 {
+                        let wait_time = rand::thread_rng().gen_range(0..=2000);
+                        println!("Client {} waiting {} ms before sending tick", username, wait_time);
+                        std::thread::sleep(std::time::Duration::from_millis(wait_time));
+                    }
                 }
 
                 client.send_message(ClientChannel::ClientTick.id(), message);
