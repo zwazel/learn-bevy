@@ -1,13 +1,16 @@
-pub mod commands;
-pub mod server_functionality;
-pub mod client_functionality;
+extern crate core;
 
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::time::{Duration, SystemTime};
+
 use bevy::prelude::{Component, Entity};
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
 use serde::{Deserialize, Serialize};
+
+pub mod commands;
+pub mod server_functionality;
+pub mod client_functionality;
 
 pub const PORT: i32 = 5000;
 pub const AMOUNT_PLAYERS: usize = 2;
@@ -20,6 +23,8 @@ pub const TICKRATE: u64 = 250;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub struct ServerTick(pub Tick);
+
+pub struct ServerMarker;
 
 impl ServerTick {
     pub fn new() -> Self {
@@ -48,7 +53,11 @@ impl Tick {
     }
 
     pub fn get(&self) -> i128 {
-        self.0.unwrap()
+        if let Some(tick) = self.0 {
+            tick
+        } else {
+            0
+        }
     }
 
     pub fn set(&mut self, tick: i128) {
@@ -172,10 +181,12 @@ pub struct NetworkMapping(HashMap<Entity, Entity>);
 pub enum ClientChannel {
     Input,
     Command,
+    ClientTick,
 }
 
 pub enum ServerChannel {
     ServerMessages,
+    ServerTick,
 }
 
 #[derive(Debug, Serialize, Deserialize, Component)]
@@ -185,11 +196,17 @@ pub enum ServerMessages {
     UpdateTick { target_tick: Tick },
 }
 
+#[derive(Debug, Serialize, Deserialize, Component)]
+pub enum ClientMessages {
+    ClientUpdateTick { current_tick: Tick },
+}
+
 impl ClientChannel {
     pub fn id(&self) -> u8 {
         match self {
             Self::Input => 1,
             Self::Command => 2,
+            Self::ClientTick => 3
         }
     }
 
@@ -207,6 +224,12 @@ impl ClientChannel {
                 ..Default::default()
             }
                 .into(),
+            ReliableChannelConfig {
+                channel_id: Self::ClientTick.id(),
+                message_resend_time: Duration::ZERO,
+                ..Default::default()
+            }
+                .into(),
         ]
     }
 }
@@ -214,7 +237,8 @@ impl ClientChannel {
 impl ServerChannel {
     pub fn id(&self) -> u8 {
         match self {
-            Self::ServerMessages => 3,
+            Self::ServerMessages => 4,
+            Self::ServerTick => 5,
         }
     }
 
@@ -223,6 +247,12 @@ impl ServerChannel {
             ReliableChannelConfig {
                 channel_id: Self::ServerMessages.id(),
                 message_resend_time: Duration::from_millis(200),
+                ..Default::default()
+            }
+                .into(),
+            ReliableChannelConfig {
+                channel_id: Self::ServerTick.id(),
+                message_resend_time: Duration::from_millis(50),
                 ..Default::default()
             }
                 .into(),

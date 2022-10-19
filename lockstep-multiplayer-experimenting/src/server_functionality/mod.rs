@@ -1,8 +1,10 @@
 use std::net::{SocketAddr, UdpSocket};
 use std::time::SystemTime;
+
 use bevy::prelude::{Commands, default, EventReader, ResMut};
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
-use crate::{ClientChannel, ClientTicks, ServerLobby, Player, PlayerId, PROTOCOL_ID, server_connection_config, Tick, Username};
+
+use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerLobby, Tick, Username};
 use crate::commands::PlayerCommand;
 use crate::ServerChannel::ServerMessages;
 use crate::ServerMessages::{PlayerCreate, PlayerRemove};
@@ -92,6 +94,21 @@ pub fn server_update_system(
             let command: PlayerCommand = bincode::deserialize(&message).unwrap();
             match command {
                 PlayerCommand::Test { .. } => {}
+            }
+        }
+        while let Some(message) = server.receive_message(client_id, ClientChannel::ClientTick.id()) {
+            let username = lobby.get_username(PlayerId(client_id)).unwrap();
+            let client_message: ClientMessages = bincode::deserialize(&message).unwrap();
+
+            match client_message {
+                ClientMessages::ClientUpdateTick { current_tick } => {
+                    let client_tick = client_ticks.0.get_mut(&PlayerId(client_id)).unwrap();
+
+                    println!("client {}: current server tick: {} -> client Tick processed: {}", username, client_tick.get(), current_tick.get());
+
+                    client_tick.0 = current_tick.0;
+                    println!("client {}: new tick: {}", username, client_tick.get());
+                }
             }
         }
         // while let Some(message) = server.receive_message(client_id, ClientChannel::Input.id()) {

@@ -12,7 +12,7 @@ use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use iyes_loopless::prelude::*;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::PlayerCommand;
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
@@ -113,6 +113,7 @@ fn main() {
             app.insert_resource(new_renet_server(amount_of_players, host, port));
             app.insert_resource(ClientTicks::default());
             app.insert_resource(ServerLobby::default());
+            app.insert_resource(ServerMarker);
             app.add_system(server_update_system);
 
             let mut fixed_update_server = SystemStage::parallel();
@@ -161,15 +162,16 @@ fn run_if_tick_in_sync(
     lobby: Res<ServerLobby>,
 ) -> bool {
     let mut client_iter = client_ticks.0.iter().peekable();
+    let mut players_synced = true;
     while let Some((client_id, client_tick)) = client_iter.next() {
         if client_tick.get() != server_tick.get() {
             let username = lobby.0.get(&client_id).unwrap().username.clone();
             println!("Waiting for Client {}!", username);
-            return false;
+            players_synced = false;
         }
     }
 
-    true
+    return players_synced;
 }
 
 fn fixed_time_step(
@@ -191,7 +193,7 @@ fn fixed_time_step(
         let message = bincode::serialize(&UpdateTick {
             target_tick: server_tick.0,
         }).unwrap();
-        server.broadcast_message(ServerChannel::ServerMessages.id(), message);
+        server.broadcast_message(ServerChannel::ServerTick.id(), message);
     }
 }
 

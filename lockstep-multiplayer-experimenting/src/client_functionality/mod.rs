@@ -4,9 +4,12 @@ use std::time::SystemTime;
 use bevy::asset::{Assets, AssetServer};
 use bevy::math::Vec2;
 use bevy::prelude::{Commands, default, Res, ResMut, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite, Transform};
+use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
-use crate::{client_connection_config, ClientLobby, NetworkMapping, Player, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMessages, Tick};
+use crate::{client_connection_config, ClientChannel, ClientLobby, NetworkMapping, Player, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Tick};
+use crate::ClientMessages::ClientUpdateTick;
+use crate::ServerMessages::UpdateTick;
 
 pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
     let server_addr = format!("{}:{}", host, port).parse().unwrap();
@@ -39,6 +42,8 @@ pub fn client_update_system(
     mut lobby: ResMut<ClientLobby>,
     mut network_mapping: ResMut<NetworkMapping>,
     mut most_recent_tick: ResMut<Tick>,
+    mut most_recent_server_tick: ResMut<ServerTick>,
+    is_server: Option<Res<ServerMarker>>,
 ) {
     let client_id = client.client_id();
 
@@ -92,10 +97,39 @@ pub fn client_update_system(
                     network_mapping.0.remove(&server_entity);
                 }
             }
-            ServerMessages::UpdateTick { target_tick } => {
-                most_recent_tick.0 = target_tick.0;
+            _ => {
+                panic!("Unexpected message on ServerMessages channel!")
+            }
+        }
+    }
 
-                println!("Client {} Tick: {}", lobby.get_username(PlayerId(client_id)).unwrap(), most_recent_tick.get());
+    while let Some(message) = client.receive_message(ServerChannel::ServerTick.id()) {
+        let server_message = bincode::deserialize(&message).unwrap();
+        match server_message {
+            UpdateTick { target_tick } => {
+                let username = lobby.get_username(PlayerId(client_id)).unwrap();
+                most_recent_server_tick.0.0 = target_tick.0;
+                println!("Client {} got server Tick to process: {}, was on tick: {}", username, most_recent_server_tick.get(), most_recent_tick.get());
+
+                most_recent_tick.0 = most_recent_server_tick.0.0;
+
+                println!("Client {} processed Tick, most recent tick now: {}", username, most_recent_tick.get());
+
+                let message = bincode::serialize(&ClientUpdateTick {
+                    current_tick: *most_recent_tick,
+                }).unwrap();
+
+                if let None = is_server {
+                    // wait a random amount between 0 and 2 seconds if it isnt the server
+                    let wait_time = rand::thread_rng().gen_range(0..=2000);
+                    println!("Client {} waiting {} ms before sending tick", username, wait_time);
+                    std::thread::sleep(std::time::Duration::from_millis(wait_time));
+                }
+
+                client.send_message(ClientChannel::ClientTick.id(), message);
+            }
+            _ => {
+                panic!("Unexpected message on ServerTick channel");
             }
         }
     }
