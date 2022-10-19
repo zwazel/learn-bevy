@@ -102,20 +102,6 @@ fn main() {
     app.add_system(panic_on_error_system);
     app.add_system_to_stage(CoreStage::Last, disconnect);
 
-    let mut fixed_update_server = SystemStage::parallel();
-    fixed_update_server.add_system(
-        fixed_time_step
-            // only do it in-game
-            .with_run_criteria(run_if_client_connected)
-            .with_run_criteria(run_if_tick_in_sync)
-    );
-
-    app.add_stage_before(
-        CoreStage::Update,
-        "FixedUpdate",
-        FixedTimestepStage::from_stage(Duration::from_millis(TICKRATE), fixed_update_server),
-    );
-
     /*
         Defines the tick the server is on currently
         The client isn't yet on this tick, it's the target tick.
@@ -128,6 +114,21 @@ fn main() {
             app.insert_resource(ClientTicks::default());
             app.insert_resource(ServerLobby::default());
             app.add_system(server_update_system);
+
+            let mut fixed_update_server = SystemStage::parallel();
+            fixed_update_server.add_system(
+                fixed_time_step
+                    // only do it in-game
+                    // .run_if(run_if_client_connected)
+                    .run_if(run_if_tick_in_sync)
+                    .run_if(run_if_enough_players)
+            );
+
+            app.add_stage_before(
+                CoreStage::Update,
+                "FixedUpdate",
+                FixedTimestepStage::from_stage(Duration::from_millis(TICKRATE), fixed_update_server),
+            );
         }
         ClientType::Client => {}
     }
@@ -142,24 +143,33 @@ fn main() {
     app.run();
 }
 
+fn run_if_enough_players(
+    lobby: Res<ServerLobby>,
+) -> bool {
+    if lobby.0.len() >= AMOUNT_PLAYERS {
+        true
+    } else {
+        println!("Current amount of players: {}, needed amount of players: {}", lobby.0.len(), AMOUNT_PLAYERS);
+        false
+    }
+}
+
 fn run_if_tick_in_sync(
     tick: Res<Tick>,
     server_tick: Res<ServerTick>,
-    client_ticks: Option<Res<ClientTicks>>,
-    lobby: Option<Res<ServerLobby>>,
-) -> ShouldRun {
-    if let Some(client_ticks) = client_ticks.as_ref() {
-        let mut client_iter = client_ticks.0.iter().peekable();
-        while let Some((client_id, client_tick)) = client_iter.next() {
-            if client_tick.get() != server_tick.get() {
-                let username = lobby.as_ref().unwrap().0.get(&client_id).unwrap().username.clone();
-                println!("Waiting for Client {}!", username);
-                return ShouldRun::No;
-            }
+    client_ticks: Res<ClientTicks>,
+    lobby: Res<ServerLobby>,
+) -> bool {
+    let mut client_iter = client_ticks.0.iter().peekable();
+    while let Some((client_id, client_tick)) = client_iter.next() {
+        if client_tick.get() != server_tick.get() {
+            let username = lobby.0.get(&client_id).unwrap().username.clone();
+            println!("Waiting for Client {}!", username);
+            return false;
         }
     }
 
-    ShouldRun::Yes
+    true
 }
 
 fn fixed_time_step(

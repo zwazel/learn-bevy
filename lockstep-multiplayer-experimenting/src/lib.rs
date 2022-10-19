@@ -10,7 +10,7 @@ use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnec
 use serde::{Deserialize, Serialize};
 
 pub const PORT: i32 = 5000;
-pub const AMOUNT_PLAYERS: usize = 4;
+pub const AMOUNT_PLAYERS: usize = 2;
 
 pub const PRIVATE_KEY: &[u8; NETCODE_KEY_BYTES] = b"an example very very secret key.";
 pub const PROTOCOL_ID: u64 = 6969;
