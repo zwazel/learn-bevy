@@ -42,6 +42,10 @@ impl ServerTick {
     pub fn increment(&mut self) {
         self.0.increment();
     }
+
+    pub fn reset(&mut self) {
+        self.0.reset();
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Component)]
@@ -74,6 +78,10 @@ impl Tick {
         } else {
             self.0 = Some(0);
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.0 = Some(0);
     }
 }
 

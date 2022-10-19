@@ -96,6 +96,9 @@ pub fn client_update_system(
                     commands.entity(client_entity).despawn();
                     network_mapping.0.remove(&server_entity);
                 }
+
+                most_recent_server_tick.reset();
+                most_recent_tick.reset();
             }
             _ => {
                 panic!("Unexpected message on ServerMessages channel!")

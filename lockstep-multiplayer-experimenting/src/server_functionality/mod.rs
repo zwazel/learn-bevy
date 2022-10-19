@@ -4,7 +4,7 @@ use std::time::SystemTime;
 use bevy::prelude::{Commands, default, EventReader, ResMut};
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerLobby, Tick, Username};
+use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerLobby, ServerTick, Tick, Username};
 use crate::commands::PlayerCommand;
 use crate::ServerChannel::ServerMessages;
 use crate::ServerMessages::{PlayerCreate, PlayerRemove};
@@ -37,6 +37,7 @@ pub fn server_update_system(
     mut lobby: ResMut<ServerLobby>,
     mut server: ResMut<RenetServer>,
     mut client_ticks: ResMut<ClientTicks>,
+    mut server_ticks: ResMut<ServerTick>,
 ) {
     for event in server_events.iter() {
         match event {
@@ -82,6 +83,13 @@ pub fn server_update_system(
                 if let Some(player_entity) = lobby.0.remove(&PlayerId(*id)) {
                     commands.entity(player_entity.entity.unwrap()).despawn();
                 }
+
+                println!("Resetting Ticks");
+                server_ticks.0 = Tick::new();
+
+                client_ticks.0.iter_mut().for_each(|(_, tick)| {
+                    tick.reset();
+                });
 
                 let message = bincode::serialize(&PlayerRemove { id: PlayerId(*id) }).unwrap();
                 server.broadcast_message(ServerMessages.id(), message);
