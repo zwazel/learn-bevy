@@ -127,6 +127,7 @@ pub fn client_update_system(
 
                 let message = bincode::serialize(&ClientUpdateTick {
                     current_tick: *most_recent_tick,
+                    commands: Vec::new(),
                 }).unwrap();
 
                 if !is_server {

@@ -14,7 +14,7 @@ use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetErr
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, new_renet_client};
-use lockstep_multiplayer_experimenting::commands::PlayerCommand;
+use lockstep_multiplayer_experimenting::commands::{PlayerCommand, PlayerCommandsList, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
 use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
@@ -107,6 +107,7 @@ fn main() {
         The client isn't yet on this tick, it's the target tick.
      */
     app.insert_resource(ServerTick::new());
+    app.insert_resource(SyncedPlayerCommandsList::default());
 
     match my_type {
         ClientType::Server => {
@@ -119,7 +120,6 @@ fn main() {
             let mut fixed_update_server = SystemStage::parallel();
             fixed_update_server.add_system(
                 fixed_time_step
-                    // only do it in-game
                     // .run_if(run_if_client_connected)
                     .run_if(run_if_tick_in_sync)
                     .run_if(run_if_enough_players)
@@ -179,6 +179,7 @@ fn fixed_time_step(
     mut tick: ResMut<Tick>,
     mut client: ResMut<RenetClient>,
     mut server_tick: ResMut<ServerTick>,
+    mut synced_commands: ResMut<SyncedPlayerCommandsList>,
     // Server
     mut server: Option<ResMut<RenetServer>>,
     mut client_ticks: Option<ResMut<ClientTicks>>,
@@ -193,6 +194,9 @@ fn fixed_time_step(
         let message = bincode::serialize(&UpdateTick {
             target_tick: server_tick.0,
         }).unwrap();
+
+        synced_commands.0.insert(server_tick.0, PlayerCommandsList::default());
+
         server.broadcast_message(ServerChannel::ServerTick.id(), message);
     }
 }

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 use std::time::SystemTime;
 
@@ -5,7 +6,7 @@ use bevy::prelude::{Commands, default, EventReader, ResMut};
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
 use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerLobby, ServerTick, Tick, Username};
-use crate::commands::PlayerCommand;
+use crate::commands::{PlayerCommand, PlayerCommandsList, SyncedPlayerCommandsList};
 use crate::ServerChannel::ServerMessages;
 use crate::ServerMessages::{PlayerCreate, PlayerRemove};
 
@@ -38,6 +39,7 @@ pub fn server_update_system(
     mut server: ResMut<RenetServer>,
     mut client_ticks: ResMut<ClientTicks>,
     mut server_ticks: ResMut<ServerTick>,
+    mut synced_commands: ResMut<SyncedPlayerCommandsList>,
 ) {
     for event in server_events.iter() {
         match event {
@@ -98,24 +100,21 @@ pub fn server_update_system(
     }
 
     for client_id in server.clients_id().into_iter() {
-        while let Some(message) = server.receive_message(client_id, ClientChannel::Command.id()) {
-            let command: PlayerCommand = bincode::deserialize(&message).unwrap();
-            match command {
-                PlayerCommand::Test { .. } => {}
-            }
-        }
         while let Some(message) = server.receive_message(client_id, ClientChannel::ClientTick.id()) {
             let username = lobby.get_username(PlayerId(client_id)).unwrap();
             let client_message: ClientMessages = bincode::deserialize(&message).unwrap();
 
             match client_message {
-                ClientMessages::ClientUpdateTick { current_tick } => {
+                ClientMessages::ClientUpdateTick { current_tick, commands } => {
                     let client_tick = client_ticks.0.get_mut(&PlayerId(client_id)).unwrap();
 
                     println!("client {}: current server tick: {} -> client Tick processed: {}", username, client_tick.get(), current_tick.get());
 
                     client_tick.0 = current_tick.0;
                     println!("client {}: new tick: {}", username, client_tick.get());
+
+                    let mut player_commands = synced_commands.0.entry(current_tick.clone()).or_insert(PlayerCommandsList::default());
+                    player_commands.0.push((PlayerId(client_id), commands));
                 }
             }
         }

@@ -2,11 +2,13 @@ extern crate core;
 
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
+use std::process::Command;
 use std::time::{Duration, SystemTime};
 
 use bevy::prelude::{Component, Entity};
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
 use serde::{Deserialize, Serialize};
+use crate::commands::PlayerCommand;
 
 pub mod commands;
 pub mod server_functionality;
@@ -188,7 +190,6 @@ pub struct NetworkMapping(HashMap<Entity, Entity>);
 
 pub enum ClientChannel {
     Input,
-    Command,
     ClientTick,
 }
 
@@ -206,15 +207,17 @@ pub enum ServerMessages {
 
 #[derive(Debug, Serialize, Deserialize, Component)]
 pub enum ClientMessages {
-    ClientUpdateTick { current_tick: Tick },
+    ClientUpdateTick {
+        current_tick: Tick,
+        commands: Vec<PlayerCommand>,
+    },
 }
 
 impl ClientChannel {
     pub fn id(&self) -> u8 {
         match self {
             Self::Input => 1,
-            Self::Command => 2,
-            Self::ClientTick => 3
+            Self::ClientTick => 2
         }
     }
 
@@ -222,12 +225,6 @@ impl ClientChannel {
         vec![
             ReliableChannelConfig {
                 channel_id: Self::Input.id(),
-                message_resend_time: Duration::ZERO,
-                ..Default::default()
-            }
-                .into(),
-            ReliableChannelConfig {
-                channel_id: Self::Command.id(),
                 message_resend_time: Duration::ZERO,
                 ..Default::default()
             }
@@ -245,8 +242,8 @@ impl ClientChannel {
 impl ServerChannel {
     pub fn id(&self) -> u8 {
         match self {
-            Self::ServerMessages => 4,
-            Self::ServerTick => 5,
+            Self::ServerMessages => 3,
+            Self::ServerTick => 4,
         }
     }
 
