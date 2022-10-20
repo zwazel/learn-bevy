@@ -9,6 +9,7 @@ use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
+use chrono::DateTime;
 use iyes_loopless::prelude::*;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
@@ -55,26 +56,26 @@ fn main() {
         4 => {
             my_type = resolve_type(&args[1]);
             username = args[2].clone();
-            host = translate_host(&args[3], "");
+            amount_of_players = translate_amount_players(&args[3]);
 
-            println!("Type has been set to: {}, Username has been set to: {}, Host has been set to: {}", my_type, username, host);
+            println!("Type has been set to: {}, Username has been set to: {}, Amount of players has been set to: {}", my_type, username, amount_of_players);
         }
         5 => {
             my_type = resolve_type(&args[1]);
             username = args[2].clone();
-            host = translate_host(&args[3], "");
-            port = translate_port(&args[4]);
+            amount_of_players = translate_amount_players(&args[3]);
+            host = translate_host(&args[4], "");
 
-            println!("Type has been set to: {}, Username has been set to: {}, Host has been set to: {}, Port has been set to: {}", my_type, username, host, port);
+            println!("Type has been set to: {}, Username has been set to: {}, Amount of Players has been set to: {}, Host has been set to: {}", my_type, username, amount_of_players, host);
         }
         6 => {
             my_type = resolve_type(&args[1]);
             username = args[2].clone();
-            host = translate_host(&args[3], "");
-            port = translate_port(&args[4]);
             amount_of_players = translate_amount_players(&args[5]);
+            host = translate_host(&args[4], "");
+            port = translate_port(&args[5]);
 
-            println!("Type has been set to: {}, Username has been set to: {}, Host has been set to: {}, Port has been set to: {}, Amount of players has been set to: {}", my_type, username, host, port, amount_of_players);
+            println!("Type has been set to: {}, Username has been set to: {}, Amount of players has been set to: {}, Host has been set to: {}, Port has been set to: {}", my_type, username, amount_of_players, host, port);
         }
         _ => {
             println!("Usage: client [ClientType: server/client] [username] [host] [port] [amount of players]");
@@ -115,6 +116,7 @@ fn main() {
             app.insert_resource(ClientTicks::default());
             app.insert_resource(ServerLobby::default());
             app.insert_resource(ServerMarker);
+            app.insert_resource(AmountPlayers(amount_of_players));
             app.add_system(server_update_system);
 
             let mut fixed_update_server = SystemStage::parallel();
@@ -144,13 +146,16 @@ fn main() {
     app.run();
 }
 
+struct AmountPlayers(usize);
+
 fn run_if_enough_players(
     lobby: Res<ServerLobby>,
+    amount_players: Res<AmountPlayers>,
 ) -> bool {
-    if lobby.0.len() >= AMOUNT_PLAYERS {
+    if lobby.0.len() >= amount_players.0 {
         true
     } else {
-        println!("Current amount of players: {}, needed amount of players: {}", lobby.0.len(), AMOUNT_PLAYERS);
+        println!("Current amount of players: {}, needed amount of players: {}", lobby.0.len(), amount_players.0);
         false
     }
 }
@@ -195,7 +200,7 @@ fn fixed_time_step(
             target_tick: server_tick.0,
         }).unwrap();
 
-        synced_commands.0.insert(server_tick.0, PlayerCommandsList::default());
+        synced_commands.0.insert(server_tick.0, (PlayerCommandsList::default(), DateTime::from(SystemTime::now())));
 
         server.broadcast_message(ServerChannel::ServerTick.id(), message);
     }

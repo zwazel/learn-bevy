@@ -1,7 +1,10 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Display, Formatter};
-use bevy::render::render_resource::MapMode;
+use std::time::Instant;
 
+use bevy::render::render_resource::MapMode;
+use chrono::{DateTime, FixedOffset, Local, Utc};
+use env_logger::fmt::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use crate::{Player, PlayerId, Tick};
@@ -45,12 +48,12 @@ impl Default for PlayerCommandsList {
     }
 }
 
-pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, PlayerCommandsList>);
+pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, (PlayerCommandsList, DateTime<Utc>)>);
 
 impl Display for SyncedPlayerCommandsList {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for (tick, commands) in &self.0 {
-            write!(f, "Commands for tick {}:\n", tick.get())?;
+        for (tick, (commands, time)) in &self.0 {
+            write!(f, "Commands for tick {}, processed at: {}\n", tick.get(), time)?;
             write!(f, "{}\n\n", commands)?;
         }
 

@@ -9,6 +9,7 @@ use std::time::{Duration, SystemTime};
 use bevy::prelude::{Component, Entity};
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
 use serde::{Deserialize, Serialize};
+
 use crate::commands::PlayerCommand;
 
 pub mod commands;
@@ -16,7 +17,7 @@ pub mod server_functionality;
 pub mod client_functionality;
 
 pub const PORT: i32 = 5000;
-pub const AMOUNT_PLAYERS: usize = 2;
+pub const AMOUNT_PLAYERS: usize = 4;
 
 pub const PRIVATE_KEY: &[u8; NETCODE_KEY_BYTES] = b"an example very very secret key.";
 pub const PROTOCOL_ID: u64 = 6969;

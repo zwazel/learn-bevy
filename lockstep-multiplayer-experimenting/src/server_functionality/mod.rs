@@ -3,6 +3,8 @@ use std::net::{SocketAddr, UdpSocket};
 use std::time::SystemTime;
 
 use bevy::prelude::{Commands, default, EventReader, ResMut};
+use chrono::DateTime;
+use env_logger::fmt::Timestamp;
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
 use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerLobby, ServerTick, Tick, Username};
@@ -113,10 +115,10 @@ pub fn server_update_system(
                     client_tick.0 = current_tick.0;
                     println!("client {}: new tick: {}", username, client_tick.get());
 
-                    let mut player_commands = synced_commands.0.entry(current_tick.clone()).or_insert(PlayerCommandsList::default());
-                    player_commands.0.push((PlayerId(client_id), commands));
+                    let mut player_commands = synced_commands.0.entry(current_tick.clone()).or_insert((PlayerCommandsList::default(), DateTime::from(SystemTime::now())));
+                    player_commands.0.0.push((PlayerId(client_id), commands));
 
-                    println!("new commands: {}", player_commands);
+                    println!("new commands: {}", player_commands.0);
                 }
             }
         }
