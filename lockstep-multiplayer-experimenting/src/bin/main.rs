@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
+use std::fs::File;
+use std::io::Write;
 use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, SystemTime};
 
@@ -12,6 +14,7 @@ use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::DateTime;
 use iyes_loopless::prelude::*;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
+use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, new_renet_client};
@@ -211,11 +214,21 @@ fn disconnect(
     mut events: EventReader<AppExit>,
     mut client: ResMut<RenetClient>,
     command_history: Res<SyncedPlayerCommandsList>,
+    is_server: Option<Res<ServerMarker>>,
 ) {
     if let Some(_) = events.iter().next() {
         let command_history = command_history.as_ref();
 
-        println!("Exiting...");
+        if let Some(_) = is_server {
+            let json_string = json!(command_history).to_string();
+            let mut file = File::create("command_history.json").unwrap();
+            file.write_all(json_string.as_bytes()).unwrap();
+
+            println!("Server Stopped!");
+        } else {
+            println!("Client disconnected!");
+        }
+
         println!("Command history:\n{}", command_history);
         client.disconnect();
         std::process::exit(0);
