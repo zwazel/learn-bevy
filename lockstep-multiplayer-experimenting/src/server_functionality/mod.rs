@@ -115,6 +115,8 @@ pub fn server_update_system(
 
                     let mut player_commands = synced_commands.0.entry(current_tick.clone()).or_insert(PlayerCommandsList::default());
                     player_commands.0.push((PlayerId(client_id), commands));
+
+                    println!("new commands: {}", player_commands);
                 }
             }
         }

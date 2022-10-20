@@ -205,9 +205,13 @@ fn fixed_time_step(
 fn disconnect(
     mut events: EventReader<AppExit>,
     mut client: ResMut<RenetClient>,
+    command_history: Res<SyncedPlayerCommandsList>,
 ) {
     if let Some(_) = events.iter().next() {
-        print!("Exiting...");
+        let command_history = command_history.as_ref();
+
+        println!("Exiting...");
+        println!("Command history:\n{}", command_history);
         client.disconnect();
         std::process::exit(0);
     }

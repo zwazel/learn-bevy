@@ -1,5 +1,6 @@
 extern crate core;
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::process::Command;
@@ -50,8 +51,24 @@ impl ServerTick {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Component)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Component, PartialOrd)]
 pub struct Tick(pub Option<i128>);
+
+impl Ord for Tick {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.0.is_none() {
+            if other.0.is_none() {
+                Ordering::Equal
+            } else {
+                Ordering::Less
+            }
+        } else if other.0.is_none() {
+            Ordering::Greater
+        } else {
+            self.0.unwrap().cmp(&other.0.unwrap())
+        }
+    }
+}
 
 impl Tick {
     pub fn new() -> Self {
