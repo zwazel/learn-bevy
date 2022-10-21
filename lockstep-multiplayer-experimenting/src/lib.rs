@@ -35,11 +35,11 @@ impl ServerTick {
         Self(Tick::new())
     }
 
-    pub fn get(&self) -> i128 {
+    pub fn get(&self) -> i64 {
         self.0.get()
     }
 
-    pub fn set(&mut self, tick: i128) {
+    pub fn set(&mut self, tick: i64) {
         self.0.set(tick);
     }
 
@@ -53,7 +53,7 @@ impl ServerTick {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Component, PartialOrd)]
-pub struct Tick(pub Option<i128>);
+pub struct Tick(pub Option<i64>);
 
 impl Ord for Tick {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -76,7 +76,7 @@ impl Tick {
         Self(Some(0))
     }
 
-    pub fn get(&self) -> i128 {
+    pub fn get(&self) -> i64 {
         if let Some(tick) = self.0 {
             tick
         } else {
@@ -84,7 +84,7 @@ impl Tick {
         }
     }
 
-    pub fn set(&mut self, tick: i128) {
+    pub fn set(&mut self, tick: i64) {
         self.0 = Some(tick);
     }
 
