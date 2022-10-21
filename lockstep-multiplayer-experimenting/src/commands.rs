@@ -23,8 +23,21 @@ impl Display for PlayerCommand {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct PlayerCommandsList(pub Vec<(PlayerId, Vec<PlayerCommand>)>);
+
+impl Serialize for PlayerCommandsList {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        for (player_id, commands) in &self.0 {
+            map.serialize_entry(&player_id.0, &commands)?;
+        }
+        map.end()
+    }
+}
 
 impl Display for PlayerCommandsList {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -52,20 +65,33 @@ impl Default for PlayerCommandsList {
 
 pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, (PlayerCommandsList, DateTime<Utc>)>);
 
-impl Deserialize for SyncedPlayerCommandsList {
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, dyn serde::de::Error> where D: Deserializer<'de> {
-        let map: HashMap<Tick, (PlayerCommandsList, DateTime<Utc>)> = HashMap::deserialize(deserializer)?;
+impl<'de> Deserialize<'de> for SyncedPlayerCommandsList {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        let map: HashMap<Tick, (PlayerCommandsList, String)> = Deserialize::deserialize(deserializer)?;
 
-        Ok(Self(map.into_iter().collect()))
+        let mut btree_map = SyncedPlayerCommandsList::default();
+        for (tick, (commands, date)) in map {
+            let date = DateTime::parse_from_rfc2822(&date).unwrap().with_timezone(&Utc);
+            btree_map.0.insert(tick, (commands, date));
+        };
+
+        Ok(btree_map)
     }
 }
 
 impl Serialize for SyncedPlayerCommandsList {
-    fn serialize<S>(&self, serializer: S) -> Result<serde::ser::Ok, dyn serde::ser::Error> where S: Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
         let mut map = serializer.serialize_map(Some(self.0.len()))?;
 
         for (tick, (commands, timestamp)) in &self.0 {
-            map.serialize_entry(&tick.0, &(commands, timestamp.to_rfc3339()))?;
+            let tick = tick.0;
+            map.serialize_entry(&tick.unwrap(), &(commands, timestamp.to_rfc2822()))?;
         }
 
         map.end()

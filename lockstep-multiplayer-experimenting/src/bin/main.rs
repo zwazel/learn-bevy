@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env;
 use std::fmt::{Debug, Display, Formatter};
 use std::fs::File;
 use std::io::Write;
@@ -37,6 +38,8 @@ fn translate_amount_players(amount_players: &str) -> usize {
 }
 
 fn main() {
+    // env::set_var("RUST_BACKTRACE", "full");
+
     let args = std::env::args().collect::<Vec<String>>();
 
     let mut username = Player::default_username().0;
