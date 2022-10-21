@@ -1,18 +1,20 @@
 use std::collections::HashMap;
-use std::env;
+use std::{env, fs};
 use std::fmt::{Debug, Display, Formatter};
-use std::fs::File;
-use std::io::Write;
+use std::fs::{create_dir, create_dir_all, File, write};
+use std::io::{Read, Write};
 use std::net::{SocketAddr, UdpSocket};
+use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 use bevy::app::{App, AppExit, CoreStage};
 use bevy::DefaultPlugins;
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
+use bevy::reflect::GetPath;
 use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
-use chrono::DateTime;
+use chrono::{DateTime, Utc};
 use iyes_loopless::prelude::*;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 use serde_json::json;
@@ -216,6 +218,7 @@ fn fixed_time_step(
 fn disconnect(
     mut events: EventReader<AppExit>,
     mut client: ResMut<RenetClient>,
+    server_lobby: Option<Res<ServerLobby>>,
     command_history: Res<SyncedPlayerCommandsList>,
     is_server: Option<Res<ServerMarker>>,
 ) {
@@ -223,16 +226,27 @@ fn disconnect(
         let command_history = command_history.as_ref();
 
         if let Some(_) = is_server {
-            let json_string = json!(command_history).to_string();
-            let mut file = File::create("command_history.json").unwrap();
-            file.write_all(json_string.as_bytes()).unwrap();
+            let server_lobby = server_lobby.as_ref().unwrap();
+            let username = server_lobby.get_username(PlayerId(client.client_id())).unwrap();
+            // create directory with file for replay
+            let mut replay_dir = std::env::current_dir().unwrap();
+            replay_dir.push("replays");
+            replay_dir.push(username);
+            create_dir_all(&replay_dir).unwrap();
+
+            let mut replay_file = replay_dir;
+            replay_file.push(format!("replay_{}.json", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs()));
+            let mut replay_file = File::create(replay_file).unwrap();
+
+            replay_file.write_all(serde_json::to_string(&command_history).unwrap().as_bytes()).unwrap();
+
+            println!("Replay saved!");
 
             println!("Server Stopped!");
         } else {
             println!("Client disconnected!");
         }
 
-        println!("Command history:\n{}", command_history);
         client.disconnect();
         std::process::exit(0);
     }
