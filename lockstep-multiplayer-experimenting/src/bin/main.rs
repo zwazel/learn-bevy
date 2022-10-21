@@ -169,7 +169,6 @@ fn run_if_enough_players(
 }
 
 fn run_if_tick_in_sync(
-    tick: Res<Tick>,
     server_tick: Res<ServerTick>,
     client_ticks: Res<ClientTicks>,
     lobby: Res<ServerLobby>,
@@ -189,14 +188,10 @@ fn run_if_tick_in_sync(
 
 fn fixed_time_step(
     // Client/All
-    mut tick: ResMut<Tick>,
-    mut client: ResMut<RenetClient>,
     mut server_tick: ResMut<ServerTick>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
     // Server
     mut server: Option<ResMut<RenetServer>>,
-    mut client_ticks: Option<ResMut<ClientTicks>>,
-    mut lobby: Option<ResMut<ServerLobby>>,
 ) {
     if let Some(server) = server.as_mut() { // we're server
         let server_tick = server_tick.as_mut();
@@ -228,8 +223,7 @@ fn disconnect(
         if let Some(_) = is_server {
             let server_lobby = server_lobby.as_ref().unwrap();
             let username = server_lobby.get_username(PlayerId(client.client_id())).unwrap();
-            // create directory with file for replay
-            let mut replay_dir = std::env::current_dir().unwrap();
+            let mut replay_dir = env::current_dir().unwrap();
             replay_dir.push("replays");
             replay_dir.push(username);
             create_dir_all(&replay_dir).unwrap();
