@@ -228,9 +228,8 @@ fn disconnect(
             replay_dir.push(username);
             create_dir_all(&replay_dir).unwrap();
 
-            let mut replay_file = replay_dir;
-            replay_file.push(format!("replay_{}.json", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs()));
-            let mut replay_file = File::create(replay_file).unwrap();
+            replay_dir.push(format!("replay_{}.json", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs()));
+            let mut replay_file = File::create(replay_dir).unwrap();
 
             replay_file.write_all(serde_json::to_string(&command_history).unwrap().as_bytes()).unwrap();
 
