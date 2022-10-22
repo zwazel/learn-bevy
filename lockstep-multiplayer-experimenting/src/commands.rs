@@ -23,21 +23,8 @@ impl Display for PlayerCommand {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct PlayerCommandsList(pub Vec<(PlayerId, Vec<PlayerCommand>)>);
-
-impl Serialize for PlayerCommandsList {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(self.0.len()))?;
-        for (player_id, commands) in &self.0 {
-            map.serialize_entry(&player_id.0, &commands)?;
-        }
-        map.end()
-    }
-}
 
 impl Display for PlayerCommandsList {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -106,7 +93,7 @@ pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, (PlayerCommandsList, MyDa
 impl Display for SyncedPlayerCommandsList {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for (tick, (commands, time)) in &self.0 {
-            write!(f, "Commands for tick {}, processed at: {}\n", tick.get(), time)?;
+            write!(f, "Comman-ds for tick {}, processed at: {}\n", tick.get(), time)?;
             write!(f, "{}\n\n", commands)?;
         }
 

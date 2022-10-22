@@ -248,6 +248,8 @@ fn save_replays(username: String, command_history: &SyncedPlayerCommandsList) {
 
     replay_file.write_all(serde_json::to_string(command_history).unwrap().as_bytes()).unwrap();
 
+    println!("Saved replay to: {}", replay_dir.to_str().unwrap());
+
     // read created file
     let mut replay_file = File::open(&replay_dir).unwrap();
     let mut replay_file_contents = String::new();
