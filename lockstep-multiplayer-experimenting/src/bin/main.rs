@@ -250,14 +250,14 @@ fn save_replays(username: String, command_history: &SyncedPlayerCommandsList) {
 
     println!("Saved replay to: {}", replay_dir.to_str().unwrap());
 
-    // read created file
-    let mut replay_file = File::open(&replay_dir).unwrap();
-    let mut replay_file_contents = String::new();
-    replay_file.read_to_string(&mut replay_file_contents).unwrap();
-
-    // deserialize
-    let replay: SyncedPlayerCommandsList = serde_json::from_str(&replay_file_contents).unwrap();
-    println!("Replay: {}", replay);
+    // // read created file
+    // let mut replay_file = File::open(&replay_dir).unwrap();
+    // let mut replay_file_contents = String::new();
+    // replay_file.read_to_string(&mut replay_file_contents).unwrap();
+    //
+    // // deserialize
+    // let replay: SyncedPlayerCommandsList = serde_json::from_str(&replay_file_contents).unwrap();
+    // println!("Replay: {}", replay);
 }
 
 // If any error is found we just panic
