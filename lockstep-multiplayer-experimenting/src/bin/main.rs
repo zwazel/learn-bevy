@@ -213,28 +213,20 @@ fn fixed_time_step(
 fn disconnect(
     mut events: EventReader<AppExit>,
     mut client: ResMut<RenetClient>,
-    server_lobby: Option<Res<ServerLobby>>,
+    client_lobby: Option<Res<ClientLobby>>,
     command_history: Res<SyncedPlayerCommandsList>,
     is_server: Option<Res<ServerMarker>>,
 ) {
     if let Some(_) = events.iter().next() {
         let command_history = command_history.as_ref();
 
+        if let Some(client_lobby) = client_lobby.as_ref() {
+            let client_lobby = client_lobby.as_ref();
+            let username = client_lobby.get_username(PlayerId(client.client_id())).unwrap();
+            save_replays(username, command_history);
+        }
+
         if let Some(_) = is_server {
-            let server_lobby = server_lobby.as_ref().unwrap();
-            let username = server_lobby.get_username(PlayerId(client.client_id())).unwrap();
-            let mut replay_dir = env::current_dir().unwrap();
-            replay_dir.push("replays");
-            replay_dir.push(username);
-            create_dir_all(&replay_dir).unwrap();
-
-            replay_dir.push(format!("replay_{}.json", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs()));
-            let mut replay_file = File::create(replay_dir).unwrap();
-
-            replay_file.write_all(serde_json::to_string(&command_history).unwrap().as_bytes()).unwrap();
-
-            println!("Replay saved!");
-
             println!("Server Stopped!");
         } else {
             println!("Client disconnected!");
@@ -243,6 +235,18 @@ fn disconnect(
         client.disconnect();
         std::process::exit(0);
     }
+}
+
+fn save_replays(username: String, command_history: &SyncedPlayerCommandsList) {
+    let mut replay_dir = env::current_dir().unwrap();
+    replay_dir.push("replays");
+    replay_dir.push(username);
+    create_dir_all(&replay_dir).unwrap();
+
+    replay_dir.push(format!("replay_{}.json", DateTime::<Utc>::from(SystemTime::now()).format("%d-%m-%Y_%H-%M-%S")));
+    let mut replay_file = File::create(replay_dir).unwrap();
+
+    replay_file.write_all(serde_json::to_string(command_history).unwrap().as_bytes()).unwrap();
 }
 
 // If any error is found we just panic
