@@ -93,7 +93,7 @@ pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, (PlayerCommandsList, MyDa
 impl Display for SyncedPlayerCommandsList {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for (tick, (commands, time)) in &self.0 {
-            write!(f, "Comman-ds for tick {}, processed at: {}\n", tick.get(), time)?;
+            write!(f, "Commands for tick {}, processed at: {}\n", tick.get(), time)?;
             write!(f, "{}\n\n", commands)?;
         }
 
