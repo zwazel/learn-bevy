@@ -21,7 +21,7 @@ use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, new_renet_client};
-use lockstep_multiplayer_experimenting::commands::{PlayerCommand, PlayerCommandsList, SyncedPlayerCommandsList};
+use lockstep_multiplayer_experimenting::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
 use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
@@ -42,7 +42,7 @@ fn translate_amount_players(amount_players: &str) -> usize {
 fn main() {
     // env::set_var("RUST_BACKTRACE", "full");
 
-    let args = std::env::args().collect::<Vec<String>>();
+    let args = env::args().collect::<Vec<String>>();
 
     let mut username = Player::default_username().0;
     let mut host = "127.0.0.1";
@@ -203,7 +203,7 @@ fn fixed_time_step(
             target_tick: server_tick.0,
         }).unwrap();
 
-        synced_commands.0.insert(server_tick.0, (PlayerCommandsList::default(), DateTime::from(SystemTime::now())));
+        synced_commands.0.insert(server_tick.0, (PlayerCommandsList::default(), MyDateTime::now()));
 
         server.broadcast_message(ServerChannel::ServerTick.id(), message);
     }
@@ -243,7 +243,7 @@ fn save_replays(username: String, command_history: &SyncedPlayerCommandsList) {
     replay_dir.push(username);
     create_dir_all(&replay_dir).unwrap();
 
-    replay_dir.push(format!("replay_{}.json", DateTime::<Utc>::from(SystemTime::now()).format("%d-%m-%Y_%H-%M-%S")));
+    replay_dir.push(format!("replay_{}.json", MyDateTime::now().to_string()));
     let mut replay_file = File::create(replay_dir).unwrap();
 
     replay_file.write_all(serde_json::to_string(command_history).unwrap().as_bytes()).unwrap();

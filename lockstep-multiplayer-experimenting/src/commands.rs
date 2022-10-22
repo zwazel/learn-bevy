@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Display, Formatter};
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
 use bevy::render::render_resource::MapMode;
 use chrono::{DateTime, FixedOffset, Local, Utc};
@@ -63,42 +63,45 @@ impl Default for PlayerCommandsList {
     }
 }
 
-pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, (PlayerCommandsList, DateTime<Utc>)>);
+pub struct MyDateTime(pub DateTime<Local>);
 
-impl<'de> Deserialize<'de> for SyncedPlayerCommandsList {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-    {
-        let map: HashMap<Tick, (PlayerCommandsList, String)> = Deserialize::deserialize(deserializer)?;
+impl MyDateTime {
+    pub fn now() -> Self {
+        Self(Local::now())
+    }
 
-        let mut btree_map = SyncedPlayerCommandsList::default();
-        for (tick, (commands, date)) in map {
-            let date = DateTime::parse_from_rfc2822(&date).unwrap().with_timezone(&Utc);
-            btree_map.0.insert(tick, (commands, date));
-        };
-
-        Ok(btree_map)
+    pub fn to_string(&self) -> String {
+        self.0.format("%d-%m-%Y_%H-%M-%S").to_string()
     }
 }
 
-impl Serialize for SyncedPlayerCommandsList {
+impl Display for MyDateTime {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.to_rfc2822())
+    }
+}
+
+impl Serialize for MyDateTime {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
     {
-        let mut map = serializer.serialize_map(Some(self.0.len()))?;
-
-        for (tick, (commands, timestamp)) in &self.0 {
-            let tick = tick.0;
-            map.serialize_entry(&tick.unwrap(), &(commands, timestamp.to_rfc2822()))?;
-        }
-
-        map.end()
+        serializer.serialize_str(&self.0.to_rfc2822())
     }
 }
 
+impl<'de> Deserialize<'de> for MyDateTime {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(Self(DateTime::from(DateTime::parse_from_rfc2822(&s).unwrap())))
+    }
+}
 
+#[derive(Serialize, Deserialize)]
+pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, (PlayerCommandsList, MyDateTime)>);
 
 impl Display for SyncedPlayerCommandsList {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

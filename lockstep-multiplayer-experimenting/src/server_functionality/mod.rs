@@ -8,7 +8,7 @@ use env_logger::fmt::Timestamp;
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
 use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerLobby, ServerTick, Tick, Username};
-use crate::commands::{PlayerCommand, PlayerCommandsList, SyncedPlayerCommandsList};
+use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, SyncedPlayerCommandsList};
 use crate::ServerChannel::ServerMessages;
 use crate::ServerMessages::{PlayerCreate, PlayerRemove};
 
@@ -115,7 +115,7 @@ pub fn server_update_system(
                     client_tick.0 = current_tick.0;
                     println!("client {}: new tick: {}", username, client_tick.get());
 
-                    let mut player_commands = synced_commands.0.entry(current_tick.clone()).or_insert((PlayerCommandsList::default(), DateTime::from(SystemTime::now())));
+                    let mut player_commands = synced_commands.0.entry(current_tick.clone()).or_insert((PlayerCommandsList::default(), MyDateTime::now()));
                     player_commands.0.0.push((PlayerId(client_id), commands));
 
                     println!("new commands: {}", player_commands.0);
