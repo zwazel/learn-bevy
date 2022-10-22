@@ -148,7 +148,7 @@ fn main() {
 
     app.insert_resource(new_renet_client(&username, host, port));
     app.insert_resource(ClientLobby::default());
-    app.insert_resource(Tick(Some(0)));
+    app.insert_resource(Tick(0));
     app.insert_resource(NetworkMapping::default());
 
     app.run();

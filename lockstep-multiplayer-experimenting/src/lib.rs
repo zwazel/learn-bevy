@@ -53,55 +53,33 @@ impl ServerTick {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Component, PartialOrd)]
-pub struct Tick(pub Option<i64>);
+pub struct Tick(pub i64);
 
 impl Ord for Tick {
     fn cmp(&self, other: &Self) -> Ordering {
-        if self.0.is_none() {
-            if other.0.is_none() {
-                Ordering::Equal
-            } else {
-                Ordering::Less
-            }
-        } else if other.0.is_none() {
-            Ordering::Greater
-        } else {
-            self.0.unwrap().cmp(&other.0.unwrap())
-        }
+        self.0.cmp(&other.0)
     }
 }
 
 impl Tick {
     pub fn new() -> Self {
-        Self(Some(0))
+        Self(0)
     }
 
     pub fn get(&self) -> i64 {
-        if let Some(tick) = self.0 {
-            tick
-        } else {
-            0
-        }
+        self.0
     }
 
     pub fn set(&mut self, tick: i64) {
-        self.0 = Some(tick);
-    }
-
-    pub fn is_set(&self) -> bool {
-        self.0.is_some()
+        self.0 = tick;
     }
 
     pub fn increment(&mut self) {
-        if self.is_set() {
-            self.0 = Some(self.get() + 1);
-        } else {
-            self.0 = Some(0);
-        }
+        self.0 = self.get() + 1;
     }
 
     pub fn reset(&mut self) {
-        self.0 = Some(0);
+        self.0 = 0;
     }
 }
 
