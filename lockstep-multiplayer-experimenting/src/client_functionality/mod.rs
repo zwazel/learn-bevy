@@ -7,7 +7,7 @@ use bevy::prelude::{Commands, default, Res, ResMut, SpriteSheetBundle, TextureAt
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
-use crate::{client_connection_config, ClientChannel, ClientLobby, NetworkMapping, Player, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Tick};
+use crate::{client_connection_config, ClientChannel, ClientLobby, NetworkMapping, Player, PlayerCommand, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Tick};
 use crate::ClientMessages::ClientUpdateTick;
 use crate::ServerMessages::UpdateTick;
 
@@ -125,16 +125,24 @@ pub fn client_update_system(
                     println!("Client {} processed Tick, most recent tick now: {}", username, most_recent_tick.get());
                 }
 
+                let mut commands: Vec<PlayerCommand> = Vec::new();
+
+                let chance_to_add_command = rand::thread_rng().gen_range(0..=100);
+                if chance_to_add_command < 50 {
+                    let command = PlayerCommand::Test(username.clone());
+                    commands.push(command);
+                }
+
                 let message = bincode::serialize(&ClientUpdateTick {
                     current_tick: *most_recent_tick,
-                    commands: Vec::new(),
+                    commands,
                 }).unwrap();
 
                 if !is_server {
                     // wait a random amount between 0 and 2 seconds if it isnt the server
                     let chance_to_wait = rand::thread_rng().gen_range(0..=100);
 
-                    if chance_to_wait < 30 {
+                    if chance_to_wait < 20 {
                         let wait_time = rand::thread_rng().gen_range(0..=2000);
                         println!("Client {} waiting {} ms before sending tick", username, wait_time);
                         std::thread::sleep(std::time::Duration::from_millis(wait_time));
