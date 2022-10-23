@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::{env, fs};
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::fs::{create_dir, create_dir_all, File, write};
 use std::io::{Read, Write};
@@ -220,10 +220,12 @@ fn disconnect(
     if let Some(_) = events.iter().next() {
         let command_history = command_history.as_ref();
 
-        if let Some(client_lobby) = client_lobby.as_ref() {
-            let client_lobby = client_lobby.as_ref();
-            let username = client_lobby.get_username(PlayerId(client.client_id())).unwrap();
-            save_replays(username, command_history);
+        if !command_history.is_empty() {
+            if let Some(client_lobby) = client_lobby.as_ref() {
+                let client_lobby = client_lobby.as_ref();
+                let username = client_lobby.get_username(PlayerId(client.client_id())).unwrap();
+                save_replays(username, command_history);
+            }
         }
 
         if let Some(_) = is_server {

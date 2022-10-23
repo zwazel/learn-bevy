@@ -90,6 +90,12 @@ impl<'de> Deserialize<'de> for MyDateTime {
 #[derive(Serialize, Deserialize)]
 pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, (PlayerCommandsList, MyDateTime)>);
 
+impl SyncedPlayerCommandsList {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
 impl Display for SyncedPlayerCommandsList {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for (tick, (commands, time)) in &self.0 {
