@@ -196,11 +196,23 @@ fn fixed_time_step(
     if let Some(server) = server.as_mut() { // we're server
         let server_tick = server_tick.as_mut();
         println!("All clients ready!");
+
+        let commands = synced_commands.0.get(&Tick(server_tick.get()));
+
         server_tick.increment();
         println!("Server Tick: {}", server_tick.get());
 
         let message = bincode::serialize(&UpdateTick {
             target_tick: server_tick.0,
+            commands: {
+                if let Some(commands) = commands {
+                    println!("Commands at {}: {}", commands.1, commands.0);
+                    commands.clone()
+                } else {
+                    println!("No commands for this tick!");
+                    Vec::new()
+                }
+            },
         }).unwrap();
 
         synced_commands.0.insert(server_tick.0, (PlayerCommandsList::default(), MyDateTime::now()));

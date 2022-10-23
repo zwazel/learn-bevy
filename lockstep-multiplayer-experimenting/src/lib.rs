@@ -10,7 +10,7 @@ use bevy::prelude::{Component, Entity};
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
 use serde::{Deserialize, Serialize};
 
-use crate::commands::PlayerCommand;
+use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList};
 
 pub mod commands;
 pub mod server_functionality;
@@ -195,10 +195,13 @@ pub enum ServerChannel {
 }
 
 #[derive(Debug, Serialize, Deserialize, Component)]
-pub enum ServerMessages {
+pub enum ServerMessages<'e> {
     PlayerCreate { entity: Entity, player: Player },
     PlayerRemove { id: PlayerId },
-    UpdateTick { target_tick: Tick },
+    UpdateTick {
+        target_tick: Tick,
+        commands: &'e(PlayerCommandsList, MyDateTime),
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Component)]

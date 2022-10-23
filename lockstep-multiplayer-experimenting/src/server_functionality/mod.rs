@@ -115,10 +115,7 @@ pub fn server_update_system(
                     client_tick.0 = current_tick.0;
                     println!("client {}: new tick: {}", username, client_tick.get());
 
-                    let mut player_commands = synced_commands.0.entry(current_tick.clone()).or_insert((PlayerCommandsList::default(), MyDateTime::now()));
-                    player_commands.0.0.push((PlayerId(client_id), commands));
-
-                    println!("new commands: {}", player_commands.0);
+                    // TODO: broadcast commands to all clients
                 }
             }
         }
