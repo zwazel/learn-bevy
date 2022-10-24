@@ -210,7 +210,7 @@ fn fixed_time_step(
                     commands.clone()
                 } else {
                     println!("No commands for this tick!");
-                    Vec::new()
+                    SyncedPlayerCommand::default()
                 }
             },
         }).unwrap();

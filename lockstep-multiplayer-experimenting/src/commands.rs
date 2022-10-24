@@ -94,6 +94,12 @@ pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, SyncedPlayerCommand>);
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SyncedPlayerCommand(pub PlayerCommandsList, pub MyDateTime);
 
+impl Default for SyncedPlayerCommand {
+    fn default() -> Self {
+        Self(PlayerCommandsList::default(), MyDateTime::now())
+    }
+}
+
 impl SyncedPlayerCommandsList {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
@@ -102,9 +108,9 @@ impl SyncedPlayerCommandsList {
 
 impl Display for SyncedPlayerCommandsList {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for (tick, (commands, time)) in &self.0 {
-            write!(f, "Commands for tick {}, processed at: {}\n", tick.get(), time)?;
-            write!(f, "{}\n\n", commands)?;
+        for (tick, synced_player_command) in &self.0 {
+            write!(f, "Commands for tick {}, processed at: {}\n", tick.get(), synced_player_command.1)?;
+            write!(f, "{}\n\n", synced_player_command.0)?;
         }
 
         Ok(())
