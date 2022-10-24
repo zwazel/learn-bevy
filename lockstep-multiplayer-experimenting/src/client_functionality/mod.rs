@@ -142,8 +142,8 @@ pub fn client_update_system(
                     // wait a random amount between 0 and 2 seconds if it isnt the server
                     let chance_to_wait = rand::thread_rng().gen_range(0..=100);
 
-                    if chance_to_wait < 20 {
-                        let wait_time = rand::thread_rng().gen_range(0..=2000);
+                    if chance_to_wait < 10 {
+                        let wait_time = rand::thread_rng().gen_range(0..=1000);
                         println!("Client {} waiting {} ms before sending tick", username, wait_time);
                         std::thread::sleep(std::time::Duration::from_millis(wait_time));
                     }
