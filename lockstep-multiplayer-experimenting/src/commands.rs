@@ -23,7 +23,7 @@ impl Display for PlayerCommand {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PlayerCommandsList(pub Vec<(PlayerId, Vec<PlayerCommand>)>);
 
 impl Display for PlayerCommandsList {
@@ -50,6 +50,7 @@ impl Default for PlayerCommandsList {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct MyDateTime(pub DateTime<Local>);
 
 impl MyDateTime {
@@ -87,8 +88,11 @@ impl<'de> Deserialize<'de> for MyDateTime {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, (PlayerCommandsList, MyDateTime)>);
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, SyncedPlayerCommand>);
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SyncedPlayerCommand(pub PlayerCommandsList, pub MyDateTime);
 
 impl SyncedPlayerCommandsList {
     pub fn is_empty(&self) -> bool {

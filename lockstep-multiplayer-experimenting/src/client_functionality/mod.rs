@@ -109,7 +109,7 @@ pub fn client_update_system(
     while let Some(message) = client.receive_message(ServerChannel::ServerTick.id()) {
         let server_message = bincode::deserialize(&message).unwrap();
         match server_message {
-            UpdateTick { target_tick } => {
+            UpdateTick { target_tick, commands } => {
                 let username = lobby.get_username(PlayerId(client_id)).unwrap();
                 most_recent_server_tick.0.0 = target_tick.0;
 
