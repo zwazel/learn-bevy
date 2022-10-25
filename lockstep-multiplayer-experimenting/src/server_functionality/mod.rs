@@ -7,8 +7,8 @@ use chrono::DateTime;
 use env_logger::fmt::Timestamp;
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerLobby, ServerTick, Tick, Username};
-use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, SyncedPlayerCommandsList};
+use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerTick, SyncedPlayerCommand, Tick, Username};
+use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
 use crate::ServerChannel::ServerMessages;
 use crate::ServerMessages::{PlayerCreate, PlayerRemove};
 
@@ -41,7 +41,7 @@ pub fn server_update_system(
     mut server: ResMut<RenetServer>,
     mut client_ticks: ResMut<ClientTicks>,
     mut server_ticks: ResMut<ServerTick>,
-    mut synced_commands: ResMut<SyncedPlayerCommandsList>,
+    mut synced_commands: ResMut<ServerSyncedPlayerCommandsList>,
 ) {
     for event in server_events.iter() {
         match event {
@@ -113,9 +113,8 @@ pub fn server_update_system(
                     println!("client {}: current server tick: {} -> client Tick processed: {}", username, client_tick.get(), current_tick.get());
 
                     client_tick.0 = current_tick.0;
+                    synced_commands.0.0.get_mut(client_tick).unwrap().0.0.push((PlayerId(client_id), commands));;
                     println!("client {}: new tick: {}", username, client_tick.get());
-
-                    // TODO: broadcast commands to all clients
                 }
             }
         }

@@ -38,6 +38,7 @@ pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient
 }
 
 pub fn client_update_system(
+    mut commands: Commands,
     mut client: ResMut<RenetClient>,
     mut lobby: ResMut<ClientLobby>,
     mut network_mapping: ResMut<NetworkMapping>,
@@ -54,8 +55,7 @@ pub fn client_update_system(
             ServerMessages::PlayerCreate { player, entity } => {
                 let is_player = client_id == player.id.0;
 
-                let client_entity = commands
-                    .spawn()
+                let client_entity = commands.spawn()
                     .insert(Player {
                         id: player.id,
                         username: player.username.clone(),
@@ -91,7 +91,7 @@ pub fn client_update_system(
                 if let Some(PlayerInfo {
                                 server_entity,
                                 client_entity,
-                                ..
+                                username: _username,
                             }) = lobby.0.remove(&id)
                 {
                     commands.entity(client_entity).despawn();

@@ -216,7 +216,7 @@ fn fixed_time_step(
             },
         }).unwrap();
 
-        synced_commands.0.insert(server_tick.0, SyncedPlayerCommand(PlayerCommandsList::default(), MyDateTime::now()));
+        synced_commands.0.0.insert(server_tick.0, SyncedPlayerCommand(PlayerCommandsList::default(), MyDateTime::now()));
 
         server.broadcast_message(ServerChannel::ServerTick.id(), message);
     }
