@@ -51,6 +51,15 @@ pub fn server_update_system(
 
                 let username = Username(username);
 
+                for (player_id, player) in lobby.0.iter() {
+                    let message = bincode::serialize(&PlayerCreate {
+                        player: player.clone(),
+                        entity: player.entity.unwrap(),
+                    })
+                        .unwrap();
+                    server.send_message(*id, ServerMessages.id(), message);
+                }
+
                 let player_entity = commands
                     .spawn()
                     .insert(Player {
@@ -88,7 +97,6 @@ pub fn server_update_system(
                     commands.entity(player_entity.entity.unwrap()).despawn();
                 }
 
-                println!("Resetting Ticks");
                 server_ticks.0 = Tick::new();
 
                 client_ticks.0.iter_mut().for_each(|(_, tick)| {
@@ -110,11 +118,9 @@ pub fn server_update_system(
                 ClientMessages::ClientUpdateTick { current_tick, commands } => {
                     let client_tick = client_ticks.0.get_mut(&PlayerId(client_id)).unwrap();
 
-                    println!("client {}: current server tick: {} -> client Tick processed: {}", username, client_tick.get(), current_tick.get());
-
                     client_tick.0 = current_tick.0;
-                    synced_commands.0.0.get_mut(client_tick).unwrap().0.0.push((PlayerId(client_id), commands));;
-                    println!("client {}: new tick: {}", username, client_tick.get());
+                    synced_commands.0.0.get_mut(client_tick).unwrap().0.0.push((PlayerId(client_id), commands));
+                    ;
                 }
             }
         }

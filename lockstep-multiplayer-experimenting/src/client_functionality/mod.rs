@@ -55,7 +55,8 @@ pub fn client_update_system(
             ServerMessages::PlayerCreate { player, entity } => {
                 let is_player = client_id == player.id.0;
 
-                let client_entity = commands.spawn()
+                let client_entity = commands
+                    .spawn()
                     .insert(Player {
                         id: player.id,
                         username: player.username.clone(),
@@ -91,7 +92,7 @@ pub fn client_update_system(
                 if let Some(PlayerInfo {
                                 server_entity,
                                 client_entity,
-                                username: _username,
+                                ..
                             }) = lobby.0.remove(&id)
                 {
                     commands.entity(client_entity).despawn();
@@ -116,39 +117,33 @@ pub fn client_update_system(
 
                 let is_server = is_server.is_some();
 
-                if !is_server {
-                    println!("Client {} got server Tick to process: {}, was on tick: {}", username, most_recent_server_tick.get(), most_recent_tick.get());
-                }
-
                 synced_commands.0.insert(target_tick, commands.clone());
 
                 for (player_id, commands_list_of_player) in commands.0.0 {
                     let is_player = player_id.0 == client_id;
-                    let command_username = lobby.get_username(PlayerId(client_id)).unwrap();
-
-                    for command in commands_list_of_player {
-                        match command {
-                            PlayerCommand::Test(text) => {
-                                if is_player {
-                                    println!("I said '{}'", text);
-                                } else {
-                                    println!("{} said '{}'", command_username, text);
+                    let command_username = lobby.get_username(player_id);
+                    if let Some(command_username) = command_username {
+                        for command in commands_list_of_player {
+                            match command {
+                                PlayerCommand::Test(text) => {
+                                    if is_player {
+                                        println!("I said '{}'", text);
+                                    } else {
+                                        println!("{} said '{}'", command_username, text);
+                                    }
                                 }
                             }
                         }
+                    } else {
+                        println!("Unknown player sent a command!");
                     }
                 }
 
                 most_recent_tick.0 = most_recent_server_tick.0.0;
 
-                if !is_server {
-                    println!("Client {} processed Tick, most recent tick now: {}", username, most_recent_tick.get());
-                }
-
                 let mut commands: Vec<PlayerCommand> = Vec::new();
-
                 let chance_to_add_command = rand::thread_rng().gen_range(0..=100);
-                if chance_to_add_command < 90 {
+                if chance_to_add_command < 15 {
                     let command = PlayerCommand::Test(username.clone());
                     commands.push(command);
                 }
@@ -162,7 +157,7 @@ pub fn client_update_system(
                     // wait a random amount between 0 and 2 seconds if it isnt the server
                     let chance_to_wait = rand::thread_rng().gen_range(0..=100);
 
-                    if chance_to_wait < 10 {
+                    if chance_to_wait < 5 {
                         let wait_time = rand::thread_rng().gen_range(0..=1000);
                         println!("Client {} waiting {} ms before sending tick", username, wait_time);
                         std::thread::sleep(std::time::Duration::from_millis(wait_time));

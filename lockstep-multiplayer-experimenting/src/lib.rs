@@ -96,7 +96,7 @@ impl Display for PlayerId {
 #[derive(Debug, Default)]
 pub struct ClientTicks(pub HashMap<PlayerId, Tick>);
 
-#[derive(Debug, Component, Serialize, Deserialize)]
+#[derive(Debug, Clone, Component, Serialize, Deserialize)]
 pub struct Player {
     pub id: PlayerId,
     pub username: Username,
