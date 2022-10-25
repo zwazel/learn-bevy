@@ -21,7 +21,7 @@ use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, new_renet_client};
-use lockstep_multiplayer_experimenting::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
+use lockstep_multiplayer_experimenting::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
 use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
@@ -125,6 +125,7 @@ fn main() {
             app.insert_resource(ServerLobby::default());
             app.insert_resource(ServerMarker);
             app.insert_resource(AmountPlayers(amount_of_players));
+            app.insert_resource(ServerSyncedPlayerCommandsList::default());
             app.add_system(server_update_system);
 
             let mut fixed_update_server = SystemStage::parallel();
@@ -189,7 +190,7 @@ fn run_if_tick_in_sync(
 fn fixed_time_step(
     // Client/All
     mut server_tick: ResMut<ServerTick>,
-    mut synced_commands: ResMut<SyncedPlayerCommandsList>,
+    mut synced_commands: ResMut<ServerSyncedPlayerCommandsList>,
     // Server
     mut server: Option<ResMut<RenetServer>>,
 ) {
@@ -197,7 +198,7 @@ fn fixed_time_step(
         let server_tick = server_tick.as_mut();
         println!("All clients ready!");
 
-        let commands = synced_commands.0.get(&Tick(server_tick.get()));
+        let commands = synced_commands.0.0.get(&Tick(server_tick.get()));
 
         server_tick.increment();
         println!("Server Tick: {}", server_tick.get());

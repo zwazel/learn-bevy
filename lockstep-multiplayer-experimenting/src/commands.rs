@@ -91,6 +91,15 @@ impl<'de> Deserialize<'de> for MyDateTime {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, SyncedPlayerCommand>);
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ServerSyncedPlayerCommandsList(pub SyncedPlayerCommandsList);
+
+impl Default for ServerSyncedPlayerCommandsList {
+    fn default() -> Self {
+        Self(SyncedPlayerCommandsList::default())
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SyncedPlayerCommand(pub PlayerCommandsList, pub MyDateTime);
 

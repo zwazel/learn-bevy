@@ -7,8 +7,9 @@ use bevy::prelude::{Commands, default, Res, ResMut, SpriteSheetBundle, TextureAt
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
-use crate::{client_connection_config, ClientChannel, ClientLobby, NetworkMapping, Player, PlayerCommand, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Tick};
+use crate::{client_connection_config, ClientChannel, ClientLobby, commands, NetworkMapping, Player, PlayerCommand, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Tick};
 use crate::ClientMessages::ClientUpdateTick;
+use crate::commands::{ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
 use crate::ServerMessages::UpdateTick;
 
 pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
@@ -37,13 +38,13 @@ pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient
 }
 
 pub fn client_update_system(
-    mut commands: Commands,
     mut client: ResMut<RenetClient>,
     mut lobby: ResMut<ClientLobby>,
     mut network_mapping: ResMut<NetworkMapping>,
     mut most_recent_tick: ResMut<Tick>,
     mut most_recent_server_tick: ResMut<ServerTick>,
     is_server: Option<Res<ServerMarker>>,
+    mut synced_commands: ResMut<SyncedPlayerCommandsList>,
 ) {
     let client_id = client.client_id();
 
@@ -119,6 +120,25 @@ pub fn client_update_system(
                     println!("Client {} got server Tick to process: {}, was on tick: {}", username, most_recent_server_tick.get(), most_recent_tick.get());
                 }
 
+                synced_commands.0.insert(target_tick, commands.clone());
+
+                for (player_id, commands_list_of_player) in commands.0.0 {
+                    let is_player = player_id.0 == client_id;
+                    let command_username = lobby.get_username(PlayerId(client_id)).unwrap();
+
+                    for command in commands_list_of_player {
+                        match command {
+                            PlayerCommand::Test(text) => {
+                                if is_player {
+                                    println!("I said '{}'", text);
+                                } else {
+                                    println!("{} said '{}'", command_username, text);
+                                }
+                            }
+                        }
+                    }
+                }
+
                 most_recent_tick.0 = most_recent_server_tick.0.0;
 
                 if !is_server {
@@ -128,7 +148,7 @@ pub fn client_update_system(
                 let mut commands: Vec<PlayerCommand> = Vec::new();
 
                 let chance_to_add_command = rand::thread_rng().gen_range(0..=100);
-                if chance_to_add_command < 50 {
+                if chance_to_add_command < 90 {
                     let command = PlayerCommand::Test(username.clone());
                     commands.push(command);
                 }
