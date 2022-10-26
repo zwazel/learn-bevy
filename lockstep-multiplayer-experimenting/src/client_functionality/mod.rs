@@ -10,7 +10,7 @@ use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
 use crate::{client_connection_config, ClientChannel, ClientLobby, commands, NetworkMapping, Player, PlayerCommand, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Tick};
 use crate::ClientMessages::ClientUpdateTick;
-use crate::commands::{CommandsToSync, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
+use crate::commands::{CommandQueue, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
 use crate::ServerMessages::UpdateTick;
 
 pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
@@ -39,27 +39,19 @@ pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient
 }
 
 pub fn handle_mouse_input(
-    mut command_queue: ResMut<CommandsToSync>,
+    mut command_queue: ResMut<CommandQueue>,
     buttons: Res<Input<MouseButton>>,
 ) {
     if buttons.just_pressed(MouseButton::Right) {
         // Right button was pressed
         let command = PlayerCommand::Test("Right button was pressed".to_string());
-        if !command_queue.0.contains(&command) {
-            command_queue.0.push(command);
-        } else {
-            println!("Command already in queue");
-        }
+        command_queue.add_command(command);
     }
 
     if buttons.just_pressed(MouseButton::Left) {
         // Left button was pressed
         let command = PlayerCommand::Test("Left button was pressed".to_string());
-        if !command_queue.0.contains(&command) {
-            command_queue.0.push(command);
-        } else {
-            println!("Command already in queue");
-        }
+        command_queue.add_command(command);
     }
 }
 
@@ -73,7 +65,7 @@ pub fn client_update_system(
     mut most_recent_server_tick: ResMut<ServerTick>,
     is_server: Option<Res<ServerMarker>>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
-    mut to_sync_commands: ResMut<CommandsToSync>,
+    mut to_sync_commands: ResMut<CommandQueue>,
 ) {
     let client_id = client.client_id();
 

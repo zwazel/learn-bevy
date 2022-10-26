@@ -27,9 +27,9 @@ impl Display for PlayerCommand {
 pub struct PlayerCommandsList(pub Vec<(PlayerId, Vec<PlayerCommand>)>);
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CommandsToSync(pub Vec<PlayerCommand>);
+pub struct CommandQueue(pub Vec<PlayerCommand>);
 
-impl CommandsToSync {
+impl CommandQueue {
     pub fn new() -> Self {
         Self(Vec::new())
     }
@@ -37,9 +37,17 @@ impl CommandsToSync {
     pub fn reset(&mut self) {
         self.0.clear();
     }
+
+    pub fn add_command(&mut self, command: PlayerCommand) {
+        if !self.0.contains(&command) {
+            self.0.push(command);
+        } else {
+            println!("Command already in queue");
+        }
+    }
 }
 
-impl Default for CommandsToSync {
+impl Default for CommandQueue {
     fn default() -> Self {
         Self(Vec::new())
     }
