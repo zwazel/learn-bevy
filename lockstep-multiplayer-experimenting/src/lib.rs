@@ -15,6 +15,7 @@ use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, SyncedPlaye
 pub mod commands;
 pub mod server_functionality;
 pub mod client_functionality;
+pub mod asset_handling;
 
 pub const PORT: i32 = 5000;
 pub const AMOUNT_PLAYERS: usize = 4;
@@ -50,6 +51,11 @@ impl ServerTick {
     pub fn reset(&mut self) {
         self.0.reset();
     }
+}
+
+pub enum GameState {
+    Loading,
+    InGame,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Component, PartialOrd)]
