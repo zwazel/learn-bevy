@@ -26,6 +26,25 @@ impl Display for PlayerCommand {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PlayerCommandsList(pub Vec<(PlayerId, Vec<PlayerCommand>)>);
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CommandsToSync(pub Vec<PlayerCommand>);
+
+impl CommandsToSync {
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    pub fn reset(&mut self) {
+        self.0.clear();
+    }
+}
+
+impl Default for CommandsToSync {
+    fn default() -> Self {
+        Self(Vec::new())
+    }
+}
+
 impl Display for PlayerCommandsList {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for (player, command) in &self.0 {

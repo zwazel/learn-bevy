@@ -2,14 +2,15 @@ use std::net::UdpSocket;
 use std::time::SystemTime;
 
 use bevy::asset::{Assets, AssetServer};
+use bevy::input::Input;
 use bevy::math::Vec2;
-use bevy::prelude::{Commands, default, Res, ResMut, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite, Transform};
+use bevy::prelude::{Commands, default, MouseButton, Res, ResMut, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite, Transform};
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
 use crate::{client_connection_config, ClientChannel, ClientLobby, commands, NetworkMapping, Player, PlayerCommand, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Tick};
 use crate::ClientMessages::ClientUpdateTick;
-use crate::commands::{ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
+use crate::commands::{CommandsToSync, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
 use crate::ServerMessages::UpdateTick;
 
 pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
@@ -37,6 +38,22 @@ pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient
     RenetClient::new(current_time, socket, client_id, connection_config, authentication).unwrap()
 }
 
+pub fn handle_mouse_input(
+    mut command_queue: ResMut<CommandsToSync>,
+    buttons: Res<Input<MouseButton>>,
+) {
+    if buttons.just_pressed(MouseButton::Right) {
+        // Right button was pressed
+        command_queue.0.push(PlayerCommand::Test("Right button was pressed".to_string()));
+    }
+
+    if buttons.just_pressed(MouseButton::Left) {
+        // Left button was pressed
+        command_queue.0.push(PlayerCommand::Test("Left button was pressed".to_string()));
+    }
+}
+
+
 pub fn client_update_system(
     mut commands: Commands,
     mut client: ResMut<RenetClient>,
@@ -46,6 +63,7 @@ pub fn client_update_system(
     mut most_recent_server_tick: ResMut<ServerTick>,
     is_server: Option<Res<ServerMarker>>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
+    mut to_sync_commands: ResMut<CommandsToSync>,
 ) {
     let client_id = client.client_id();
 
@@ -141,17 +159,12 @@ pub fn client_update_system(
 
                 most_recent_tick.0 = most_recent_server_tick.0.0;
 
-                let mut commands: Vec<PlayerCommand> = Vec::new();
-                let chance_to_add_command = rand::thread_rng().gen_range(0..=100);
-                if chance_to_add_command < 15 {
-                    let command = PlayerCommand::Test(username.clone());
-                    commands.push(command);
-                }
-
                 let message = bincode::serialize(&ClientUpdateTick {
                     current_tick: *most_recent_tick,
-                    commands,
+                    commands: to_sync_commands.clone().0,
                 }).unwrap();
+
+                to_sync_commands.reset();
 
                 if !is_server {
                     // wait a random amount between 0 and 2 seconds if it isnt the server

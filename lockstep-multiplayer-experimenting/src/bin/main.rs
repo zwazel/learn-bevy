@@ -20,8 +20,8 @@ use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetErr
 use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
-use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, new_renet_client};
-use lockstep_multiplayer_experimenting::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
+use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, handle_mouse_input, new_renet_client};
+use lockstep_multiplayer_experimenting::commands::{CommandsToSync, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
 use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
@@ -117,6 +117,7 @@ fn main() {
      */
     app.insert_resource(ServerTick::new());
     app.insert_resource(SyncedPlayerCommandsList::default());
+    app.insert_resource(CommandsToSync::default());
 
     match my_type {
         ClientType::Server => {
@@ -142,10 +143,21 @@ fn main() {
                 FixedTimestepStage::from_stage(Duration::from_millis(TICKRATE), fixed_update_server),
             );
         }
-        ClientType::Client => {}
+        _ => {}
     }
 
-    app.add_system(client_update_system);
+    app.add_system_set(
+        SystemSet::new()
+            .label(MySystems::CommandCollection)
+            .before(MySystems::Syncing)
+            .with_system(handle_mouse_input)
+    );
+    app.add_system_set(
+        SystemSet::new()
+            .label(MySystems::Syncing)
+            .after(MySystems::CommandCollection)
+            .with_system(client_update_system)
+    );
 
     app.insert_resource(new_renet_client(&username, host, port));
     app.insert_resource(ClientLobby::default());
@@ -153,6 +165,13 @@ fn main() {
     app.insert_resource(NetworkMapping::default());
 
     app.run();
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(SystemLabel)]
+enum MySystems {
+    CommandCollection,
+    Syncing,
 }
 
 struct AmountPlayers(usize);
