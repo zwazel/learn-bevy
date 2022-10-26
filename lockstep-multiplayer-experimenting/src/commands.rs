@@ -20,7 +20,7 @@ impl Display for PlayerCommand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Test(s) => write!(f, "Test({})", s),
-            PlayerCommand::SetTargetPosition(x, y) => write!(f, "SetTargetPosition({}, {})", x, y),
+            Self::SetTargetPosition(x, y) => write!(f, "SetTargetPosition({}, {})", x, y),
         }
     }
 }

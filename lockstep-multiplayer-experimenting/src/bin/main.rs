@@ -8,12 +8,10 @@ use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 use bevy::app::{App, AppExit, CoreStage};
-use bevy::asset::AssetPath;
 use bevy::DefaultPlugins;
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::reflect::GetPath;
-use bevy::render::render_resource::ShaderImport::AssetPath;
 use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::{DateTime, Utc};
