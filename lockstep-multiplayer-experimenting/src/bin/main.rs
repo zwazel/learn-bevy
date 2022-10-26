@@ -159,6 +159,7 @@ fn main() {
             .with_system(client_update_system)
     );
     app.add_startup_system(setup_assets);
+    app.add_startup_system(setup_camera);
 
     app.insert_resource(new_renet_client(&username, host, port));
     app.insert_resource(ClientLobby::default());
@@ -195,6 +196,15 @@ fn setup_assets(
 ) {
     let handle: Handle<Image> = asset_server.load("sprites/target_thingy.png");
     commands.insert_resource(handle);
+}
+
+#[derive(Component)]
+struct MainCamera;
+
+fn setup_camera(mut commands: Commands) {
+    commands.spawn()
+        .insert_bundle(Camera2dBundle::default())
+        .insert(MainCamera);
 }
 
 fn run_if_tick_in_sync(

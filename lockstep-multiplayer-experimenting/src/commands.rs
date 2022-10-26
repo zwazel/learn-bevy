@@ -10,7 +10,7 @@ use serde::ser::SerializeMap;
 
 use crate::{Player, PlayerId, Tick};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PlayerCommand {
     Test(String),
     SetTargetPosition(f32, f32),

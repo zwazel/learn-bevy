@@ -1,10 +1,11 @@
+use std::borrow::BorrowMut;
 use std::net::UdpSocket;
 use std::time::SystemTime;
 
 use bevy::asset::{Assets, AssetServer, Handle};
 use bevy::input::Input;
 use bevy::math::Vec2;
-use bevy::prelude::{Commands, default, Image, MouseButton, Res, ResMut, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite, Transform};
+use bevy::prelude::*;
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
@@ -44,7 +45,7 @@ pub fn handle_mouse_input(
 ) {
     if buttons.just_pressed(MouseButton::Right) {
         // Right button was pressed
-        let command = PlayerCommand::Test("Right button was pressed".to_string());
+        let command = PlayerCommand::SetTargetPosition(0.0,0.0);
         command_queue.add_command(command);
     }
 
@@ -57,7 +58,7 @@ pub fn handle_mouse_input(
 
 
 pub fn client_update_system(
-    mut commands: Commands,
+    mut bevy_commands: Commands,
     mut client: ResMut<RenetClient>,
     mut lobby: ResMut<ClientLobby>,
     mut network_mapping: ResMut<NetworkMapping>,
@@ -66,7 +67,7 @@ pub fn client_update_system(
     is_server: Option<Res<ServerMarker>>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
     mut to_sync_commands: ResMut<CommandQueue>,
-    target_thingy: Res<Handle<Image>>
+    target_thingy: Res<Handle<Image>>,
 ) {
     let client_id = client.client_id();
 
@@ -76,7 +77,7 @@ pub fn client_update_system(
             ServerMessages::PlayerCreate { player, entity } => {
                 let is_player = client_id == player.id.0;
 
-                let client_entity = commands
+                let client_entity = bevy_commands
                     .spawn()
                     .insert(Player {
                         id: player.id,
@@ -116,7 +117,7 @@ pub fn client_update_system(
                                 ..
                             }) = lobby.0.remove(&id)
                 {
-                    commands.entity(client_entity).despawn();
+                    bevy_commands.entity(client_entity).despawn();
                     network_mapping.0.remove(&server_entity);
                 }
 
@@ -153,6 +154,14 @@ pub fn client_update_system(
                                         println!("{} said '{}' in tick {}", command_username, text, target_tick.0);
                                     }
                                 }
+                                PlayerCommand::SetTargetPosition(x, y) => {
+                                    bevy_commands
+                                        .spawn_bundle(SpriteBundle {
+                                            texture: target_thingy.clone(),
+                                            transform: Transform::from_xyz(x, y, 0.0),
+                                            ..Default::default()
+                                        });
+                                }
                             }
                         }
                     } else {
@@ -169,16 +178,16 @@ pub fn client_update_system(
 
                 to_sync_commands.reset();
 
-                if !is_server {
-                    // wait a random amount between 0 and 2 seconds if it isnt the server
-                    let chance_to_wait = rand::thread_rng().gen_range(0..=100);
-
-                    if chance_to_wait < 5 {
-                        let wait_time = rand::thread_rng().gen_range(0..=1000);
-                        println!("Client {} waiting {} ms before sending tick", username, wait_time);
-                        std::thread::sleep(std::time::Duration::from_millis(wait_time));
-                    }
-                }
+                // if !is_server {
+                //     // wait a random amount between 0 and 2 seconds if it isnt the server
+                //     let chance_to_wait = rand::thread_rng().gen_range(0..=100);
+                //
+                //     if chance_to_wait < 5 {
+                //         let wait_time = rand::thread_rng().gen_range(0..=1000);
+                //         println!("Client {} waiting {} ms before sending tick", username, wait_time);
+                //         std::thread::sleep(std::time::Duration::from_millis(wait_time));
+                //     }
+                // }
 
                 client.send_message(ClientChannel::ClientTick.id(), message);
             }
