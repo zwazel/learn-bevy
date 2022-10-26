@@ -53,6 +53,7 @@ impl ServerTick {
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Debug, Hash)]
 pub enum GameState {
     Loading,
     InGame,

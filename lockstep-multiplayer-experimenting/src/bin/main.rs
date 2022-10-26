@@ -1,4 +1,5 @@
 use std::{env, fs};
+use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::fs::{create_dir, create_dir_all, File, write};
@@ -19,12 +20,15 @@ use iyes_loopless::prelude::*;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 use serde_json::json;
 
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, handle_mouse_input, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
 use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
+
+use bevy_asset_loader::prelude::*;
+use lockstep_multiplayer_experimenting::asset_handling::TargetAssets;
 
 fn resolve_type(my_type: &str) -> ClientType {
     let my_type = my_type.to_lowercase();
@@ -119,6 +123,13 @@ fn main() {
     app.insert_resource(SyncedPlayerCommandsList::default());
     app.insert_resource(CommandQueue::default());
 
+    app.add_loading_state(
+        LoadingState::new(GameState::Loading)
+            .continue_to_state(GameState::InGame)
+            .with_collection::<TargetAssets>()
+    );
+    app.add_state(GameState::Loading);
+
     match my_type {
         ClientType::Server => {
             app.insert_resource(new_renet_server(amount_of_players, host, port));
@@ -130,11 +141,11 @@ fn main() {
             app.add_system(server_update_system);
 
             let mut fixed_update_server = SystemStage::parallel();
-            fixed_update_server.add_system(
-                fixed_time_step
-                    // .run_if(run_if_client_connected)
-                    .run_if(run_if_tick_in_sync)
-                    .run_if(run_if_enough_players)
+            fixed_update_server.add_system_set(
+                SystemSet::on_update(GameState::InGame)
+                    .with_system(fixed_time_step)
+                    .with_run_criteria(run_if_tick_in_sync)
+                    .with_run_criteria(run_if_enough_players)
             );
 
             app.add_stage_before(
@@ -147,17 +158,24 @@ fn main() {
     }
 
     app.add_system_set(
-        SystemSet::new()
-            .label(MySystems::CommandCollection)
-            .before(MySystems::Syncing)
-            .with_system(handle_mouse_input)
+        SystemSet::on_update(GameState::InGame)
+            .with_system(
+                handle_mouse_input
+                    .before(MySystems::Syncing)
+                    .label(MySystems::CommandCollection)
+            )
+            .with_system(
+                client_update_system
+                    .after(MySystems::CommandCollection)
+                    .label(MySystems::Syncing)
+            )
     );
+
     app.add_system_set(
-        SystemSet::new()
-            .label(MySystems::Syncing)
-            .after(MySystems::CommandCollection)
-            .with_system(client_update_system)
+        SystemSet::on_exit(GameState::Loading)
+            .with_system(loading_informer)
     );
+
     app.add_startup_system(setup_assets);
     app.add_startup_system(setup_camera);
 
@@ -167,6 +185,12 @@ fn main() {
     app.insert_resource(NetworkMapping::default());
 
     app.run();
+}
+
+fn loading_informer(mut app_state: ResMut<State<GameState>>) {
+    println!("Loading finished");
+
+    // app_state.set(GameState::InGame).unwrap();
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -181,12 +205,12 @@ struct AmountPlayers(usize);
 fn run_if_enough_players(
     lobby: Res<ServerLobby>,
     amount_players: Res<AmountPlayers>,
-) -> bool {
+) -> ShouldRun {
     if lobby.0.len() >= amount_players.0 {
-        true
+        ShouldRun::Yes
     } else {
         println!("Current amount of players: {}, needed amount of players: {}", lobby.0.len(), amount_players.0);
-        false
+        ShouldRun::No
     }
 }
 
@@ -211,7 +235,7 @@ fn run_if_tick_in_sync(
     server_tick: Res<ServerTick>,
     client_ticks: Res<ClientTicks>,
     lobby: Res<ServerLobby>,
-) -> bool {
+) -> ShouldRun {
     let mut client_iter = client_ticks.0.iter().peekable();
     let mut players_synced = true;
     while let Some((client_id, client_tick)) = client_iter.next() {
@@ -222,7 +246,11 @@ fn run_if_tick_in_sync(
         }
     }
 
-    return players_synced;
+    return if players_synced {
+        ShouldRun::Yes
+    } else {
+        ShouldRun::No
+    };
 }
 
 fn fixed_time_step(
@@ -261,17 +289,15 @@ fn disconnect(
     mut events: EventReader<AppExit>,
     mut client: ResMut<RenetClient>,
     client_lobby: Option<Res<ClientLobby>>,
-    command_history: Res<SyncedPlayerCommandsList>,
+    mut command_history: ResMut<SyncedPlayerCommandsList>,
     is_server: Option<Res<ServerMarker>>,
 ) {
     if let Some(_) = events.iter().next() {
-        let command_history = command_history.as_ref();
-
         if !command_history.is_empty() {
             if let Some(client_lobby) = client_lobby.as_ref() {
                 let client_lobby = client_lobby.as_ref();
                 let username = client_lobby.get_username(PlayerId(client.client_id())).unwrap();
-                save_replays(username, command_history);
+                save_replays(username, command_history.borrow_mut());
             }
         }
 
@@ -286,7 +312,9 @@ fn disconnect(
     }
 }
 
-fn save_replays(username: String, command_history: &SyncedPlayerCommandsList) {
+fn save_replays(username: String, command_history: &mut SyncedPlayerCommandsList) {
+    command_history.remove_empty();
+
     let mut replay_dir = env::current_dir().unwrap();
     replay_dir.push("replays");
     replay_dir.push(username);

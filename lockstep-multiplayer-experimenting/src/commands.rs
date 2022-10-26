@@ -28,6 +28,12 @@ impl Display for PlayerCommand {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PlayerCommandsList(pub Vec<(PlayerId, Vec<PlayerCommand>)>);
 
+impl PlayerCommandsList {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CommandQueue(pub Vec<PlayerCommand>);
 
@@ -144,6 +150,12 @@ impl Default for ServerSyncedPlayerCommandsList {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SyncedPlayerCommand(pub PlayerCommandsList, pub MyDateTime);
 
+impl SyncedPlayerCommand {
+    pub fn is_empty(&self) -> bool {
+        self.0.0.is_empty()
+    }
+}
+
 impl Default for SyncedPlayerCommand {
     fn default() -> Self {
         Self(PlayerCommandsList::default(), MyDateTime::now())
@@ -153,6 +165,10 @@ impl Default for SyncedPlayerCommand {
 impl SyncedPlayerCommandsList {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    pub fn remove_empty(&mut self) {
+        self.0.retain(|_, v| !v.0.is_empty());
     }
 }
 

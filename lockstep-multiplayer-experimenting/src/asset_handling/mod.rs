@@ -1,16 +1,6 @@
-use bevy::asset::Handle;
-use bevy::prelude::{Image, Plugin};
+use bevy::prelude::*;
+use bevy_asset_loader::prelude::*;
 use crate::GameState;
-
-pub struct LoadingPlugin;
-
-impl Plugin for LoadingPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        AssetLoader::new(GameState::Loading, GameState::Playing)
-            .with_collection::<TargetAssets>()
-            .build(app);
-    }
-}
 
 #[derive(AssetCollection)]
 pub struct TargetAssets {

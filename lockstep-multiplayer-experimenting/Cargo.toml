@@ -28,6 +28,8 @@ anyhow = "1.0"
 bevy_egui = "0.16.1"
 iyes_loopless = "0.7.1"
 chrono = "0.4.22"
+bevy_asset_loader = "0.12.1"
+bevy_asset_loader_derive = "0.12.1"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
