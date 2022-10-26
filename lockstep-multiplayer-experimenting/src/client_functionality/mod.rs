@@ -44,12 +44,22 @@ pub fn handle_mouse_input(
 ) {
     if buttons.just_pressed(MouseButton::Right) {
         // Right button was pressed
-        command_queue.0.push(PlayerCommand::Test("Right button was pressed".to_string()));
+        let command = PlayerCommand::Test("Right button was pressed".to_string());
+        if !command_queue.0.contains(&command) {
+            command_queue.0.push(command);
+        } else {
+            println!("Command already in queue");
+        }
     }
 
     if buttons.just_pressed(MouseButton::Left) {
         // Left button was pressed
-        command_queue.0.push(PlayerCommand::Test("Left button was pressed".to_string()));
+        let command = PlayerCommand::Test("Left button was pressed".to_string());
+        if !command_queue.0.contains(&command) {
+            command_queue.0.push(command);
+        } else {
+            println!("Command already in queue");
+        }
     }
 }
 
@@ -145,9 +155,9 @@ pub fn client_update_system(
                             match command {
                                 PlayerCommand::Test(text) => {
                                     if is_player {
-                                        println!("I said '{}'", text);
+                                        println!("I said '{}' in tick {}", text, target_tick.0);
                                     } else {
-                                        println!("{} said '{}'", command_username, text);
+                                        println!("{} said '{}' in tick {}", command_username, text, target_tick.0);
                                     }
                                 }
                             }
