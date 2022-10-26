@@ -1,10 +1,10 @@
 use std::net::UdpSocket;
 use std::time::SystemTime;
 
-use bevy::asset::{Assets, AssetServer};
+use bevy::asset::{Assets, AssetServer, Handle};
 use bevy::input::Input;
 use bevy::math::Vec2;
-use bevy::prelude::{Commands, default, MouseButton, Res, ResMut, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite, Transform};
+use bevy::prelude::{Commands, default, Image, MouseButton, Res, ResMut, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite, Transform};
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
@@ -66,6 +66,7 @@ pub fn client_update_system(
     is_server: Option<Res<ServerMarker>>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
     mut to_sync_commands: ResMut<CommandQueue>,
+    target_thingy: Res<Handle<Image>>
 ) {
     let client_id = client.client_id();
 

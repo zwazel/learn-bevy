@@ -8,10 +8,12 @@ use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 use bevy::app::{App, AppExit, CoreStage};
+use bevy::asset::AssetPath;
 use bevy::DefaultPlugins;
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::reflect::GetPath;
+use bevy::render::render_resource::ShaderImport::AssetPath;
 use bevy::window::WindowSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::{DateTime, Utc};
@@ -158,6 +160,7 @@ fn main() {
             .after(MySystems::CommandCollection)
             .with_system(client_update_system)
     );
+    app.add_startup_system(setup_assets);
 
     app.insert_resource(new_renet_client(&username, host, port));
     app.insert_resource(ClientLobby::default());
@@ -186,6 +189,14 @@ fn run_if_enough_players(
         println!("Current amount of players: {}, needed amount of players: {}", lobby.0.len(), amount_players.0);
         false
     }
+}
+
+fn setup_assets(
+    asset_server: Res<AssetServer>,
+    mut commands: Commands,
+) {
+    let handle: Handle<Image> = asset_server.load("sprites/target_thingy.png");
+    commands.insert_resource(handle);
 }
 
 fn run_if_tick_in_sync(

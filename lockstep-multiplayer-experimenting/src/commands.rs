@@ -13,12 +13,14 @@ use crate::{Player, PlayerId, Tick};
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PlayerCommand {
     Test(String),
+    SetTargetPosition(f32, f32),
 }
 
 impl Display for PlayerCommand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Test(s) => write!(f, "Test({})", s),
+            PlayerCommand::SetTargetPosition(x, y) => write!(f, "SetTargetPosition({}, {})", x, y),
         }
     }
 }
