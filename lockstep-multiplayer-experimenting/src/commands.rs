@@ -30,7 +30,16 @@ pub struct PlayerCommandsList(pub Vec<(PlayerId, Vec<PlayerCommand>)>);
 
 impl PlayerCommandsList {
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        let vec = &self.0;
+        let mut is_empty = true;
+        for (_, commands) in vec {
+            if !commands.is_empty() {
+                is_empty = false;
+                break;
+            }
+        }
+
+        is_empty
     }
 }
 
@@ -152,7 +161,7 @@ pub struct SyncedPlayerCommand(pub PlayerCommandsList, pub MyDateTime);
 
 impl SyncedPlayerCommand {
     pub fn is_empty(&self) -> bool {
-        self.0.0.is_empty()
+        self.0.is_empty()
     }
 }
 
@@ -168,7 +177,8 @@ impl SyncedPlayerCommandsList {
     }
 
     pub fn remove_empty(&mut self) {
-        self.0.retain(|_, v| !v.0.is_empty());
+        // remove every entry where the tick contains no commands
+        self.0.retain(|_, v| !v.is_empty());
     }
 }
 
