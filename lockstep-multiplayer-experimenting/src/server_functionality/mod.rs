@@ -51,7 +51,7 @@ pub fn server_update_system(
 
                 let username = Username(username);
 
-                for (player_id, player) in lobby.0.iter() {
+                for (_, player) in lobby.0.iter() {
                     let message = bincode::serialize(&PlayerCreate {
                         player: player.clone(),
                         entity: player.entity.unwrap(),
@@ -119,17 +119,9 @@ pub fn server_update_system(
                     let client_tick = client_ticks.0.get_mut(&PlayerId(client_id)).unwrap();
 
                     client_tick.0 = current_tick.0;
-                    synced_commands.0.0.get_mut(client_tick).unwrap().0.0.push((PlayerId(client_id), commands));
-                    ;
+                    synced_commands.add_command(*client_tick, PlayerId(client_id), commands);
                 }
             }
         }
-        // while let Some(message) = server.receive_message(client_id, ClientChannel::Input.id()) {
-        //     let input: PlayerInput = bincode::deserialize(&message).unwrap();
-        //     client_ticks.0.insert(PlayerId(client_id), input.most_recent_tick);
-        //     if let Some(player_entity) = lobby.players.get(&client_id) {
-        //         commands.entity(*player_entity).insert(input);
-        //     }
-        // }
     }
 }

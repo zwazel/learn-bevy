@@ -121,6 +121,18 @@ pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, SyncedPlayerCommand>);
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ServerSyncedPlayerCommandsList(pub SyncedPlayerCommandsList);
 
+impl ServerSyncedPlayerCommandsList {
+    pub fn add_command(&mut self, tick: Tick, player_id: PlayerId, commands: Vec<PlayerCommand>) {
+        // better solution than: self.0.0.get_mut(&tick).unwrap().0.0.push((player_id, commands));
+
+        if let Some(synced_player_command) = self.0.0.get_mut(&tick) {
+            synced_player_command.0.0.push((player_id, commands));
+        } else {
+            self.0.0.insert(tick, SyncedPlayerCommand(PlayerCommandsList((vec![(player_id, commands)])), MyDateTime::now()));
+        }
+    }
+}
+
 impl Default for ServerSyncedPlayerCommandsList {
     fn default() -> Self {
         Self(SyncedPlayerCommandsList::default())
