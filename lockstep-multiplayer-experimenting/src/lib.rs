@@ -56,6 +56,21 @@ impl ServerTick {
 #[derive(Component)]
 pub struct MainCamera;
 
+#[derive(Component)]
+pub struct Target(pub PlayerId);
+
+#[derive(Component)]
+pub struct PlayerControlled;
+
+#[derive(Component)]
+pub struct EnemyControlled;
+
+#[derive(Component)]
+pub struct NeutralControlled;
+
+#[derive(Component)]
+pub struct FriendlyControlled;
+
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 pub enum GameState {
     Loading,

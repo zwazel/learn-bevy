@@ -20,7 +20,7 @@ use iyes_loopless::prelude::*;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 use serde_json::json;
 
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Target, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, handle_mouse_input, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
@@ -170,6 +170,9 @@ fn main() {
                     .label(MySystems::Syncing)
                     .after(MySystems::CommandCollection)
             )
+            .with_system(
+                fade_away_targets
+            )
             .with_run_criteria(run_if_client_connected)
     );
 
@@ -215,6 +218,20 @@ fn setup_camera(mut commands: Commands) {
     commands.spawn()
         .insert_bundle(Camera2dBundle::default())
         .insert(MainCamera);
+}
+
+fn fade_away_targets(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Sprite), With<Target>>,
+) {
+    for (entity, mut sprite) in query.iter_mut() {
+        if sprite.color.a() <= 0.0 {
+            commands.entity(entity).despawn();
+        } else {
+            let current_alpha = sprite.color.a();
+            sprite.color.set_a(current_alpha - 0.01);
+        }
+    }
 }
 
 fn run_if_tick_in_sync(

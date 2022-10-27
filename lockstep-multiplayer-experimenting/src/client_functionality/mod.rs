@@ -10,7 +10,7 @@ use bevy::render::camera::RenderTarget;
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
-use crate::{client_connection_config, ClientChannel, ClientLobby, commands, MainCamera, NetworkMapping, Player, PlayerCommand, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Tick};
+use crate::{client_connection_config, ClientChannel, ClientLobby, commands, EnemyControlled, MainCamera, NetworkMapping, Player, PlayerCommand, PlayerControlled, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Target, Tick};
 use crate::asset_handling::TargetAssets;
 use crate::ClientMessages::ClientUpdateTick;
 use crate::commands::{CommandQueue, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
@@ -45,7 +45,7 @@ pub fn handle_mouse_input(
     mut command_queue: ResMut<CommandQueue>,
     buttons: Res<Input<MouseButton>>,
     windows: Res<Windows>,
-    q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>
+    q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
 ) {
     // get the camera info and transform
     // assuming there is exactly one main camera entity, so query::single() is OK
@@ -85,7 +85,7 @@ pub fn handle_mouse_input(
 
     if buttons.just_pressed(MouseButton::Right) {
         // Right button was pressed
-        let command = PlayerCommand::SetTargetPosition(world_cursor_pos.x,world_cursor_pos.y);
+        let command = PlayerCommand::SetTargetPosition(world_cursor_pos.x, world_cursor_pos.y);
         command_queue.add_command(command);
     }
 
@@ -106,7 +106,7 @@ pub fn client_update_system(
     is_server: Option<Res<ServerMarker>>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
     mut to_sync_commands: ResMut<CommandQueue>,
-    target_assets: Res<TargetAssets>
+    target_assets: Res<TargetAssets>,
 ) {
     let client_id = client.client_id();
 
@@ -194,7 +194,7 @@ pub fn client_update_system(
                                     }
                                 }
                                 PlayerCommand::SetTargetPosition(x, y) => {
-                                    bevy_commands
+                                    let target_entity = bevy_commands
                                         .spawn_bundle(SpriteBundle {
                                             texture: if is_player {
                                                 target_assets.friendly_target.clone()
@@ -203,7 +203,14 @@ pub fn client_update_system(
                                             },
                                             transform: Transform::from_xyz(x, y, 0.0),
                                             ..Default::default()
-                                        });
+                                        })
+                                        .insert(Target(player_id))
+                                        .id();
+                                    if is_player {
+                                        bevy_commands.entity(target_entity).insert(PlayerControlled);
+                                    } else {
+                                        bevy_commands.entity(target_entity).insert(EnemyControlled);
+                                    }
                                 }
                             }
                         }

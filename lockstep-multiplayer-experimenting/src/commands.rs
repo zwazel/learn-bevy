@@ -16,6 +16,16 @@ pub enum PlayerCommand {
     SetTargetPosition(f32, f32),
 }
 
+impl PlayerCommand {
+    pub fn equals(&self, other: &Self) -> bool {
+        match (self, other) {
+            (PlayerCommand::Test(a), PlayerCommand::Test(b)) => a == b,
+            (PlayerCommand::SetTargetPosition(a_x, a_y), PlayerCommand::SetTargetPosition(b_x, b_y)) => a_x == b_x && a_y == b_y,
+            _ => false,
+        }
+    }
+}
+
 impl Display for PlayerCommand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -38,6 +48,12 @@ impl PlayerCommandsList {
 pub struct CommandQueue(pub Vec<PlayerCommand>);
 
 impl CommandQueue {
+    pub fn contains(&self, command: &PlayerCommand) -> bool {
+        self.0.iter().any(|c| c.equals(command))
+    }
+}
+
+impl CommandQueue {
     pub fn new() -> Self {
         Self(Vec::new())
     }
@@ -47,7 +63,7 @@ impl CommandQueue {
     }
 
     pub fn add_command(&mut self, command: PlayerCommand) {
-        if !self.0.contains(&command) {
+        if !self.contains(&command) {
             self.0.push(command);
         } else {
             println!("Command already in queue");
