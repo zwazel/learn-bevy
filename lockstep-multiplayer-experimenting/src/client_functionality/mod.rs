@@ -6,10 +6,11 @@ use bevy::asset::{Assets, AssetServer, Handle};
 use bevy::input::Input;
 use bevy::math::Vec2;
 use bevy::prelude::*;
+use bevy::render::camera::RenderTarget;
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
-use crate::{client_connection_config, ClientChannel, ClientLobby, commands, NetworkMapping, Player, PlayerCommand, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Tick};
+use crate::{client_connection_config, ClientChannel, ClientLobby, commands, MainCamera, NetworkMapping, Player, PlayerCommand, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Tick};
 use crate::asset_handling::TargetAssets;
 use crate::ClientMessages::ClientUpdateTick;
 use crate::commands::{CommandQueue, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
@@ -43,10 +44,48 @@ pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient
 pub fn handle_mouse_input(
     mut command_queue: ResMut<CommandQueue>,
     buttons: Res<Input<MouseButton>>,
+    windows: Res<Windows>,
+    q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>
 ) {
+    // get the camera info and transform
+    // assuming there is exactly one main camera entity, so query::single() is OK
+    let (camera, camera_transform) = q_camera.single();
+    let camera: &Camera = camera;
+    let camera_transform: &GlobalTransform = camera_transform;
+
+    // get the window that the camera is displaying to (or the primary window)
+    let wnd = if let RenderTarget::Window(id) = camera.target {
+        windows.get(id).unwrap()
+    } else {
+        windows.get_primary().unwrap()
+    };
+
+    let mut world_cursor_pos: Vec2 = Vec2::ZERO;
+    // check if the cursor is inside the window and get its position
+    if let Some(screen_pos) = wnd.cursor_position() {
+        // get the size of the window
+        let window_size = Vec2::new(wnd.width() as f32, wnd.height() as f32);
+
+        // convert screen position [0..resolution] to ndc [-1..1] (gpu coordinates)
+        let ndc = (screen_pos / window_size) * 2.0 - Vec2::ONE;
+
+        // matrix for undoing the projection and camera transform
+        let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
+
+        // use it to convert ndc to world-space coordinates
+        let world_pos = ndc_to_world.project_point3(ndc.extend(-1.0));
+
+        // reduce it to a 2D value
+        world_cursor_pos = world_pos.truncate();
+
+        // round x and y to .2 precision
+        world_cursor_pos.x = (world_cursor_pos.x * 100.0).round() * 0.01;
+        world_cursor_pos.y = (world_cursor_pos.y * 100.0).round() * 0.01;
+    }
+
     if buttons.just_pressed(MouseButton::Right) {
         // Right button was pressed
-        let command = PlayerCommand::SetTargetPosition(0.0,0.0);
+        let command = PlayerCommand::SetTargetPosition(world_cursor_pos.x,world_cursor_pos.y);
         command_queue.add_command(command);
     }
 
@@ -56,7 +95,6 @@ pub fn handle_mouse_input(
         command_queue.add_command(command);
     }
 }
-
 
 pub fn client_update_system(
     mut bevy_commands: Commands,

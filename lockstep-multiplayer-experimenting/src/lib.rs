@@ -53,6 +53,9 @@ impl ServerTick {
     }
 }
 
+#[derive(Component)]
+pub struct MainCamera;
+
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 pub enum GameState {
     Loading,
