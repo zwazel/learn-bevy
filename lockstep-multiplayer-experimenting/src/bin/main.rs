@@ -129,6 +129,7 @@ fn main() {
             .with_collection::<TargetAssets>()
     );
     app.add_state(GameState::Loading);
+    app.add_startup_system(setup_camera);
 
     match my_type {
         ClientType::Server => {
@@ -166,18 +167,16 @@ fn main() {
             )
             .with_system(
                 client_update_system
-                    .after(MySystems::CommandCollection)
                     .label(MySystems::Syncing)
+                    .after(MySystems::CommandCollection)
             )
+            .with_run_criteria(run_if_client_connected)
     );
 
     app.add_system_set(
         SystemSet::on_exit(GameState::Loading)
             .with_system(loading_informer)
     );
-
-    app.add_startup_system(setup_assets);
-    app.add_startup_system(setup_camera);
 
     app.insert_resource(new_renet_client(&username, host, port));
     app.insert_resource(ClientLobby::default());
@@ -187,10 +186,8 @@ fn main() {
     app.run();
 }
 
-fn loading_informer(mut app_state: ResMut<State<GameState>>) {
+fn loading_informer() {
     println!("Loading finished");
-
-    // app_state.set(GameState::InGame).unwrap();
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -212,14 +209,6 @@ fn run_if_enough_players(
         println!("Current amount of players: {}, needed amount of players: {}", lobby.0.len(), amount_players.0);
         ShouldRun::No
     }
-}
-
-fn setup_assets(
-    asset_server: Res<AssetServer>,
-    mut commands: Commands,
-) {
-    let handle: Handle<Image> = asset_server.load("sprites/target_thingy.png");
-    commands.insert_resource(handle);
 }
 
 #[derive(Component)]
@@ -293,12 +282,10 @@ fn disconnect(
     is_server: Option<Res<ServerMarker>>,
 ) {
     if let Some(_) = events.iter().next() {
-        if !command_history.is_empty() {
-            if let Some(client_lobby) = client_lobby.as_ref() {
-                let client_lobby = client_lobby.as_ref();
-                let username = client_lobby.get_username(PlayerId(client.client_id())).unwrap();
-                save_replays(username, command_history.borrow_mut());
-            }
+        if let Some(client_lobby) = client_lobby.as_ref() {
+            let client_lobby = client_lobby.as_ref();
+            let username = client_lobby.get_username(PlayerId(client.client_id())).unwrap();
+            save_replays(username, command_history.borrow_mut());
         }
 
         if let Some(_) = is_server {
@@ -315,17 +302,19 @@ fn disconnect(
 fn save_replays(username: String, command_history: &mut SyncedPlayerCommandsList) {
     command_history.remove_empty();
 
-    let mut replay_dir = env::current_dir().unwrap();
-    replay_dir.push("replays");
-    replay_dir.push(username);
-    create_dir_all(&replay_dir).unwrap();
+    if !command_history.is_empty() {
+        let mut replay_dir = env::current_dir().unwrap();
+        replay_dir.push("replays");
+        replay_dir.push(username);
+        create_dir_all(&replay_dir).unwrap();
 
-    replay_dir.push(format!("replay_{}.json", MyDateTime::now().to_string()));
-    let mut replay_file = File::create(&replay_dir).unwrap();
+        replay_dir.push(format!("replay_{}.json", MyDateTime::now().to_string()));
+        let mut replay_file = File::create(&replay_dir).unwrap();
 
-    replay_file.write_all(serde_json::to_string(command_history).unwrap().as_bytes()).unwrap();
+        replay_file.write_all(serde_json::to_string(command_history).unwrap().as_bytes()).unwrap();
 
-    println!("Saved replay to: {}", replay_dir.to_str().unwrap());
+        println!("Saved replay to: {}", replay_dir.to_str().unwrap());
+    }
 
     // // read created file
     // let mut replay_file = File::open(&replay_dir).unwrap();

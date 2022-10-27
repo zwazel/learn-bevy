@@ -10,6 +10,7 @@ use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
 use crate::{client_connection_config, ClientChannel, ClientLobby, commands, NetworkMapping, Player, PlayerCommand, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Tick};
+use crate::asset_handling::TargetAssets;
 use crate::ClientMessages::ClientUpdateTick;
 use crate::commands::{CommandQueue, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
 use crate::ServerMessages::UpdateTick;
@@ -67,7 +68,7 @@ pub fn client_update_system(
     is_server: Option<Res<ServerMarker>>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
     mut to_sync_commands: ResMut<CommandQueue>,
-    target_thingy: Res<Handle<Image>>,
+    target_assets: Res<TargetAssets>
 ) {
     let client_id = client.client_id();
 
@@ -157,7 +158,11 @@ pub fn client_update_system(
                                 PlayerCommand::SetTargetPosition(x, y) => {
                                     bevy_commands
                                         .spawn_bundle(SpriteBundle {
-                                            texture: target_thingy.clone(),
+                                            texture: if is_player {
+                                                target_assets.friendly_target.clone()
+                                            } else {
+                                                target_assets.enemy_target.clone()
+                                            },
                                             transform: Transform::from_xyz(x, y, 0.0),
                                             ..Default::default()
                                         });

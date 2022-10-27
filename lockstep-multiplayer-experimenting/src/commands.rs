@@ -30,16 +30,7 @@ pub struct PlayerCommandsList(pub Vec<(PlayerId, Vec<PlayerCommand>)>);
 
 impl PlayerCommandsList {
     pub fn is_empty(&self) -> bool {
-        let vec = &self.0;
-        let mut is_empty = true;
-        for (_, commands) in vec {
-            if !commands.is_empty() {
-                is_empty = false;
-                break;
-            }
-        }
-
-        is_empty
+        self.0.iter().all(|(_, commands)| commands.is_empty())
     }
 }
 
