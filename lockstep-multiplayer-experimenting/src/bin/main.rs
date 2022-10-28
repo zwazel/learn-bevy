@@ -14,6 +14,7 @@ use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::reflect::GetPath;
 use bevy::window::WindowSettings;
+use bevy::winit::WinitSettings;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::{DateTime, Utc};
 use iyes_loopless::prelude::*;
@@ -179,6 +180,7 @@ fn main() {
     app.add_system_set(
         SystemSet::on_exit(GameState::Loading)
             .with_system(loading_informer)
+            .with_system(setup_ui)
     );
 
     app.insert_resource(new_renet_client(&username, host, port));
@@ -187,6 +189,10 @@ fn main() {
     app.insert_resource(NetworkMapping::default());
 
     app.run();
+}
+
+fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
+    println!("Setting up UI");
 }
 
 fn loading_informer() {
