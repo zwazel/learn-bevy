@@ -21,7 +21,7 @@ use iyes_loopless::prelude::*;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 use serde_json::json;
 
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Target, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, handle_mouse_input, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
@@ -30,7 +30,8 @@ use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRem
 
 use bevy_asset_loader::prelude::*;
 use rand::prelude::SliceRandom;
-use lockstep_multiplayer_experimenting::asset_handling::TargetAssets;
+use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
+use lockstep_multiplayer_experimenting::entities::Target;
 
 fn resolve_type(my_type: &str) -> ClientType {
     let my_type = my_type.to_lowercase();
@@ -140,6 +141,7 @@ fn main() {
         LoadingState::new(GameState::Loading)
             .continue_to_state(GameState::InGame)
             .with_collection::<TargetAssets>()
+            .with_collection::<UnitAssets>()
     );
     app.add_state(GameState::Loading);
     app.add_startup_system(setup_camera);

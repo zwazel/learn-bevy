@@ -16,6 +16,7 @@ pub mod commands;
 pub mod server_functionality;
 pub mod client_functionality;
 pub mod asset_handling;
+pub mod entities;
 
 pub const PORT: i32 = 5000;
 pub const AMOUNT_PLAYERS: usize = 4;
@@ -55,21 +56,6 @@ impl ServerTick {
 
 #[derive(Component)]
 pub struct MainCamera;
-
-#[derive(Component)]
-pub struct Target(pub PlayerId);
-
-#[derive(Component)]
-pub struct PlayerControlled;
-
-#[derive(Component)]
-pub struct EnemyControlled;
-
-#[derive(Component)]
-pub struct NeutralControlled;
-
-#[derive(Component)]
-pub struct FriendlyControlled;
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 pub enum GameState {

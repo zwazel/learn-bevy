@@ -14,6 +14,7 @@ use crate::{Player, PlayerId, Tick};
 pub enum PlayerCommand {
     Test(String),
     SetTargetPosition(f32, f32),
+    SpawnUnit(f32, f32),
 }
 
 impl PlayerCommand {
@@ -21,7 +22,8 @@ impl PlayerCommand {
         match (self, other) {
             (PlayerCommand::Test(a), PlayerCommand::Test(b)) => a == b,
             (PlayerCommand::SetTargetPosition(a_x, a_y), PlayerCommand::SetTargetPosition(b_x, b_y)) => a_x == b_x && a_y == b_y,
-            _ => false,
+            (PlayerCommand::SpawnUnit(a_x, a_b), PlayerCommand::SpawnUnit(b_x, b_y)) => a_x == b_x && a_b == b_y,
+            _ => false
         }
     }
 }
@@ -31,6 +33,7 @@ impl Display for PlayerCommand {
         match self {
             Self::Test(s) => write!(f, "Test({})", s),
             Self::SetTargetPosition(x, y) => write!(f, "SetTargetPosition({}, {})", x, y),
+            Self::SpawnUnit(x, y) => write!(f, "SpawnUnit({}, {})", x, y),
         }
     }
 }

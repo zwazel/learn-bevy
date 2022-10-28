@@ -1,8 +1,9 @@
-use std::borrow::BorrowMut;
+use std::borrow::{Borrow, BorrowMut};
 use std::net::UdpSocket;
 use std::time::SystemTime;
 
 use bevy::asset::{Assets, AssetServer, Handle};
+use bevy::ecs::query::OrFetch;
 use bevy::input::Input;
 use bevy::math::Vec2;
 use bevy::prelude::*;
@@ -10,10 +11,11 @@ use bevy::render::camera::RenderTarget;
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
-use crate::{client_connection_config, ClientChannel, ClientLobby, commands, EnemyControlled, MainCamera, NetworkMapping, Player, PlayerCommand, PlayerControlled, PlayerId, PlayerInfo, PROTOCOL_ID, ServerChannel, ServerLobby, ServerMarker, ServerMessages, ServerTick, Target, Tick};
-use crate::asset_handling::TargetAssets;
+use crate::*;
+use crate::asset_handling::{TargetAssets, UnitAssets};
 use crate::ClientMessages::ClientUpdateTick;
 use crate::commands::{CommandQueue, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
+use crate::entities::{MoveTarget, OtherPlayerControlled, PlayerControlled, Target, Unit};
 use crate::ServerMessages::UpdateTick;
 
 pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
@@ -91,7 +93,7 @@ pub fn handle_mouse_input(
 
     if buttons.just_pressed(MouseButton::Left) {
         // Left button was pressed
-        let command = PlayerCommand::Test("Left button was pressed".to_string());
+        let command = PlayerCommand::SpawnUnit(world_cursor_pos.x, world_cursor_pos.y);
         command_queue.add_command(command);
     }
 }
@@ -107,6 +109,8 @@ pub fn client_update_system(
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
     mut to_sync_commands: ResMut<CommandQueue>,
     target_assets: Res<TargetAssets>,
+    unit_assets: Res<UnitAssets>,
+    mut unit_query: Query<(Entity, &Unit, &Transform, Option<&MoveTarget>, AnyOf<(&PlayerControlled, &OtherPlayerControlled)>)>,
 ) {
     let client_id = client.client_id();
 
@@ -209,7 +213,40 @@ pub fn client_update_system(
                                     if is_player {
                                         bevy_commands.entity(target_entity).insert(PlayerControlled);
                                     } else {
-                                        bevy_commands.entity(target_entity).insert(EnemyControlled);
+                                        bevy_commands.entity(target_entity).insert(OtherPlayerControlled(player_id));
+                                    }
+
+                                    for (unit_entity, unit, transform, optional_move_target, who_controls) in unit_query.iter_mut() {
+                                        let who_controls: AnyOf<(&PlayerControlled, &OtherPlayerControlled)> = who_controls;
+                                        if let Some(_) = optional_move_target {
+                                            bevy_commands.entity(unit_entity).remove::<MoveTarget>();
+                                        }
+
+                                        if let Some(player_controller) = who_controls {
+                                            println!("Unit is controlled by me");
+                                        } else if let Some(other_player_controlled) = who_controls.1.unwrap() {
+                                            println!("Unit is controlled by {}", other_player_controlled.0);
+                                        }
+                                    }
+                                }
+                                PlayerCommand::SpawnUnit(x, y) => {
+                                    let unit_entity = bevy_commands
+                                        .spawn_bundle(SpriteBundle {
+                                            texture: if is_player {
+                                                unit_assets.friendly.clone()
+                                            } else {
+                                                unit_assets.enemy.clone()
+                                            },
+                                            transform: Transform::from_xyz(x, y, 0.0),
+                                            ..Default::default()
+                                        })
+                                        .insert(Unit)
+                                        .id();
+
+                                    if is_player {
+                                        bevy_commands.entity(unit_entity).insert(PlayerControlled);
+                                    } else {
+                                        bevy_commands.entity(unit_entity).insert(OtherPlayerControlled(player_id));
                                     }
                                 }
                             }
@@ -227,18 +264,6 @@ pub fn client_update_system(
                 }).unwrap();
 
                 to_sync_commands.reset();
-
-                // if !is_server {
-                //     // wait a random amount between 0 and 2 seconds if it isnt the server
-                //     let chance_to_wait = rand::thread_rng().gen_range(0..=100);
-                //
-                //     if chance_to_wait < 5 {
-                //         let wait_time = rand::thread_rng().gen_range(0..=1000);
-                //         println!("Client {} waiting {} ms before sending tick", username, wait_time);
-                //         std::thread::sleep(std::time::Duration::from_millis(wait_time));
-                //     }
-                // }
-
                 client.send_message(ClientChannel::ClientTick.id(), message);
             }
             _ => {
