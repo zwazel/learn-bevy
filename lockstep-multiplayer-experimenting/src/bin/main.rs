@@ -29,6 +29,7 @@ use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
 use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
 
 use bevy_asset_loader::prelude::*;
+use rand::prelude::SliceRandom;
 use lockstep_multiplayer_experimenting::asset_handling::TargetAssets;
 
 fn resolve_type(my_type: &str) -> ClientType {
@@ -202,7 +203,7 @@ fn main() {
     app.run();
 }
 
-fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup_ui() {
     println!("Setting up UI");
 }
 
