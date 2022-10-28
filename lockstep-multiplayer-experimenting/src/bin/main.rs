@@ -54,6 +54,7 @@ fn main() {
     let mut port = PORT;
     let mut my_type = ClientType::Client;
     let mut amount_of_players = AMOUNT_PLAYERS;
+    let mut tickrate = TICKRATE;
     match args.len() {
         2 => {
             my_type = resolve_type(&args[1]);
@@ -89,6 +90,16 @@ fn main() {
             port = translate_port(&args[5]);
 
             println!("Type has been set to: {}, Username has been set to: {}, Amount of players has been set to: {}, Host has been set to: {}, Port has been set to: {}", my_type, username, amount_of_players, host, port);
+        }
+        7 => {
+            my_type = resolve_type(&args[1]);
+            username = args[2].clone();
+            amount_of_players = translate_amount_players(&args[3]);
+            host = translate_host(&args[4], "");
+            port = translate_port(&args[5]);
+            tickrate = args[6].parse::<u64>().unwrap_or(TICKRATE);
+
+            println!("Type has been set to: {}, Username has been set to: {}, Amount of players has been set to: {}, Host has been set to: {}, Port has been set to: {}, Tickrate has been set to: {}", my_type, username, amount_of_players, host, port, tickrate);
         }
         _ => {
             println!("Usage: client [ClientType: server/client] [username] [host] [port] [amount of players]");
@@ -153,7 +164,7 @@ fn main() {
             app.add_stage_before(
                 CoreStage::Update,
                 "FixedUpdate",
-                FixedTimestepStage::from_stage(Duration::from_millis(TICKRATE), fixed_update_server),
+                FixedTimestepStage::from_stage(Duration::from_millis(tickrate), "FixedServerUpdate", fixed_update_server),
             );
         }
         _ => {}
