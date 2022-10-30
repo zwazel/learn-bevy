@@ -1,12 +1,13 @@
 use bevy::ecs::query::WorldQuery;
 use bevy::prelude::Component;
+
 use crate::PlayerId;
 
 #[derive(Component)]
 pub struct Target(pub PlayerId);
 
 #[derive(Component)]
-pub struct MoveTarget(f32, f32);
+pub struct MoveTarget(pub f32, pub f32);
 
 #[derive(Component)]
 pub struct Unit;

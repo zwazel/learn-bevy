@@ -98,6 +98,20 @@ pub fn handle_mouse_input(
     }
 }
 
+pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit>>) {
+    for (move_target, mut transform) in unit_query.iter_mut() {
+        let move_target: &MoveTarget = move_target;
+
+        let mut direction = Vec2 { x: move_target.0, y: move_target.1 } - transform.translation.truncate();
+        let distance = direction.length();
+        if distance > 0.1 {
+            direction = direction.normalize();
+            transform.translation.x += direction.x * 0.5;
+            transform.translation.y += direction.y * 0.5;
+        }
+    }
+}
+
 pub fn client_update_system(
     mut bevy_commands: Commands,
     mut client: ResMut<RenetClient>,
@@ -110,7 +124,7 @@ pub fn client_update_system(
     mut to_sync_commands: ResMut<CommandQueue>,
     target_assets: Res<TargetAssets>,
     unit_assets: Res<UnitAssets>,
-    mut unit_query: Query<(Entity, &Unit, &Transform, Option<&MoveTarget>, AnyOf<(&PlayerControlled, &OtherPlayerControlled)>)>,
+    mut unit_query: Query<(Entity, Option<&MoveTarget>), With<Unit>>,
 ) {
     let client_id = client.client_id();
 
@@ -216,17 +230,12 @@ pub fn client_update_system(
                                         bevy_commands.entity(target_entity).insert(OtherPlayerControlled(player_id));
                                     }
 
-                                    for (unit_entity, unit, transform, optional_move_target, who_controls) in unit_query.iter_mut() {
-                                        let who_controls: AnyOf<(&PlayerControlled, &OtherPlayerControlled)> = who_controls;
+                                    for (entity, optional_move_target) in unit_query.iter_mut() {
                                         if let Some(_) = optional_move_target {
-                                            bevy_commands.entity(unit_entity).remove::<MoveTarget>();
+                                            bevy_commands.entity(entity).remove::<MoveTarget>();
                                         }
 
-                                        if let Some(player_controller) = who_controls {
-                                            println!("Unit is controlled by me");
-                                        } else if let Some(other_player_controlled) = who_controls.1.unwrap() {
-                                            println!("Unit is controlled by {}", other_player_controlled.0);
-                                        }
+                                        bevy_commands.entity(entity).insert(MoveTarget(x, y));
                                     }
                                 }
                                 PlayerCommand::SpawnUnit(x, y) => {
