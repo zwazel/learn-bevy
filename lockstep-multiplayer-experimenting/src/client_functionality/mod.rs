@@ -1,4 +1,5 @@
 use std::net::UdpSocket;
+use std::ops::Mul;
 use std::time::SystemTime;
 
 use bevy::ecs::query::OrFetch;
@@ -116,6 +117,9 @@ pub fn move_camera(
     time: Res<Time>,
 ) {
     let mut camera_transform = q_camera.single_mut();
+    let move_speed = 2.0;
+    let sprint_speed = 6.0;
+    let mut speed = move_speed;
 
     let mut direction = Vec3::ZERO;
     if keyboard_input.pressed(KeyCode::W) {
@@ -131,10 +135,14 @@ pub fn move_camera(
         direction.x += 1.0;
     }
 
+    if keyboard_input.pressed(KeyCode::LShift) {
+        speed = sprint_speed;
+    }
+
     if direction.length() > 0.0 {
         direction = direction.normalize();
-        camera_transform.translation.x += direction.x * 0.5 * time.delta_seconds();
-        camera_transform.translation.z += direction.z * 0.5 * time.delta_seconds();
+        camera_transform.translation.x += direction.x * speed * time.delta_seconds();
+        camera_transform.translation.z += direction.z * speed * time.delta_seconds();
     }
 }
 
