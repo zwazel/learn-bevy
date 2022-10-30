@@ -117,12 +117,12 @@ pub fn move_camera(
 ) {
     let mut camera_transform = q_camera.single_mut();
 
-    let mut direction = Vec2::ZERO;
+    let mut direction = Vec3::ZERO;
     if keyboard_input.pressed(KeyCode::W) {
-        direction.y += 1.0;
+        direction.z -= 1.0;
     }
     if keyboard_input.pressed(KeyCode::S) {
-        direction.y -= 1.0;
+        direction.z += 1.0;
     }
     if keyboard_input.pressed(KeyCode::A) {
         direction.x -= 1.0;
@@ -134,7 +134,7 @@ pub fn move_camera(
     if direction.length() > 0.0 {
         direction = direction.normalize();
         camera_transform.translation.x += direction.x * 0.5 * time.delta_seconds();
-        camera_transform.translation.y += direction.y * 0.5 * time.delta_seconds();
+        camera_transform.translation.z += direction.z * 0.5 * time.delta_seconds();
     }
 }
 
