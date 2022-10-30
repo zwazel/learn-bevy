@@ -15,23 +15,22 @@ use bevy::prelude::*;
 use bevy::reflect::GetPath;
 use bevy::window::WindowSettings;
 use bevy::winit::WinitSettings;
+use bevy_asset_loader::prelude::*;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::{DateTime, Utc};
 use iyes_loopless::prelude::*;
+use rand::prelude::SliceRandom;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
+use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, handle_mouse_input, move_units, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
+use lockstep_multiplayer_experimenting::entities::Target;
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
 use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
-
-use bevy_asset_loader::prelude::*;
-use rand::prelude::SliceRandom;
-use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
-use lockstep_multiplayer_experimenting::entities::Target;
 
 fn resolve_type(my_type: &str) -> ClientType {
     let my_type = my_type.to_lowercase();
@@ -145,6 +144,7 @@ fn main() {
     );
     app.add_state(GameState::Loading);
     app.add_startup_system(setup_camera);
+    app.add_startup_system(setup_scene);
 
     match my_type {
         ClientType::Server => {
@@ -238,9 +238,41 @@ fn run_if_enough_players(
 }
 
 fn setup_camera(mut commands: Commands) {
-    commands.spawn()
-        .insert_bundle(Camera2dBundle::default())
+    // camera
+    commands.spawn().insert_bundle(Camera3dBundle {
+        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ..default()
+    })
         .insert(MainCamera);
+}
+
+fn setup_scene(mut commands: Commands,
+               mut meshes: ResMut<Assets<Mesh>>,
+               mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // plane
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
+        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+        ..default()
+    });
+    // cube
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+        transform: Transform::from_xyz(0.0, 0.5, 0.0),
+        ..default()
+    });
+    // light
+    commands.spawn_bundle(PointLightBundle {
+        point_light: PointLight {
+            intensity: 1500.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        transform: Transform::from_xyz(4.0, 8.0, 4.0),
+        ..default()
+    });
 }
 
 fn fade_away_targets(
