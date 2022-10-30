@@ -155,7 +155,7 @@ impl ServerSyncedPlayerCommandsList {
         if let Some(synced_player_command) = self.0.0.get_mut(&tick) {
             synced_player_command.0.0.push((player_id, commands));
         } else {
-            self.0.0.insert(tick, SyncedPlayerCommand(PlayerCommandsList((vec![(player_id, commands)])), MyDateTime::now()));
+            self.0.0.insert(tick, SyncedPlayerCommand(PlayerCommandsList(vec![(player_id, commands)]), MyDateTime::now()));
         }
     }
 }

@@ -1,13 +1,10 @@
-use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 use std::time::SystemTime;
 
 use bevy::prelude::{Commands, default, EventReader, ResMut};
-use chrono::DateTime;
-use env_logger::fmt::Timestamp;
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerTick, SyncedPlayerCommand, Tick, Username};
+use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerLobby, ServerTick, Tick, Username};
 use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
 use crate::ServerChannel::ServerMessages;
 use crate::ServerMessages::{PlayerCreate, PlayerRemove};
@@ -111,7 +108,6 @@ pub fn server_update_system(
 
     for client_id in server.clients_id().into_iter() {
         while let Some(message) = server.receive_message(client_id, ClientChannel::ClientTick.id()) {
-            let username = lobby.get_username(PlayerId(client_id)).unwrap();
             let client_message: ClientMessages = bincode::deserialize(&message).unwrap();
 
             match client_message {

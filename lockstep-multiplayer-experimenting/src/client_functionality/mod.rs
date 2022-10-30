@@ -1,8 +1,6 @@
-use std::borrow::{Borrow, BorrowMut};
 use std::net::UdpSocket;
 use std::time::SystemTime;
 
-use bevy::asset::{Assets, AssetServer, Handle};
 use bevy::ecs::query::OrFetch;
 use bevy::input::Input;
 use bevy::math::Vec2;
@@ -98,7 +96,7 @@ pub fn handle_mouse_input(
     }
 }
 
-pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit>>, time: Res<Time>,) {
+pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit>>, time: Res<Time>) {
     for (move_target, mut transform) in unit_query.iter_mut() {
         let move_target: &MoveTarget = move_target;
 
@@ -219,10 +217,7 @@ pub fn client_update_system(
         let server_message = bincode::deserialize(&message).unwrap();
         match server_message {
             UpdateTick { target_tick, commands } => {
-                let username = lobby.get_username(PlayerId(client_id)).unwrap();
                 most_recent_server_tick.0.0 = target_tick.0;
-
-                let is_server = is_server.is_some();
 
                 synced_commands.0.insert(target_tick, commands.clone());
 

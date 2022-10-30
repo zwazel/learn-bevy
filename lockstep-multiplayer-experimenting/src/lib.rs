@@ -1,10 +1,9 @@
 extern crate core;
 
-use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::fmt::{Debug, Display, Formatter};
-use std::process::Command;
-use std::time::{Duration, SystemTime};
+use std::cmp::*;
+use std::collections::*;
+use std::fmt::*;
+use std::time::*;
 
 use bevy::prelude::{Component, Entity};
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
