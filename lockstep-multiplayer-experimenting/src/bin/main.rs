@@ -16,6 +16,7 @@ use bevy::reflect::GetPath;
 use bevy::window::WindowSettings;
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
+use bevy_mod_picking::PickingCameraBundle;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::{DateTime, Utc};
 use iyes_loopless::prelude::*;
@@ -242,10 +243,12 @@ fn run_if_enough_players(
 
 fn setup_camera(mut commands: Commands) {
     // camera
-    commands.spawn().insert_bundle(Camera3dBundle {
-        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    })
+    commands.spawn()
+        .insert_bundle(Camera3dBundle {
+            transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        })
+        .insert_bundle(PickingCameraBundle::default())
         .insert(MainCamera);
 }
 
