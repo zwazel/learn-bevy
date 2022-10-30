@@ -25,7 +25,7 @@ use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
-use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, handle_mouse_input, move_units, new_renet_client};
+use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, handle_mouse_input, move_camera, move_units, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
@@ -190,6 +190,9 @@ fn main() {
             )
             .with_system(
                 move_units
+            )
+            .with_system(
+                move_camera
             )
             .with_run_criteria(run_if_client_connected)
     );

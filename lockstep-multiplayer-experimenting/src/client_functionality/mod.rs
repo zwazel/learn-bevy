@@ -98,7 +98,7 @@ pub fn handle_mouse_input(
     }
 }
 
-pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit>>) {
+pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit>>, time: Res<Time>,) {
     for (move_target, mut transform) in unit_query.iter_mut() {
         let move_target: &MoveTarget = move_target;
 
@@ -106,9 +106,37 @@ pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit
         let distance = direction.length();
         if distance > 0.1 {
             direction = direction.normalize();
-            transform.translation.x += direction.x * 0.5;
-            transform.translation.y += direction.y * 0.5;
+            transform.translation.x += direction.x * 0.5 * time.delta_seconds();
+            transform.translation.y += direction.y * 0.5 * time.delta_seconds();
         }
+    }
+}
+
+pub fn move_camera(
+    mut q_camera: Query<&mut Transform, With<MainCamera>>,
+    keyboard_input: Res<Input<KeyCode>>,
+    time: Res<Time>,
+) {
+    let mut camera_transform = q_camera.single_mut();
+
+    let mut direction = Vec2::ZERO;
+    if keyboard_input.pressed(KeyCode::W) {
+        direction.y += 1.0;
+    }
+    if keyboard_input.pressed(KeyCode::S) {
+        direction.y -= 1.0;
+    }
+    if keyboard_input.pressed(KeyCode::A) {
+        direction.x -= 1.0;
+    }
+    if keyboard_input.pressed(KeyCode::D) {
+        direction.x += 1.0;
+    }
+
+    if direction.length() > 0.0 {
+        direction = direction.normalize();
+        camera_transform.translation.x += direction.x * 0.5 * time.delta_seconds();
+        camera_transform.translation.y += direction.y * 0.5 * time.delta_seconds();
     }
 }
 
