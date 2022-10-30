@@ -13,10 +13,10 @@ use bevy::DefaultPlugins;
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::reflect::GetPath;
-use bevy::window::WindowSettings;
+use bevy::window::{PresentMode, WindowSettings};
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
-use bevy_mod_picking::PickingCameraBundle;
+use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, PickableBundle, PickingCameraBundle};
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::{DateTime, Utc};
 use iyes_loopless::prelude::*;
@@ -116,6 +116,7 @@ fn main() {
         title: format!("Lockstep Experimenting <{}>", username),
         width: 480.0,
         height: 540.0,
+        present_mode: PresentMode::AutoNoVsync, // Reduce input latency
         ..default()
     });
     app.insert_resource(WindowSettings {
@@ -125,6 +126,9 @@ fn main() {
     app.add_plugins(DefaultPlugins);
     app.add_plugin(RenetServerPlugin);
     app.add_plugin(RenetClientPlugin);
+    app.add_plugins(DefaultPickingPlugins); // <- Adds Picking, Interaction, and Highlighting plugins.
+    app.add_plugin(DebugCursorPickingPlugin); // <- Adds the green debug cursor.
+    app.add_plugin(DebugEventsPickingPlugin); // <- Adds debug event logging.
 
     app.add_system(panic_on_error_system);
     app.add_system_to_stage(CoreStage::Last, disconnect);
@@ -261,14 +265,17 @@ fn setup_scene(mut commands: Commands,
         mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         ..default()
-    });
+    })
+        .insert_bundle(PickableBundle::default());
     // cube
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-        transform: Transform::from_xyz(0.0, 0.5, 0.0),
-        ..default()
-    });
+    commands.spawn()
+        .insert_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+            material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+            transform: Transform::from_xyz(0.0, 0.5, 0.0),
+            ..default()
+        })
+        .insert_bundle(PickableBundle::default());
     // light
     commands.spawn_bundle(PointLightBundle {
         point_light: PointLight {
