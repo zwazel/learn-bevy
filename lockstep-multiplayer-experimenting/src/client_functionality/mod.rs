@@ -124,7 +124,7 @@ pub fn client_update_system(
     mut to_sync_commands: ResMut<CommandQueue>,
     target_assets: Res<TargetAssets>,
     unit_assets: Res<UnitAssets>,
-    mut unit_query: Query<(Entity, Option<&MoveTarget>), With<Unit>>,
+    mut unit_query: Query<(Entity, Option<&MoveTarget>, Option<&PlayerControlled>, Option<&OtherPlayerControlled>), With<Unit>>,
 ) {
     let client_id = client.client_id();
 
@@ -230,12 +230,26 @@ pub fn client_update_system(
                                         bevy_commands.entity(target_entity).insert(OtherPlayerControlled(player_id));
                                     }
 
-                                    for (entity, optional_move_target) in unit_query.iter_mut() {
-                                        if let Some(_) = optional_move_target {
-                                            bevy_commands.entity(entity).remove::<MoveTarget>();
+                                    for (entity, optional_move_target, optional_player_controlled, optional_other_controlled) in unit_query.iter_mut() {
+                                        let mut add_command = false;
+
+                                        if let Some(PlayerControlled) = optional_player_controlled {
+                                            if is_player {
+                                                add_command = true;
+                                            }
+                                        } else if let Some(OtherPlayerControlled(other_player_id)) = optional_other_controlled {
+                                            if other_player_id.0 == player_id.0 {
+                                                add_command = true;
+                                            }
                                         }
 
-                                        bevy_commands.entity(entity).insert(MoveTarget(x, y));
+                                        if add_command {
+                                            if let Some(_) = optional_move_target {
+                                                bevy_commands.entity(entity).remove::<MoveTarget>();
+                                            }
+
+                                            bevy_commands.entity(entity).insert(MoveTarget(x, y));
+                                        }
                                     }
                                 }
                                 PlayerCommand::SpawnUnit(x, y) => {
