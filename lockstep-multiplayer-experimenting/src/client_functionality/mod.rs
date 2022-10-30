@@ -145,7 +145,6 @@ pub fn client_update_system(
     mut network_mapping: ResMut<NetworkMapping>,
     mut most_recent_tick: ResMut<Tick>,
     mut most_recent_server_tick: ResMut<ServerTick>,
-    is_server: Option<Res<ServerMarker>>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
     mut to_sync_commands: ResMut<CommandQueue>,
     target_assets: Res<TargetAssets>,

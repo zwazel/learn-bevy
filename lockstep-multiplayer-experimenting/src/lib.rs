@@ -97,7 +97,7 @@ impl Tick {
 pub struct PlayerId(pub u64);
 
 impl Display for PlayerId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(f, "{}", self.0)
     }
 }
@@ -117,7 +117,7 @@ pub struct Player {
 pub struct Username(pub String);
 
 impl Display for Username {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(f, "{}", self.0)
     }
 }
@@ -174,7 +174,7 @@ pub enum ClientType {
 }
 
 impl Debug for ClientType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             ClientType::Client => write!(f, "Client"),
             ClientType::Server => write!(f, "Server"),
@@ -183,7 +183,7 @@ impl Debug for ClientType {
 }
 
 impl Display for ClientType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             ClientType::Client => write!(f, "Client"),
             ClientType::Server => write!(f, "Server"),
