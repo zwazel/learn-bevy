@@ -4,6 +4,7 @@ use std::cmp::*;
 use std::collections::*;
 use std::fmt::*;
 use std::time::*;
+use bevy::math::Vec3;
 
 use bevy::prelude::{Component, Entity};
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
@@ -50,6 +51,21 @@ impl ServerTick {
 
     pub fn reset(&mut self) {
         self.0.reset();
+    }
+}
+
+#[derive(Debug, Component)]
+pub struct CameraMovement {
+    pub acceleration: Vec3,
+    pub max_speed: Vec3,
+}
+
+impl Default for CameraMovement {
+    fn default() -> Self {
+        Self {
+            acceleration: Vec3::ZERO,
+            max_speed: Vec3::new(10.0, 10.0, 15.0),
+        }
     }
 }
 

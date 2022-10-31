@@ -114,11 +114,22 @@ pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit
 
 pub fn move_camera(
     mut q_camera: Query<&mut Transform, With<MainCamera>>,
-    keyboard_input: Res<Input<KeyCode>>,
-    mut scroll_events: EventReader<MouseWheel>,
+    camera_movement: Res<CameraMovement>,
     time: Res<Time>,
 ) {
     let mut camera_transform = q_camera.single_mut();
+    camera_transform.translation.x += camera_movement.acceleration.x * time.delta_seconds();
+    camera_transform.translation.y += camera_movement.acceleration.y * time.delta_seconds();
+    camera_transform.translation.z += camera_movement.acceleration.z * time.delta_seconds();
+
+    println!("Camera acceleration: {:?}", camera_movement.acceleration);
+}
+
+pub fn camera_movement_input(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut scroll_events: EventReader<MouseWheel>,
+    mut camera_movement: ResMut<CameraMovement>,
+) {
     let move_speed = 2.0;
     let sprint_speed = 6.0;
     let mut speed = move_speed;
@@ -127,34 +138,53 @@ pub fn move_camera(
     let scroll_speed_sprint = 10.0;
     let mut scroll_speed = scroll_speed_normal;
 
-    let mut direction = Vec3::ZERO;
-    if keyboard_input.pressed(KeyCode::W) {
-        direction.z -= 1.0;
-    }
-    if keyboard_input.pressed(KeyCode::S) {
-        direction.z += 1.0;
-    }
-    if keyboard_input.pressed(KeyCode::A) {
-        direction.x -= 1.0;
-    }
-    if keyboard_input.pressed(KeyCode::D) {
-        direction.x += 1.0;
-    }
-
-    for event in scroll_events.iter() {
-        direction.y -= event.y;
-    }
-
     if keyboard_input.pressed(KeyCode::LShift) {
         speed = sprint_speed;
         scroll_speed = scroll_speed_sprint;
     }
 
-    if direction.length() > 0.0 {
-        direction = direction.normalize();
-        camera_transform.translation.x += direction.x * speed * time.delta_seconds();
-        camera_transform.translation.z += direction.z * speed * time.delta_seconds();
-        camera_transform.translation.y += direction.y * scroll_speed * time.delta_seconds();
+    let direction = Vec3::new(
+        keyboard_input.pressed(KeyCode::D) as i8 as f32 - keyboard_input.pressed(KeyCode::A) as i8 as f32,
+        0.0,
+        keyboard_input.pressed(KeyCode::W) as i8 as f32 - keyboard_input.pressed(KeyCode::S) as i8 as f32,
+    );
+    if keyboard_input.pressed(KeyCode::W) {
+        camera_movement.acceleration.z -= (1.0 * speed) ;
+    }
+    if keyboard_input.pressed(KeyCode::S) {
+        camera_movement.acceleration.z += (1.0 * speed) ;
+    }
+    if keyboard_input.pressed(KeyCode::A) {
+        camera_movement.acceleration.x -= (1.0 * speed) ;
+    }
+    if keyboard_input.pressed(KeyCode::D) {
+        camera_movement.acceleration.x += (1.0 * speed) ;
+    }
+
+    for event in scroll_events.iter() {
+        camera_movement.acceleration.y -= (event.y * scroll_speed);
+    }
+
+    if camera_movement.acceleration.length() > 0.0 {
+        camera_movement.acceleration = camera_movement.acceleration.normalize();
+    }
+
+    if camera_movement.acceleration.x > camera_movement.max_speed.x {
+        camera_movement.acceleration.x = camera_movement.max_speed.x;
+    } else if camera_movement.acceleration.x < -camera_movement.max_speed.x {
+        camera_movement.acceleration.x = -camera_movement.max_speed.x;
+    }
+
+    if camera_movement.acceleration.y > camera_movement.max_speed.y {
+        camera_movement.acceleration.y = camera_movement.max_speed.y;
+    } else if camera_movement.acceleration.y < -camera_movement.max_speed.y {
+        camera_movement.acceleration.y = -camera_movement.max_speed.y;
+    }
+
+    if camera_movement.acceleration.z > camera_movement.max_speed.z {
+        camera_movement.acceleration.z = camera_movement.max_speed.z;
+    } else if camera_movement.acceleration.z < -camera_movement.max_speed.z {
+        camera_movement.acceleration.z = -camera_movement.max_speed.z;
     }
 }
 
