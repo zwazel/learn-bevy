@@ -57,14 +57,18 @@ impl ServerTick {
 #[derive(Debug, Component)]
 pub struct CameraMovement {
     pub acceleration: Vec3,
+    pub direction: Vec3,
     pub max_speed: Vec3,
+    pub friction: Vec3,
 }
 
 impl Default for CameraMovement {
     fn default() -> Self {
         Self {
             acceleration: Vec3::ZERO,
-            max_speed: Vec3::new(10.0, 10.0, 15.0),
+            direction: Vec3::ZERO,
+            max_speed: Vec3::new(10.0, 10.0, 10.0),
+            friction: Vec3::new(0.1, 0.1, 0.1),
         }
     }
 }
