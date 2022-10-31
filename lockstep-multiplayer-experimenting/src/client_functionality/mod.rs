@@ -17,6 +17,7 @@ use crate::ClientMessages::ClientUpdateTick;
 use crate::commands::{CommandQueue, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
 use crate::entities::{MoveTarget, OtherPlayerControlled, PlayerControlled, Target, Unit};
 use crate::ServerMessages::UpdateTick;
+use crate::Speeds::{Normal, Sprint};
 
 pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
     let server_addr = format!("{}:{}", host, port).parse().unwrap();
@@ -114,21 +115,38 @@ pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit
 
 pub fn move_camera(
     mut q_camera: Query<&mut Transform, With<MainCamera>>,
+    keyboard_input: Res<Input<KeyCode>>,
+    mut scroll_events: EventReader<MouseWheel>,
     mut camera_movement: ResMut<CameraMovement>,
     time: Res<Time>,
 ) {
     let mut camera_transform = q_camera.single_mut();
-    camera_transform.translation.x += camera_movement.acceleration.x * time.delta_seconds();
-    camera_transform.translation.y += camera_movement.acceleration.y * time.delta_seconds();
-    camera_transform.translation.z += camera_movement.acceleration.z * time.delta_seconds();
-}
+    let mut max_speed = Speeds::new(Normal);
 
-pub fn camera_movement_input(
-    keyboard_input: Res<Input<KeyCode>>,
-    mut scroll_events: EventReader<MouseWheel>,
-    mut camera_movement: ResMut<CameraMovement>,
-) {
-    
+    if keyboard_input.pressed(KeyCode::LShift) {
+        max_speed = Speeds::new(Sprint);
+    }
+
+    let mut direction = Vec3::new(
+        (keyboard_input.pressed(KeyCode::D) as i32 - keyboard_input.pressed(KeyCode::A) as i32) as f32,
+        0.0,
+        (keyboard_input.pressed(KeyCode::W) as i32 - keyboard_input.pressed(KeyCode::S) as i32) as f32,
+    );
+
+    for event in scroll_events.iter() {
+        direction.y += event.y;
+    }
+
+    if direction.length() > 0.0 {
+        direction = direction.normalize();
+
+    } else {
+        if camera_movement.velocity.length() <= camera_movement.deceleration {
+            camera_movement.velocity = Vec3::ZERO;
+        } else {
+            camera_movement.velocity -= camera_movement.velocity.normalize() * camera_movement.deceleration;
+        }
+    }
 }
 
 pub fn client_update_system(
