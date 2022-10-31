@@ -4,6 +4,7 @@ use std::time::SystemTime;
 
 use bevy::ecs::query::OrFetch;
 use bevy::input::Input;
+use bevy::input::mouse::MouseWheel;
 use bevy::math::Vec2;
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
@@ -114,12 +115,17 @@ pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit
 pub fn move_camera(
     mut q_camera: Query<&mut Transform, With<MainCamera>>,
     keyboard_input: Res<Input<KeyCode>>,
+    mut scroll_events: EventReader<MouseWheel>,
     time: Res<Time>,
 ) {
     let mut camera_transform = q_camera.single_mut();
     let move_speed = 2.0;
     let sprint_speed = 6.0;
     let mut speed = move_speed;
+
+    let scroll_speed_normal = 5.0;
+    let scroll_speed_sprint = 10.0;
+    let mut scroll_speed = scroll_speed_normal;
 
     let mut direction = Vec3::ZERO;
     if keyboard_input.pressed(KeyCode::W) {
@@ -135,14 +141,20 @@ pub fn move_camera(
         direction.x += 1.0;
     }
 
+    for event in scroll_events.iter() {
+        direction.y -= event.y;
+    }
+
     if keyboard_input.pressed(KeyCode::LShift) {
         speed = sprint_speed;
+        scroll_speed = scroll_speed_sprint;
     }
 
     if direction.length() > 0.0 {
         direction = direction.normalize();
         camera_transform.translation.x += direction.x * speed * time.delta_seconds();
         camera_transform.translation.z += direction.z * speed * time.delta_seconds();
+        camera_transform.translation.y += direction.y * scroll_speed * time.delta_seconds();
     }
 }
 
