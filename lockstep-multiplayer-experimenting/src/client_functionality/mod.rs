@@ -120,33 +120,57 @@ pub fn move_camera(
     mut camera_movement: ResMut<CameraMovement>,
     time: Res<Time>,
 ) {
-    let mut camera_transform = q_camera.single_mut();
-    let mut max_speed = Speeds::new(Normal);
-
     if keyboard_input.pressed(KeyCode::LShift) {
-        max_speed = Speeds::new(Sprint);
+        camera_movement.max_speed = DefaultSpeeds::Sprint.get();
+    } else {
+        camera_movement.max_speed = DefaultSpeeds::Normal.get();
     }
 
-    let mut direction = Vec3::new(
+    let mut direction = Vec2::new(
         (keyboard_input.pressed(KeyCode::D) as i32 - keyboard_input.pressed(KeyCode::A) as i32) as f32,
-        0.0,
         (keyboard_input.pressed(KeyCode::W) as i32 - keyboard_input.pressed(KeyCode::S) as i32) as f32,
     );
 
+    let mut scroll_direction = 0.0;
     for event in scroll_events.iter() {
-        direction.y += event.y;
+        scroll_direction += event.y;
     }
 
-    if direction.length() > 0.0 {
-        direction = direction.normalize();
-
-    } else {
-        if camera_movement.velocity.length() <= camera_movement.deceleration {
+    let mut spd = f32::sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z);
+    if direction.length() == 0.0 {
+        // decelerate camera
+        if spd <= camera_movement.deceleration {
             camera_movement.velocity = Vec3::ZERO;
         } else {
-            camera_movement.velocity -= camera_movement.velocity.normalize() * camera_movement.deceleration;
+            camera_movement.velocity.x -= camera_movement.velocity.x / spd * camera_movement.deceleration;
+            camera_movement.velocity.z -= camera_movement.velocity.z / spd * camera_movement.deceleration;
+        }
+    } else {
+        if camera_movement.velocity.x * direction.x + camera_movement.velocity.z * direction.y < 0.0 {
+            // skid
+            if spd <= camera_movement.skid_deceleration {
+                camera_movement.velocity = Vec3::ZERO;
+            } else {
+                camera_movement.velocity.x -= camera_movement.velocity.x / spd * camera_movement.skid_deceleration;
+                camera_movement.velocity.z -= camera_movement.velocity.z / spd * camera_movement.skid_deceleration;
+            }
+        } else {
+            // accelerate camera
+            camera_movement.velocity.x += direction.x * camera_movement.acceleration;
+            camera_movement.velocity.z += direction.y * camera_movement.acceleration;
+            spd = f32::sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z);
+            if spd > camera_movement.max_speed.get().length() {
+                camera_movement.velocity.x = camera_movement.velocity.x / spd * camera_movement.max_speed.get().x;
+                camera_movement.velocity.z = camera_movement.velocity.z / spd * camera_movement.max_speed.get().z;
+            }
         }
     }
+
+    // move camera
+    let mut camera_transform = q_camera.single_mut();
+    camera_transform.translation.x += camera_movement.velocity.x * time.delta_seconds();
+    camera_transform.translation.z -= camera_movement.velocity.z * time.delta_seconds();
+    camera_transform.translation.y += scroll_direction;
 }
 
 pub fn client_update_system(

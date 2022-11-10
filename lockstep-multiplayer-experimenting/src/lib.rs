@@ -6,7 +6,7 @@ use std::fmt::*;
 use std::time::*;
 
 use bevy::math::Vec3;
-use bevy::prelude::{Component, Entity};
+use bevy::prelude::{Component, Entity, Vec2};
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
 use serde::{Deserialize, Serialize};
 
@@ -54,16 +54,31 @@ impl ServerTick {
     }
 }
 
+#[derive(Debug)]
 pub enum Speeds {
     Normal(Vec3),
     Sprint(Vec3),
 }
 
 impl Speeds {
-    pub fn new(my_type: fn(Vec3) -> Speeds) -> Self {
-        match my_type {
-            Speeds::Normal(_) => Speeds::Normal(Vec3::new(10.0, 10.0, 10.0)),
-            Speeds::Sprint(_) => Speeds::Sprint(Vec3::new(20.0, 20.0, 20.0)),
+    pub fn get(&self) -> Vec3 {
+        match self {
+            Self::Normal(v) => *v,
+            Self::Sprint(v) => *v,
+        }
+    }
+}
+
+pub enum DefaultSpeeds {
+    Normal,
+    Sprint
+}
+
+impl DefaultSpeeds {
+    pub fn get(&self) -> Speeds {
+        match self {
+            DefaultSpeeds::Normal => Speeds::Normal(Vec3::new(10.0, 10.0, 10.0)),
+            DefaultSpeeds::Sprint => Speeds::Sprint(Vec3::new(20.0, 20.0, 20.0)),
         }
     }
 }
@@ -73,14 +88,18 @@ pub struct CameraMovement {
     pub velocity: Vec3,
     pub acceleration: f32,
     pub deceleration: f32,
+    pub skid_deceleration: f32,
+    pub max_speed: Speeds,
 }
 
 impl Default for CameraMovement {
     fn default() -> Self {
         Self {
             velocity: Vec3::ZERO,
-            acceleration: 1.0,
-            deceleration: 1.0
+            acceleration: 2.0,
+            deceleration: 2.0,
+            skid_deceleration: 2.0,
+            max_speed: DefaultSpeeds::Normal.get(),
         }
     }
 }
