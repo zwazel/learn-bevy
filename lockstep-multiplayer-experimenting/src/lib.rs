@@ -71,7 +71,7 @@ impl Speeds {
 
 pub enum DefaultSpeeds {
     Normal,
-    Sprint
+    Sprint,
 }
 
 impl DefaultSpeeds {
@@ -85,11 +85,15 @@ impl DefaultSpeeds {
 
 #[derive(Debug, Component)]
 pub struct CameraMovement {
+    // x = left/right y = up/down z = forward/backward
     pub velocity: Vec3,
     pub acceleration: f32,
+    pub scroll_acceleration: f32,
     pub deceleration: f32,
+    pub scroll_deceleration: f32,
     pub skid_deceleration: f32,
     pub max_speed: Speeds,
+    pub target_camera_height: f32,
 }
 
 impl Default for CameraMovement {
@@ -97,9 +101,12 @@ impl Default for CameraMovement {
         Self {
             velocity: Vec3::ZERO,
             acceleration: 2.0,
-            deceleration: 2.0,
-            skid_deceleration: 2.0,
+            scroll_acceleration: 3.0,
+            deceleration: 0.1,
+            scroll_deceleration: 0.1,
+            skid_deceleration: 3.0,
             max_speed: DefaultSpeeds::Normal.get(),
+            target_camera_height: 0.0,
         }
     }
 }

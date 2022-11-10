@@ -8,6 +8,7 @@ use bevy::input::mouse::MouseWheel;
 use bevy::math::Vec2;
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
+use bevy_egui::egui::lerp;
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
@@ -120,6 +121,8 @@ pub fn move_camera(
     mut camera_movement: ResMut<CameraMovement>,
     time: Res<Time>,
 ) {
+    let mut camera_transform = q_camera.single_mut();
+
     if keyboard_input.pressed(KeyCode::LShift) {
         camera_movement.max_speed = DefaultSpeeds::Sprint.get();
     } else {
@@ -133,7 +136,9 @@ pub fn move_camera(
 
     let mut scroll_direction = 0.0;
     for event in scroll_events.iter() {
-        scroll_direction += event.y;
+        let increase = event.y * camera_movement.scroll_acceleration;
+        scroll_direction += increase;
+        camera_movement.target_camera_height += increase;
     }
 
     let mut spd = f32::sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z);
@@ -142,8 +147,8 @@ pub fn move_camera(
         if spd <= camera_movement.deceleration {
             camera_movement.velocity = Vec3::ZERO;
         } else {
-            camera_movement.velocity.x -= camera_movement.velocity.x / spd * camera_movement.deceleration;
-            camera_movement.velocity.z -= camera_movement.velocity.z / spd * camera_movement.deceleration;
+            camera_movement.velocity.x -= (camera_movement.velocity.x / spd * camera_movement.deceleration);
+            camera_movement.velocity.z -= (camera_movement.velocity.z / spd * camera_movement.deceleration);
         }
     } else {
         if camera_movement.velocity.x * direction.x + camera_movement.velocity.z * direction.y < 0.0 {
@@ -167,10 +172,20 @@ pub fn move_camera(
     }
 
     // move camera
-    let mut camera_transform = q_camera.single_mut();
     camera_transform.translation.x += camera_movement.velocity.x * time.delta_seconds();
     camera_transform.translation.z -= camera_movement.velocity.z * time.delta_seconds();
-    camera_transform.translation.y += scroll_direction;
+
+    camera_transform.translation.y = lerp(camera_transform.translation.y..=camera_transform.translation.y + camera_movement.target_camera_height, 1.0 * time.delta_seconds());
+
+    let mut scroll_spd = f32::sqrt(camera_movement.target_camera_height * camera_movement.target_camera_height);
+    if scroll_direction == 0.0 {
+        // decelerate camera
+        if scroll_spd <= camera_movement.scroll_deceleration {
+            camera_movement.target_camera_height = 0.0;
+        } else {
+            camera_movement.target_camera_height -= (camera_movement.target_camera_height / scroll_spd * camera_movement.scroll_deceleration);
+        }
+    }
 }
 
 pub fn client_update_system(
