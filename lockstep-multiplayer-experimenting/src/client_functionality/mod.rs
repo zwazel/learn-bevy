@@ -175,7 +175,7 @@ pub fn move_camera(
     camera_transform.translation.x += camera_movement.velocity.x * time.delta_seconds();
     camera_transform.translation.z -= camera_movement.velocity.z * time.delta_seconds();
 
-    camera_transform.translation.y = lerp(camera_transform.translation.y..=camera_transform.translation.y + camera_movement.target_camera_height, 1.0 * time.delta_seconds());
+    camera_transform.translation.y = lerp(camera_transform.translation.y..=camera_transform.translation.y + camera_movement.target_camera_height, camera_movement.scroll_speed * time.delta_seconds());
 
     let mut scroll_spd = f32::sqrt(camera_movement.target_camera_height * camera_movement.target_camera_height);
     if scroll_direction == 0.0 {
