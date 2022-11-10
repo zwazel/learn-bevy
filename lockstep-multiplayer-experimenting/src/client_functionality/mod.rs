@@ -134,6 +134,23 @@ pub fn move_camera(
         (keyboard_input.pressed(KeyCode::W) as i32 - keyboard_input.pressed(KeyCode::S) as i32) as f32,
     );
 
+    let mut forward = camera_transform.rotation * Vec3::new(0.0, 0.0, -1.0);
+    let mut right = camera_transform.rotation * Vec3::new(1.0, 0.0, 0.0);
+
+    forward.y = 0.0;
+    right.y = 0.0;
+    forward = forward.normalize();
+    right = right.normalize();
+
+    let forward_relative_vertical_input = forward * direction.y;
+    let right_relative_horizontal_input = right * direction.x;
+
+    let camera_movement_direction = forward_relative_vertical_input + right_relative_horizontal_input;
+
+    if camera_movement_direction.length() > 0.0 {
+        println!("relative camera direction: {:?}", camera_movement_direction);
+    };
+
     let mut scroll_direction = 0.0;
     for event in scroll_events.iter() {
         let increase = event.y * camera_movement.scroll_acceleration;
@@ -185,6 +202,15 @@ pub fn move_camera(
         } else {
             camera_movement.target_camera_height -= (camera_movement.target_camera_height / scroll_spd * camera_movement.scroll_deceleration);
         }
+    }
+
+    // rotate camera
+    if keyboard_input.pressed(KeyCode::Q) {
+        camera_transform.rotation *= Quat::from_rotation_y(1.0 * time.delta_seconds());
+    }
+
+    if keyboard_input.pressed(KeyCode::E) {
+        camera_transform.rotation *= Quat::from_rotation_y(-1.0 * time.delta_seconds());
     }
 }
 
