@@ -132,12 +132,8 @@ pub fn move_camera(
     let mut direction = Vec3::new(
         (keyboard_input.pressed(KeyCode::D) as i32 - keyboard_input.pressed(KeyCode::A) as i32) as f32,
         0.0,
-        (keyboard_input.pressed(KeyCode::S) as i32 - keyboard_input.pressed(KeyCode::W) as i32) as f32,
+        (keyboard_input.pressed(KeyCode::W) as i32 - keyboard_input.pressed(KeyCode::S) as i32) as f32,
     );
-
-    if direction.length() != 0.0 {
-        println!("raw Direction:\t\t\t{:?}", direction);
-    }
 
     // rotate camera
     if keyboard_input.pressed(KeyCode::Q) {
@@ -165,8 +161,6 @@ pub fn move_camera(
 
     if camera_movement_direction.length() != 0.0 {
         camera_movement_direction = camera_movement_direction.normalize();
-        println!("camera rotation:\t\t{:?}", camera_transform.rotation);
-        println!("forward:\t\t\t{:?}\nright\t\t\t\t{:?}\nrelative direction:\t\t{:?}", forward, right, camera_movement_direction);
     };
 
     let mut scroll_direction = 0.0;
@@ -207,8 +201,7 @@ pub fn move_camera(
     }
 
     // move camera
-    camera_transform.translation.x += camera_movement.velocity.x * time.delta_seconds();
-    camera_transform.translation.z -= camera_movement.velocity.z * time.delta_seconds();
+    camera_transform.translation += camera_movement.velocity * time.delta_seconds();
 
     let target = camera_transform.translation.y + camera_movement.target_camera_height;
     // if distance between target and current height is greater than 0.1, move camera
@@ -224,10 +217,6 @@ pub fn move_camera(
         } else {
             camera_movement.target_camera_height -= (camera_movement.target_camera_height / scroll_spd * camera_movement.scroll_deceleration);
         }
-    }
-
-    if camera_movement_direction.length() != 0.0 {
-        println!("camera position:\t\t{:?}\n", camera_transform.translation);
     }
 }
 
