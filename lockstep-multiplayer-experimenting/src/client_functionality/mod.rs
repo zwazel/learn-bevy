@@ -162,7 +162,7 @@ pub fn move_camera(
     let right_relative_horizontal_input = direction.x * right;
 
     let mut camera_movement_direction = forward_relative_vertical_input + right_relative_horizontal_input;
-    
+
     if camera_movement_direction.length() != 0.0 {
         camera_movement_direction = camera_movement_direction.normalize();
         println!("camera rotation:\t\t{:?}", camera_transform.rotation);
