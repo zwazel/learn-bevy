@@ -131,11 +131,19 @@ pub fn move_camera(
 
     let mut direction = Vec2::new(
         (keyboard_input.pressed(KeyCode::D) as i32 - keyboard_input.pressed(KeyCode::A) as i32) as f32,
-        (keyboard_input.pressed(KeyCode::W) as i32 - keyboard_input.pressed(KeyCode::S) as i32) as f32,
+        (keyboard_input.pressed(KeyCode::S) as i32 - keyboard_input.pressed(KeyCode::W) as i32) as f32,
     );
 
-    let mut forward = camera_transform.rotation * Vec3::new(0.0, 0.0, -1.0);
-    let mut right = camera_transform.rotation * Vec3::new(1.0, 0.0, 0.0);
+    // rotate camera
+    if keyboard_input.pressed(KeyCode::Q) {
+        camera_transform.rotation *= Quat::from_rotation_y(1.0 * time.delta_seconds());
+    }
+    if keyboard_input.pressed(KeyCode::E) {
+        camera_transform.rotation *= Quat::from_rotation_y(-1.0 * time.delta_seconds());
+    }
+
+    let mut forward = camera_transform.forward();
+    let mut right = camera_transform.right();
 
     forward.y = 0.0;
     right.y = 0.0;
@@ -150,6 +158,17 @@ pub fn move_camera(
     if camera_movement_direction.length() > 0.0 {
         println!("relative camera direction: {:?}", camera_movement_direction);
     };
+
+    if direction.length() > 0.0 {
+        println!("camera direction before: {:?}", direction);
+    }
+
+    direction.x = camera_movement_direction.x;
+    direction.y = camera_movement_direction.z;
+
+    if direction.length() > 0.0 {
+        println!("camera direction after: {:?}", direction);
+    }
 
     let mut scroll_direction = 0.0;
     for event in scroll_events.iter() {
@@ -202,15 +221,6 @@ pub fn move_camera(
         } else {
             camera_movement.target_camera_height -= (camera_movement.target_camera_height / scroll_spd * camera_movement.scroll_deceleration);
         }
-    }
-
-    // rotate camera
-    if keyboard_input.pressed(KeyCode::Q) {
-        camera_transform.rotation *= Quat::from_rotation_y(1.0 * time.delta_seconds());
-    }
-
-    if keyboard_input.pressed(KeyCode::E) {
-        camera_transform.rotation *= Quat::from_rotation_y(-1.0 * time.delta_seconds());
     }
 }
 
