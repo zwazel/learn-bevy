@@ -96,6 +96,7 @@ pub struct CameraMovement {
     pub scroll_acceleration: f32,
     pub scroll_deceleration: f32,
     pub target_camera_height: f32,
+    pub scroll_error_tolerance: f32,
 }
 
 impl Default for CameraMovement {
@@ -111,6 +112,7 @@ impl Default for CameraMovement {
             scroll_acceleration: 3.0,
             scroll_deceleration: 0.1,
             target_camera_height: 0.0,
+            scroll_error_tolerance: 0.01,
         }
     }
 }

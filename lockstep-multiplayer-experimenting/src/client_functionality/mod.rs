@@ -5,7 +5,7 @@ use std::time::SystemTime;
 use bevy::ecs::query::OrFetch;
 use bevy::input::Input;
 use bevy::input::mouse::MouseWheel;
-use bevy::math::Vec2;
+use bevy::math::{DQuat, Vec2};
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
 use bevy_egui::egui::lerp;
@@ -149,10 +149,6 @@ pub fn move_camera(
     if keyboard_input.pressed(KeyCode::R) {
         camera_transform.rotation = Quat::from_rotation_y(0.0);
     }
-    if keyboard_input.pressed(KeyCode::T) {
-        // look back
-        camera_transform.rotation = Quat::from_rotation_y(std::f32::consts::PI);
-    }
 
     let mut forward = camera_transform.forward();
     let mut right = camera_transform.right();
@@ -162,8 +158,8 @@ pub fn move_camera(
     forward = forward.normalize();
     right = right.normalize();
 
-    let forward_relative_vertical_input = forward * direction.z;
-    let right_relative_horizontal_input = right * direction.x;
+    let forward_relative_vertical_input = direction.z * forward;
+    let right_relative_horizontal_input = direction.x * right;
 
     let camera_movement_direction = forward_relative_vertical_input + right_relative_horizontal_input;
 
@@ -171,16 +167,6 @@ pub fn move_camera(
         println!("camera rotation:\t\t{:?}", camera_transform.rotation);
         println!("forward:\t\t\t{:?}\nright\t\t\t\t{:?}\nrelative direction:\t\t{:?}", forward, right, camera_movement_direction);
     };
-
-    if direction.length() != 0.0 {
-        println!("camera direction before:\t{:?}", direction);
-    }
-
-    direction = camera_movement_direction;
-
-    if direction.length() != 0.0 {
-        println!("camera direction after:\t\t{:?}\n", direction);
-    }
 
     let mut scroll_direction = 0.0;
     for event in scroll_events.iter() {
@@ -190,7 +176,7 @@ pub fn move_camera(
     }
 
     let mut spd = f32::sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z);
-    if direction.length() == 0.0 {
+    if camera_movement_direction.length() == 0.0 {
         // decelerate camera
         if spd <= camera_movement.deceleration {
             camera_movement.velocity = Vec3::ZERO;
@@ -199,7 +185,7 @@ pub fn move_camera(
             camera_movement.velocity.z -= (camera_movement.velocity.z / spd * camera_movement.deceleration);
         }
     } else {
-        if camera_movement.velocity.x * direction.x + camera_movement.velocity.z * direction.z < 0.0 {
+        if camera_movement.velocity.x * camera_movement_direction.x + camera_movement.velocity.z * camera_movement_direction.z < 0.0 {
             // skid
             if spd <= camera_movement.skid_deceleration {
                 camera_movement.velocity = Vec3::ZERO;
@@ -209,8 +195,8 @@ pub fn move_camera(
             }
         } else {
             // accelerate camera
-            camera_movement.velocity.x += direction.x * camera_movement.acceleration;
-            camera_movement.velocity.z += direction.z * camera_movement.acceleration;
+            camera_movement.velocity.x += camera_movement_direction.x * camera_movement.acceleration;
+            camera_movement.velocity.z += camera_movement_direction.z * camera_movement.acceleration;
             spd = f32::sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z);
             if spd > camera_movement.max_speed.get().length() {
                 camera_movement.velocity.x = camera_movement.velocity.x / spd * camera_movement.max_speed.get().x;
@@ -223,7 +209,11 @@ pub fn move_camera(
     camera_transform.translation.x += camera_movement.velocity.x * time.delta_seconds();
     camera_transform.translation.z -= camera_movement.velocity.z * time.delta_seconds();
 
-    camera_transform.translation.y = lerp(camera_transform.translation.y..=camera_transform.translation.y + camera_movement.target_camera_height, camera_movement.scroll_speed * time.delta_seconds());
+    let target = camera_transform.translation.y + camera_movement.target_camera_height;
+    // if distance between target and current height is greater than 0.1, move camera
+    if (target - camera_transform.translation.y).abs() > camera_movement.scroll_error_tolerance {
+        camera_transform.translation.y = lerp(camera_transform.translation.y..=target, camera_movement.scroll_speed * time.delta_seconds());
+    }
 
     let mut scroll_spd = f32::sqrt(camera_movement.target_camera_height * camera_movement.target_camera_height);
     if scroll_direction == 0.0 {
@@ -233,6 +223,10 @@ pub fn move_camera(
         } else {
             camera_movement.target_camera_height -= (camera_movement.target_camera_height / scroll_spd * camera_movement.scroll_deceleration);
         }
+    }
+
+    if camera_movement_direction.length() != 0.0 {
+        println!("camera position:\t\t{:?}\n", camera_transform.translation);
     }
 }
 
