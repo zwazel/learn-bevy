@@ -9,7 +9,7 @@ use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::math::{DQuat, Vec2};
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
-use bevy_egui::egui::lerp;
+use bevy_egui::egui::{lerp, remap_clamp};
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
@@ -127,9 +127,13 @@ pub fn move_camera(
 ) {
     let window = windows.get_primary_mut().unwrap();
     let mut camera_transform = q_camera.single_mut();
+    let mut scroll_speed = camera_movement.scroll_speed;
+    let mut rotation_speed = camera_movement.rotation_speed;
 
     if keyboard_input.pressed(KeyCode::LShift) {
         camera_movement.max_speed = DefaultSpeeds::Sprint.get();
+        scroll_speed = camera_movement.scroll_sprint_speed;
+        rotation_speed = camera_movement.rotation_sprint_speed;
     } else {
         camera_movement.max_speed = DefaultSpeeds::Normal.get();
     }
@@ -156,15 +160,35 @@ pub fn move_camera(
         camera_movement.last_mouse_position = Vec2::new(0.0, 0.0);
     }
 
+    let current_yaw = camera_movement.mouse_yaw;
+    let current_pitch = camera_movement.mouse_pitch;
+
     if mouse_input.pressed(MouseButton::Middle) {
         for event in motion_evr.iter() {
             // rotate camera, only left/right and up/down, no roll
-            camera_transform.rotate(Quat::from_rotation_y(-event.delta.x * camera_movement.mouse_sensitivity * time.delta_seconds())); // left/right
-            // camera_transform.rotate(Quat::from_rotation_x(-event.delta.y * 0.01));
+            camera_movement.mouse_pitch -= event.delta.y * camera_movement.mouse_sensitivity * time.delta_seconds(); // up/down
+            camera_movement.mouse_yaw -= event.delta.x * camera_movement.mouse_sensitivity * time.delta_seconds(); // left/right
         }
     }
     if keyboard_input.pressed(KeyCode::R) {
         camera_transform.rotation = Quat::from_rotation_y(0.0);
+    }
+    if keyboard_input.pressed(KeyCode::Q) {
+        camera_movement.mouse_yaw += rotation_speed * time.delta_seconds(); // left/right
+    }
+    if keyboard_input.pressed(KeyCode::E) {
+        camera_movement.mouse_yaw -= rotation_speed * time.delta_seconds(); // left/right
+    }
+
+    if camera_movement.mouse_yaw != current_yaw || camera_movement.mouse_pitch != current_pitch {
+        // clamp pitch to prevent camera from flipping
+        camera_movement.mouse_pitch = camera_movement.mouse_pitch.clamp(camera_movement.mouse_pitch_min_max.0, camera_movement.mouse_pitch_min_max.1);
+
+        // keep yaw in 0..360 range
+        camera_movement.mouse_yaw = camera_movement.mouse_yaw.rem_euclid(camera_movement.mouse_yaw_min_max.1);
+
+        camera_transform.rotation = Quat::from_rotation_y(camera_movement.mouse_yaw.to_radians())
+            * Quat::from_rotation_x(camera_movement.mouse_pitch.to_radians());
     }
 
     let mut forward = camera_transform.forward();
@@ -227,7 +251,7 @@ pub fn move_camera(
     let target = camera_transform.translation.y + camera_movement.target_camera_height;
     // if distance between target and current height is greater than 0.1, move camera
     if (target - camera_transform.translation.y).abs() > camera_movement.scroll_error_tolerance {
-        camera_transform.translation.y = lerp(camera_transform.translation.y..=target, camera_movement.scroll_speed * time.delta_seconds());
+        camera_transform.translation.y = lerp(camera_transform.translation.y..=target, scroll_speed * time.delta_seconds());
     }
 
     let mut scroll_spd = f32::sqrt(camera_movement.target_camera_height * camera_movement.target_camera_height);

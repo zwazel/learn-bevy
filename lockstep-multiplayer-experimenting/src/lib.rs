@@ -91,14 +91,22 @@ pub struct CameraMovement {
     pub deceleration: f32,
     pub skid_deceleration: f32,
     pub max_speed: Speeds,
-    pub mouse_sensitivity: f32,
-    pub last_mouse_position: Vec2,
 
     pub scroll_speed: f32,
+    pub scroll_sprint_speed: f32,
     pub scroll_acceleration: f32,
     pub scroll_deceleration: f32,
     pub target_camera_height: f32,
     pub scroll_error_tolerance: f32,
+
+    pub mouse_sensitivity: f32,
+    pub last_mouse_position: Vec2,
+    pub mouse_yaw: f32,
+    pub mouse_pitch: f32,
+    pub mouse_pitch_min_max: (f32, f32),
+    pub mouse_yaw_min_max: (f32, f32),
+    pub rotation_speed: f32,
+    pub rotation_sprint_speed: f32,
 }
 
 impl Default for CameraMovement {
@@ -109,14 +117,22 @@ impl Default for CameraMovement {
             deceleration: 0.1,
             skid_deceleration: 3.0,
             max_speed: DefaultSpeeds::Normal.get(),
-            mouse_sensitivity: 1.0,
 
-            last_mouse_position: Default::default(),
             scroll_speed: 1.0,
+            scroll_sprint_speed: 5.0,
             scroll_acceleration: 3.0,
-            scroll_deceleration: 0.1,
+            scroll_deceleration: 0.07,
             target_camera_height: 0.0,
             scroll_error_tolerance: 0.01,
+
+            mouse_sensitivity: 30.0,
+            last_mouse_position: Default::default(),
+            mouse_yaw: 0.0,
+            mouse_pitch: 0.0,
+            mouse_pitch_min_max: (-89.0, 80.0),
+            mouse_yaw_min_max: (0.0, 360.0),
+            rotation_speed: 30.0,
+            rotation_sprint_speed: 100.0,
         }
     }
 }
