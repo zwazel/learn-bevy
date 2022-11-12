@@ -49,61 +49,6 @@ pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient
     RenetClient::new(current_time, socket, client_id, connection_config, authentication).unwrap()
 }
 
-pub fn handle_mouse_input(
-    mut command_queue: ResMut<CommandQueue>,
-    buttons: Res<Input<MouseButton>>,
-    windows: Res<Windows>,
-    q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
-) {
-    // get the camera info and transform
-    // assuming there is exactly one main camera entity, so query::single() is OK
-    let (camera, camera_transform) = q_camera.single();
-    let camera: &Camera = camera;
-    let camera_transform: &GlobalTransform = camera_transform;
-
-    // get the window that the camera is displaying to (or the primary window)
-    let wnd = if let RenderTarget::Window(id) = camera.target {
-        windows.get(id).unwrap()
-    } else {
-        windows.get_primary().unwrap()
-    };
-
-    let mut world_cursor_pos: Vec2 = Vec2::ZERO;
-    // check if the cursor is inside the window and get its position
-    if let Some(screen_pos) = wnd.cursor_position() {
-        // get the size of the window
-        let window_size = Vec2::new(wnd.width() as f32, wnd.height() as f32);
-
-        // convert screen position [0..resolution] to ndc [-1..1] (gpu coordinates)
-        let ndc = (screen_pos / window_size) * 2.0 - Vec2::ONE;
-
-        // matrix for undoing the projection and camera transform
-        let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
-
-        // use it to convert ndc to world-space coordinates
-        let world_pos = ndc_to_world.project_point3(ndc.extend(-1.0));
-
-        // reduce it to a 2D value
-        world_cursor_pos = world_pos.truncate();
-
-        // round x and y to .2 precision
-        world_cursor_pos.x = (world_cursor_pos.x * 100.0).round() * 0.01;
-        world_cursor_pos.y = (world_cursor_pos.y * 100.0).round() * 0.01;
-    }
-
-    if buttons.just_pressed(MouseButton::Right) {
-        // Right button was pressed
-        let command = PlayerCommand::SetTargetPosition(world_cursor_pos.x, world_cursor_pos.y);
-        command_queue.add_command(command);
-    }
-
-    if buttons.just_pressed(MouseButton::Left) {
-        // Left button was pressed
-        let command = PlayerCommand::SpawnUnit(world_cursor_pos.x, world_cursor_pos.y);
-        command_queue.add_command(command);
-    }
-}
-
 pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit>>, time: Res<Time>) {
     for (move_target, mut transform) in unit_query.iter_mut() {
         let move_target: &MoveTarget = move_target;

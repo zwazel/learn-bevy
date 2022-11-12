@@ -16,7 +16,7 @@ use bevy::reflect::GetPath;
 use bevy::window::{PresentMode, WindowSettings};
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
-use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, PickableBundle, PickingCameraBundle};
+use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, HighlightablePickingPlugins, PickableBundle, PickingCameraBundle};
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::{DateTime, Utc};
 use iyes_loopless::prelude::*;
@@ -26,7 +26,7 @@ use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
-use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, handle_mouse_input, move_camera, move_units, new_renet_client};
+use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, move_camera, move_units, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
 use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
@@ -112,6 +112,15 @@ fn main() {
     println!("Version: {}", VERSION);
 
     let mut app = App::new();
+
+    app.add_plugins(DefaultPlugins);
+    app.add_plugin(RenetServerPlugin);
+    app.add_plugin(RenetClientPlugin);
+    app.add_plugins(DefaultPickingPlugins); // <- Adds Picking, Interaction, and Highlighting plugins.
+    app.add_plugin(DebugCursorPickingPlugin); // <- Adds the green debug cursor.
+    app.add_plugin(DebugEventsPickingPlugin); // <- Adds debug event logging.
+
+
     app.insert_resource(WindowDescriptor {
         title: format!("Lockstep Experimenting <{}>", username),
         width: 480.0,
@@ -123,12 +132,6 @@ fn main() {
         ..default()
     });
 
-    app.add_plugins(DefaultPlugins);
-    app.add_plugin(RenetServerPlugin);
-    app.add_plugin(RenetClientPlugin);
-    app.add_plugins(DefaultPickingPlugins); // <- Adds Picking, Interaction, and Highlighting plugins.
-    app.add_plugin(DebugCursorPickingPlugin); // <- Adds the green debug cursor.
-    app.add_plugin(DebugEventsPickingPlugin); // <- Adds debug event logging.
 
     app.add_system(panic_on_error_system);
     app.add_system_to_stage(CoreStage::Last, disconnect);
@@ -180,11 +183,6 @@ fn main() {
 
     app.add_system_set(
         SystemSet::on_update(GameState::InGame)
-            .with_system(
-                handle_mouse_input
-                    .before(MySystems::Syncing)
-                    .label(MySystems::CommandCollection)
-            )
             .with_system(
                 client_update_system
                     .label(MySystems::Syncing)
