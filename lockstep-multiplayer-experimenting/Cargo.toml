@@ -31,6 +31,8 @@ chrono = "0.4.22"
 bevy_asset_loader = "0.12.1"
 bevy_asset_loader_derive = "0.12.1"
 bevy_mod_picking = "0.9.0"
+rapier3d = { version = "0.16.0", features = [ "enhanced-determinism" ] }
+nalgebra = "0.31.3"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

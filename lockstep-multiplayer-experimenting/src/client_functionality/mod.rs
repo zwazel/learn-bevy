@@ -10,8 +10,11 @@ use bevy::math::{DQuat, Vec2};
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
 use bevy_egui::egui::{lerp, remap_clamp};
+use bevy_mod_picking::RayCastSource;
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
+use nalgebra::ComplexField;
+use rapier3d::prelude::ColliderBuilder;
 
 use crate::*;
 use crate::asset_handling::{TargetAssets, UnitAssets};
@@ -215,14 +218,14 @@ pub fn move_camera(
         camera_movement.target_camera_height += increase;
     }
 
-    let mut spd = f32::sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z);
+    let mut spd = ComplexField::try_sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z).unwrap();
     if camera_movement_direction.length() == 0.0 {
         // decelerate camera
         if spd <= camera_movement.deceleration {
             camera_movement.velocity = Vec3::ZERO;
         } else {
-            camera_movement.velocity.x -= (camera_movement.velocity.x / spd * camera_movement.deceleration);
-            camera_movement.velocity.z -= (camera_movement.velocity.z / spd * camera_movement.deceleration);
+            camera_movement.velocity.x -= camera_movement.velocity.x / spd * camera_movement.deceleration;
+            camera_movement.velocity.z -= camera_movement.velocity.z / spd * camera_movement.deceleration;
         }
     } else {
         if camera_movement.velocity.x * camera_movement_direction.x + camera_movement.velocity.z * camera_movement_direction.z < 0.0 {
@@ -237,7 +240,7 @@ pub fn move_camera(
             // accelerate camera
             camera_movement.velocity.x += camera_movement_direction.x * camera_movement.acceleration;
             camera_movement.velocity.z += camera_movement_direction.z * camera_movement.acceleration;
-            spd = f32::sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z);
+            spd = ComplexField::try_sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z).unwrap();
             if spd > camera_movement.max_speed.get().length() {
                 camera_movement.velocity.x = camera_movement.velocity.x / spd * camera_movement.max_speed.get().x;
                 camera_movement.velocity.z = camera_movement.velocity.z / spd * camera_movement.max_speed.get().z;
@@ -254,7 +257,7 @@ pub fn move_camera(
         camera_transform.translation.y = lerp(camera_transform.translation.y..=target, scroll_speed * time.delta_seconds());
     }
 
-    let mut scroll_spd = f32::sqrt(camera_movement.target_camera_height * camera_movement.target_camera_height);
+    let mut scroll_spd = ComplexField::try_sqrt(camera_movement.target_camera_height * camera_movement.target_camera_height).unwrap();
     if scroll_direction == 0.0 {
         // decelerate camera
         if scroll_spd <= camera_movement.scroll_deceleration {
