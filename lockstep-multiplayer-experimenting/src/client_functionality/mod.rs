@@ -1,10 +1,11 @@
+use std::f32::consts::PI;
 use std::net::UdpSocket;
 use std::ops::Mul;
 use std::time::SystemTime;
 
 use bevy::ecs::query::OrFetch;
 use bevy::input::Input;
-use bevy::input::mouse::MouseWheel;
+use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::math::{DQuat, Vec2};
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
@@ -117,10 +118,14 @@ pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit
 pub fn move_camera(
     mut q_camera: Query<&mut Transform, With<MainCamera>>,
     keyboard_input: Res<Input<KeyCode>>,
+    mouse_input: Res<Input<MouseButton>>,
+    mut motion_evr: EventReader<MouseMotion>,
     mut scroll_events: EventReader<MouseWheel>,
     mut camera_movement: ResMut<CameraMovement>,
     time: Res<Time>,
+    mut windows: ResMut<Windows>,
 ) {
+    let window = windows.get_primary_mut().unwrap();
     let mut camera_transform = q_camera.single_mut();
 
     if keyboard_input.pressed(KeyCode::LShift) {
@@ -135,12 +140,28 @@ pub fn move_camera(
         (keyboard_input.pressed(KeyCode::W) as i32 - keyboard_input.pressed(KeyCode::S) as i32) as f32,
     );
 
-    // rotate camera
-    if keyboard_input.pressed(KeyCode::Q) {
-        camera_transform.rotation *= Quat::from_rotation_y(1.0 * time.delta_seconds());
+    if mouse_input.just_pressed(MouseButton::Middle) {
+        window.set_cursor_lock_mode(true);
+        window.set_cursor_visibility(false);
+        camera_movement.last_mouse_position = window.cursor_position().unwrap();
     }
-    if keyboard_input.pressed(KeyCode::E) {
-        camera_transform.rotation *= Quat::from_rotation_y(-1.0 * time.delta_seconds());
+
+    if mouse_input.just_released(MouseButton::Middle) {
+        window.set_cursor_lock_mode(false);
+        window.set_cursor_visibility(true);
+
+        // set cursor position to the center of the screen
+        window.set_cursor_position(camera_movement.last_mouse_position);
+
+        camera_movement.last_mouse_position = Vec2::new(0.0, 0.0);
+    }
+
+    if mouse_input.pressed(MouseButton::Middle) {
+        for event in motion_evr.iter() {
+            // rotate camera, only left/right and up/down, no roll
+            camera_transform.rotate(Quat::from_rotation_y(-event.delta.x * camera_movement.mouse_sensitivity * time.delta_seconds())); // left/right
+            // camera_transform.rotate(Quat::from_rotation_x(-event.delta.y * 0.01));
+        }
     }
     if keyboard_input.pressed(KeyCode::R) {
         camera_transform.rotation = Quat::from_rotation_y(0.0);

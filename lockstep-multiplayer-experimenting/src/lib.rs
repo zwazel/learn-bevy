@@ -91,6 +91,8 @@ pub struct CameraMovement {
     pub deceleration: f32,
     pub skid_deceleration: f32,
     pub max_speed: Speeds,
+    pub mouse_sensitivity: f32,
+    pub last_mouse_position: Vec2,
 
     pub scroll_speed: f32,
     pub scroll_acceleration: f32,
@@ -107,7 +109,9 @@ impl Default for CameraMovement {
             deceleration: 0.1,
             skid_deceleration: 3.0,
             max_speed: DefaultSpeeds::Normal.get(),
+            mouse_sensitivity: 1.0,
 
+            last_mouse_position: Default::default(),
             scroll_speed: 1.0,
             scroll_acceleration: 3.0,
             scroll_deceleration: 0.1,
