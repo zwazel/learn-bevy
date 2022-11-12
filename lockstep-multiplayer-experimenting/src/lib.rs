@@ -78,7 +78,7 @@ impl DefaultSpeeds {
     pub fn get(&self) -> Speeds {
         match self {
             DefaultSpeeds::Normal => Speeds::Normal(Vec3::new(10.0, 10.0, 10.0)),
-            DefaultSpeeds::Sprint => Speeds::Sprint(Vec3::new(20.0, 20.0, 20.0)),
+            DefaultSpeeds::Sprint => Speeds::Sprint(Vec3::new(30.0, 30.0, 30.0)),
         }
     }
 }
