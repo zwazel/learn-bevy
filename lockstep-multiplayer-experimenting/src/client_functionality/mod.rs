@@ -17,7 +17,6 @@ use rapier3d::prelude::ColliderBuilder;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
 use crate::*;
-use crate::asset_handling::{TargetAssets, UnitAssets};
 use crate::ClientMessages::ClientUpdateTick;
 use crate::commands::{CommandQueue, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
 use crate::entities::{MoveTarget, OtherPlayerControlled, PlayerControlled, Target, Unit};
@@ -229,8 +228,6 @@ pub fn client_update_system(
     mut most_recent_server_tick: ResMut<ServerTick>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
     mut to_sync_commands: ResMut<CommandQueue>,
-    target_assets: Res<TargetAssets>,
-    unit_assets: Res<UnitAssets>,
     mut unit_query: Query<(Entity, Option<&MoveTarget>, Option<&PlayerControlled>, Option<&OtherPlayerControlled>), With<Unit>>,
 ) {
     let client = &mut client.client;
@@ -317,71 +314,8 @@ pub fn client_update_system(
                                         println!("{} said '{}' in tick {}", command_username, text, target_tick.0);
                                     }
                                 }
-                                PlayerCommand::SetTargetPosition(x, y) => {
-                                    let target_entity = bevy_commands
-                                        .spawn((
-                                            SpriteBundle {
-                                                texture: if is_player {
-                                                    target_assets.friendly_target.clone()
-                                                } else {
-                                                    target_assets.enemy_target.clone()
-                                                },
-                                                transform: Transform::from_xyz(x, y, 0.0),
-                                                ..Default::default()
-                                            },
-                                            Target(player_id),
-                                        ))
-                                        .id();
-                                    if is_player {
-                                        bevy_commands.entity(target_entity).insert(PlayerControlled);
-                                    } else {
-                                        bevy_commands.entity(target_entity).insert(OtherPlayerControlled(player_id));
-                                    }
-
-                                    for (entity, optional_move_target, optional_player_controlled, optional_other_controlled) in unit_query.iter_mut() {
-                                        let mut add_command = false;
-
-                                        if let Some(PlayerControlled) = optional_player_controlled {
-                                            if is_player {
-                                                add_command = true;
-                                            }
-                                        } else if let Some(OtherPlayerControlled(other_player_id)) = optional_other_controlled {
-                                            if other_player_id.0 == player_id.0 {
-                                                add_command = true;
-                                            }
-                                        }
-
-                                        if add_command {
-                                            if let Some(_) = optional_move_target {
-                                                bevy_commands.entity(entity).remove::<MoveTarget>();
-                                            }
-
-                                            bevy_commands.entity(entity).insert(MoveTarget(x, y));
-                                        }
-                                    }
-                                }
-                                PlayerCommand::SpawnUnit(x, y) => {
-                                    let unit_entity = bevy_commands
-                                        .spawn((
-                                            SpriteBundle {
-                                                texture: if is_player {
-                                                    unit_assets.friendly.clone()
-                                                } else {
-                                                    unit_assets.enemy.clone()
-                                                },
-                                                transform: Transform::from_xyz(x, y, 0.0),
-                                                ..Default::default()
-                                            },
-                                            Unit,
-                                        ))
-                                        .id();
-
-                                    if is_player {
-                                        bevy_commands.entity(unit_entity).insert(PlayerControlled);
-                                    } else {
-                                        bevy_commands.entity(unit_entity).insert(OtherPlayerControlled(player_id));
-                                    }
-                                }
+                                PlayerCommand::SetTargetPosition(..) => {}
+                                PlayerCommand::SpawnUnit(..) => {}
                             }
                         }
                     } else {

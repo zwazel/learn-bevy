@@ -25,7 +25,6 @@ use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetErr
 use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
-use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, move_camera, move_units, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
@@ -140,13 +139,13 @@ fn main() {
     app.insert_resource(SyncedPlayerCommandsList::default());
     app.insert_resource(CommandQueue::default());
 
-    app.add_loading_state(
-        LoadingState::new(GameState::Loading)
-            .continue_to_state(GameState::InGame)
-            .with_collection::<TargetAssets>()
-            .with_collection::<UnitAssets>()
-    );
-    app.add_state(GameState::Loading);
+    // app.add_loading_state(
+    //     LoadingState::new(GameState::Loading)
+    //         .continue_to_state(GameState::InGame)
+    //         .with_collection::<TargetAssets>()
+    //         .with_collection::<UnitAssets>()
+    // );
+    app.add_state(GameState::InGame);
     app.add_startup_system(setup_camera);
     app.add_startup_system(setup_scene);
 
