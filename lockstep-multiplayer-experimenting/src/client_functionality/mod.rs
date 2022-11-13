@@ -9,8 +9,9 @@ use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::math::{DQuat, Vec2};
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
+use bevy::window::CursorGrabMode;
 use bevy_egui::egui::{lerp, remap_clamp};
-use bevy_mod_picking::RayCastSource;
+use bevy_mod_picking::RaycastSource;
 use nalgebra::ComplexField;
 use rand::Rng;
 use rapier3d::prelude::ColliderBuilder;
@@ -99,13 +100,13 @@ pub fn move_camera(
     );
 
     if mouse_input.just_pressed(MouseButton::Middle) {
-        window.set_cursor_lock_mode(true);
+        window.set_cursor_grab_mode(CursorGrabMode::Locked);
         window.set_cursor_visibility(false);
         camera_movement.last_mouse_position = window.cursor_position().unwrap();
     }
 
     if mouse_input.just_released(MouseButton::Middle) {
-        window.set_cursor_lock_mode(false);
+        window.set_cursor_grab_mode(CursorGrabMode::None);
         window.set_cursor_visibility(true);
 
         // set cursor position to the center of the screen
