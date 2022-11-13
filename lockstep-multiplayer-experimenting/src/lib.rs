@@ -17,7 +17,7 @@ pub mod server_functionality;
 pub mod client_functionality;
 pub mod asset_handling;
 pub mod entities;
-pub mod PhysicStuff;
+pub mod physic_stuff;
 
 pub const PORT: i32 = 5000;
 pub const AMOUNT_PLAYERS: usize = 4;

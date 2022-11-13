@@ -113,18 +113,16 @@ fn main() {
 
     let mut app = App::new();
 
-    app.insert_resource(WindowDescriptor {
-        title: format!("Lockstep Experimenting <{}>", username),
-        width: 480.0,
-        height: 540.0,
-        present_mode: PresentMode::AutoNoVsync, // Reduce input latency
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+        window: WindowDescriptor {
+            title: format!("Lockstep Experimenting <{}>", username),
+            width: 480.0,
+            height: 540.0,
+            present_mode: PresentMode::AutoNoVsync, // Reduce input latency
+            ..default()
+        },
         ..default()
-    });
-    app.insert_resource(WindowSettings {
-        ..default()
-    });
-
-    app.add_plugins(DefaultPlugins);
+    }));
     app.add_plugin(RenetServerPlugin);
     app.add_plugin(RenetClientPlugin);
     app.add_plugins(DefaultPickingPlugins); // <- Adds Picking, Interaction, and Highlighting plugins.
@@ -244,13 +242,14 @@ fn run_if_enough_players(
 
 fn setup_camera(mut commands: Commands) {
     // camera
-    commands.spawn()
-        .insert_bundle(Camera3dBundle {
+    commands.spawn((
+        Camera3dBundle {
             transform: Transform::from_xyz(-2.0, 2.5, 5.0),
             ..default()
-        })
-        .insert_bundle(PickingCameraBundle::default())
-        .insert(MainCamera);
+        },
+        PickingCameraBundle::default(),
+        MainCamera
+    ));
 }
 
 fn setup_scene(mut commands: Commands,
@@ -258,23 +257,26 @@ fn setup_scene(mut commands: Commands,
                mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // plane
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
-        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
-        ..default()
-    })
-        .insert_bundle(PickableBundle::default());
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
+            material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+            ..default()
+        },
+        PickableBundle::default(),
+    ));
     // cube
-    commands.spawn()
-        .insert_bundle(PbrBundle {
+    commands.spawn((
+        PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
             material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
             transform: Transform::from_xyz(0.0, 0.5, 0.0),
             ..default()
-        })
-        .insert_bundle(PickableBundle::default());
+        },
+        PickableBundle::default(),
+    ));
     // light
-    commands.spawn_bundle(PointLightBundle {
+    commands.spawn(PointLightBundle {
         point_light: PointLight {
             intensity: 1500.0,
             shadows_enabled: true,

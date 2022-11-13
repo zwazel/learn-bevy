@@ -58,12 +58,13 @@ pub fn server_update_system(
                 }
 
                 let player_entity = commands
-                    .spawn()
-                    .insert(Player {
-                        id: PlayerId(*id),
-                        username: username.clone(),
-                        ..default()
-                    })
+                    .spawn((
+                        Player {
+                            id: PlayerId(*id),
+                            username: username.clone(),
+                            ..default()
+                        },
+                    ))
                     .id();
 
                 lobby.0.insert(PlayerId(*id), Player {

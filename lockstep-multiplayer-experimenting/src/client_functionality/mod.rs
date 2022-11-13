@@ -11,10 +11,10 @@ use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
 use bevy_egui::egui::{lerp, remap_clamp};
 use bevy_mod_picking::RayCastSource;
-use rand::Rng;
-use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 use nalgebra::ComplexField;
+use rand::Rng;
 use rapier3d::prelude::ColliderBuilder;
+use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
 use crate::*;
 use crate::asset_handling::{TargetAssets, UnitAssets};
@@ -235,12 +235,13 @@ pub fn client_update_system(
                 let is_player = client_id == player.id.0;
 
                 let client_entity = bevy_commands
-                    .spawn()
-                    .insert(Player {
-                        id: player.id,
-                        username: player.username.clone(),
-                        entity: None,
-                    })
+                    .spawn((
+                        Player {
+                            id: player.id,
+                            username: player.username.clone(),
+                            entity: None,
+                        },
+                    ))
                     .id();
 
                 if is_player {
@@ -310,16 +311,18 @@ pub fn client_update_system(
                                 }
                                 PlayerCommand::SetTargetPosition(x, y) => {
                                     let target_entity = bevy_commands
-                                        .spawn_bundle(SpriteBundle {
-                                            texture: if is_player {
-                                                target_assets.friendly_target.clone()
-                                            } else {
-                                                target_assets.enemy_target.clone()
+                                        .spawn((
+                                            SpriteBundle {
+                                                texture: if is_player {
+                                                    target_assets.friendly_target.clone()
+                                                } else {
+                                                    target_assets.enemy_target.clone()
+                                                },
+                                                transform: Transform::from_xyz(x, y, 0.0),
+                                                ..Default::default()
                                             },
-                                            transform: Transform::from_xyz(x, y, 0.0),
-                                            ..Default::default()
-                                        })
-                                        .insert(Target(player_id))
+                                            Target(player_id),
+                                        ))
                                         .id();
                                     if is_player {
                                         bevy_commands.entity(target_entity).insert(PlayerControlled);
@@ -351,16 +354,18 @@ pub fn client_update_system(
                                 }
                                 PlayerCommand::SpawnUnit(x, y) => {
                                     let unit_entity = bevy_commands
-                                        .spawn_bundle(SpriteBundle {
-                                            texture: if is_player {
-                                                unit_assets.friendly.clone()
-                                            } else {
-                                                unit_assets.enemy.clone()
+                                        .spawn((
+                                            SpriteBundle {
+                                                texture: if is_player {
+                                                    unit_assets.friendly.clone()
+                                                } else {
+                                                    unit_assets.enemy.clone()
+                                                },
+                                                transform: Transform::from_xyz(x, y, 0.0),
+                                                ..Default::default()
                                             },
-                                            transform: Transform::from_xyz(x, y, 0.0),
-                                            ..Default::default()
-                                        })
-                                        .insert(Unit)
+                                            Unit,
+                                        ))
                                         .id();
 
                                     if is_player {
