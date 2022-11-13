@@ -113,14 +113,6 @@ fn main() {
 
     let mut app = App::new();
 
-    app.add_plugins(DefaultPlugins);
-    app.add_plugin(RenetServerPlugin);
-    app.add_plugin(RenetClientPlugin);
-    app.add_plugins(DefaultPickingPlugins); // <- Adds Picking, Interaction, and Highlighting plugins.
-    app.add_plugin(DebugCursorPickingPlugin); // <- Adds the green debug cursor.
-    app.add_plugin(DebugEventsPickingPlugin); // <- Adds debug event logging.
-
-
     app.insert_resource(WindowDescriptor {
         title: format!("Lockstep Experimenting <{}>", username),
         width: 480.0,
@@ -132,6 +124,12 @@ fn main() {
         ..default()
     });
 
+    app.add_plugins(DefaultPlugins);
+    app.add_plugin(RenetServerPlugin);
+    app.add_plugin(RenetClientPlugin);
+    app.add_plugins(DefaultPickingPlugins); // <- Adds Picking, Interaction, and Highlighting plugins.
+    app.add_plugin(DebugCursorPickingPlugin); // <- Adds the green debug cursor.
+    app.add_plugin(DebugEventsPickingPlugin); // <- Adds debug event logging.
 
     app.add_system(panic_on_error_system);
     app.add_system_to_stage(CoreStage::Last, disconnect);
