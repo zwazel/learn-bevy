@@ -1,7 +1,7 @@
 use std::net::{SocketAddr, UdpSocket};
 use std::time::SystemTime;
 
-use bevy::prelude::{Commands, default, EventReader, ResMut};
+use bevy::prelude::{Commands, default, Deref, DerefMut, EventReader, ResMut, Resource};
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
 use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerLobby, ServerTick, Tick, Username};
@@ -19,7 +19,12 @@ pub fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String 
     String::from_utf8(data).unwrap()
 }
 
-pub fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> RenetServer {
+#[derive(Resource, Deref, DerefMut)]
+pub struct RenetServerResource {
+    pub server: RenetServer,
+}
+
+pub fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> RenetServerResource {
     let server_addr: SocketAddr = format!("{}:{}", host, port)
         .parse()
         .unwrap();
@@ -27,7 +32,9 @@ pub fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> Renet
     let connection_config = server_connection_config();
     let server_config = ServerConfig::new(amount_of_player, PROTOCOL_ID, server_addr, ServerAuthentication::Unsecure);
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-    RenetServer::new(current_time, server_config, connection_config, socket).unwrap()
+    RenetServerResource {
+        server: RenetServer::new(current_time, server_config, connection_config, socket).unwrap(),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -35,11 +42,13 @@ pub fn server_update_system(
     mut server_events: EventReader<ServerEvent>,
     mut commands: Commands,
     mut lobby: ResMut<ServerLobby>,
-    mut server: ResMut<RenetServer>,
+    mut server: ResMut<RenetServerResource>,
     mut client_ticks: ResMut<ClientTicks>,
     mut server_ticks: ResMut<ServerTick>,
     mut synced_commands: ResMut<ServerSyncedPlayerCommandsList>,
 ) {
+    let server = &mut server.server;
+
     for event in server_events.iter() {
         match event {
             ServerEvent::ClientConnected(id, user_data) => {

@@ -219,13 +219,13 @@ fn loading_informer() {
     println!("Loading finished");
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[derive(SystemLabel)]
+#[derive(SystemLabel, Debug, Clone, PartialEq, Eq, Hash)]
 enum MySystems {
     CommandCollection,
     Syncing,
 }
 
+#[derive(Resource)]
 struct AmountPlayers(usize);
 
 fn run_if_enough_players(

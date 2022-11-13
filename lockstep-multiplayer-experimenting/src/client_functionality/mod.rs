@@ -24,7 +24,12 @@ use crate::entities::{MoveTarget, OtherPlayerControlled, PlayerControlled, Targe
 use crate::ServerMessages::UpdateTick;
 use crate::Speeds::{Normal, Sprint};
 
-pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
+#[derive(Resource, Deref, DerefMut)]
+pub struct RenetClientResource {
+    pub client: RenetClient,
+}
+
+pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClientResource {
     let server_addr = format!("{}:{}", host, port).parse().unwrap();
     let socket = UdpSocket::bind(format!("0.0.0.0:0")).unwrap();
     let connection_config = client_connection_config();
@@ -46,7 +51,9 @@ pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient
         user_data: Some(user_data),
     };
 
-    RenetClient::new(current_time, socket, client_id, connection_config, authentication).unwrap()
+    RenetClientResource {
+        client: RenetClient::new(current_time, socket, client_id, connection_config, authentication).unwrap(),
+    }
 }
 
 pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit>>, time: Res<Time>) {
@@ -215,7 +222,7 @@ pub fn move_camera(
 
 pub fn client_update_system(
     mut bevy_commands: Commands,
-    mut client: ResMut<RenetClient>,
+    mut client: ResMut<RenetClientResource>,
     mut lobby: ResMut<ClientLobby>,
     mut network_mapping: ResMut<NetworkMapping>,
     mut most_recent_tick: ResMut<Tick>,
@@ -226,6 +233,7 @@ pub fn client_update_system(
     unit_assets: Res<UnitAssets>,
     mut unit_query: Query<(Entity, Option<&MoveTarget>, Option<&PlayerControlled>, Option<&OtherPlayerControlled>), With<Unit>>,
 ) {
+    let client = &mut client.client;
     let client_id = client.client_id();
 
     while let Some(message) = client.receive_message(ServerChannel::ServerMessages.id()) {
