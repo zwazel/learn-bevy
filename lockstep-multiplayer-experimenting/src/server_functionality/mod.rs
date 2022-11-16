@@ -4,10 +4,10 @@ use std::time::SystemTime;
 use bevy::prelude::{Commands, default, EventReader, ResMut};
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerLobby, ServerTick, Tick, Username};
-use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
+use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerTick, Tick, Username};
+use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use crate::ServerChannel::ServerMessages;
-use crate::ServerMessages::{PlayerCreate, PlayerRemove};
+use crate::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
 
 /// Utility function for extracting a players name from renet user data
 pub fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
@@ -28,6 +28,36 @@ pub fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> Renet
     let server_config = ServerConfig::new(amount_of_player, PROTOCOL_ID, server_addr, ServerAuthentication::Unsecure);
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
     RenetServer::new(current_time, server_config, connection_config, socket).unwrap()
+}
+
+pub fn fixed_time_step(
+    mut server_tick: ResMut<ServerTick>,
+    mut synced_commands: ResMut<ServerSyncedPlayerCommandsList>,
+    mut server: Option<ResMut<RenetServer>>,
+) {
+    if let Some(server) = server.as_mut() { // we're server
+        let server_tick = server_tick.as_mut();
+
+        let commands = synced_commands.0.0.get(&Tick(server_tick.get()));
+
+        server_tick.increment();
+
+        let message = bincode::serialize(&UpdateTick {
+            target_tick: server_tick.0,
+            commands: {
+                if let Some(commands) = commands {
+                    commands.clone()
+                } else {
+                    SyncedPlayerCommand::default()
+                }
+            },
+            player_movement: Default::default()
+        }).unwrap();
+
+        synced_commands.0.0.insert(server_tick.0, SyncedPlayerCommand(PlayerCommandsList::default(), MyDateTime::now()));
+
+        server.broadcast_message(ServerChannel::ServerTick.id(), message);
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -70,6 +100,8 @@ pub fn server_update_system(
                     id: PlayerId(*id),
                     username: username.clone(),
                     entity: Some(player_entity),
+                    camera_settings: None,
+                    camera_movement: None
                 });
 
                 client_ticks.0.insert(PlayerId(*id), Tick::new());
@@ -79,6 +111,8 @@ pub fn server_update_system(
                         id: PlayerId(*id),
                         username: username.clone(),
                         entity: Some(player_entity),
+                        camera_settings: None,
+                        camera_movement: None
                     },
                     entity: player_entity,
                 })
@@ -111,11 +145,17 @@ pub fn server_update_system(
             let client_message: ClientMessages = bincode::deserialize(&message).unwrap();
 
             match client_message {
-                ClientMessages::ClientUpdateTick { current_tick, commands } => {
+                ClientMessages::ClientUpdateTick { current_tick, commands, player_movement, player_position } => {
                     let client_tick = client_ticks.0.get_mut(&PlayerId(client_id)).unwrap();
 
                     client_tick.0 = current_tick.0;
                     synced_commands.add_command(*client_tick, PlayerId(client_id), commands);
+
+                    if let Some(player) = lobby.0.get_mut(&PlayerId(client_id)) {
+                        player.camera_movement = Some(player_movement);
+
+                        println!("Player {} moved\n\tnew movement: {:?}\n\tnew position: {:?}", player.username.0, player.camera_movement, player_position);
+                    }
                 }
             }
         }

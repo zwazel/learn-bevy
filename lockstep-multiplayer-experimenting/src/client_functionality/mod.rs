@@ -1,4 +1,5 @@
 use std::f32::consts::PI;
+use std::fmt;
 use std::net::UdpSocket;
 use std::ops::Mul;
 use std::time::SystemTime;
@@ -8,6 +9,7 @@ use bevy::input::Input;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::math::{DQuat, Vec2};
 use bevy::prelude::*;
+use bevy::reflect::erased_serde::Deserializer;
 use bevy::render::camera::RenderTarget;
 use bevy_egui::egui::{lerp, remap_clamp};
 use bevy_mod_picking::RayCastSource;
@@ -15,6 +17,9 @@ use nalgebra::ComplexField;
 use rand::Rng;
 use rapier3d::prelude::ColliderBuilder;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
+use serde::de::{MapAccess, Visitor};
+use serde::ser::SerializeStruct;
+use serde::{de, Serializer};
 
 use crate::*;
 use crate::asset_handling::{TargetAssets, UnitAssets};
@@ -70,20 +75,21 @@ pub fn move_camera(
     mut motion_evr: EventReader<MouseMotion>,
     mut scroll_events: EventReader<MouseWheel>,
     mut camera_movement: ResMut<CameraMovement>,
+    mut camera_settings: ResMut<CameraSettings>,
     time: Res<Time>,
     mut windows: ResMut<Windows>,
 ) {
     let window = windows.get_primary_mut().unwrap();
     let mut camera_transform = q_camera.single_mut();
-    let mut scroll_speed = camera_movement.scroll_speed;
-    let mut rotation_speed = camera_movement.rotation_speed;
+    let mut scroll_speed = camera_settings.scroll_speed;
+    let mut rotation_speed = camera_settings.rotation_speed;
 
     if keyboard_input.pressed(KeyCode::LShift) {
-        camera_movement.max_speed = DefaultSpeeds::Sprint.get();
-        scroll_speed = camera_movement.scroll_sprint_speed;
-        rotation_speed = camera_movement.rotation_sprint_speed;
+        camera_settings.max_speed = DefaultSpeeds::Sprint.get();
+        scroll_speed = camera_settings.scroll_sprint_speed;
+        rotation_speed = camera_settings.rotation_sprint_speed;
     } else {
-        camera_movement.max_speed = DefaultSpeeds::Normal.get();
+        camera_settings.max_speed = DefaultSpeeds::Normal.get();
     }
 
     let mut direction = Vec3::new(
@@ -114,8 +120,8 @@ pub fn move_camera(
     if mouse_input.pressed(MouseButton::Middle) {
         for event in motion_evr.iter() {
             // rotate camera, only left/right and up/down, no roll
-            camera_movement.mouse_pitch -= event.delta.y * camera_movement.mouse_sensitivity * time.delta_seconds(); // up/down
-            camera_movement.mouse_yaw -= event.delta.x * camera_movement.mouse_sensitivity * time.delta_seconds(); // left/right
+            camera_movement.mouse_pitch -= event.delta.y * camera_settings.mouse_sensitivity * time.delta_seconds(); // up/down
+            camera_movement.mouse_yaw -= event.delta.x * camera_settings.mouse_sensitivity * time.delta_seconds(); // left/right
         }
     }
     if keyboard_input.pressed(KeyCode::R) {
@@ -130,10 +136,10 @@ pub fn move_camera(
 
     if camera_movement.mouse_yaw != current_yaw || camera_movement.mouse_pitch != current_pitch {
         // clamp pitch to prevent camera from flipping
-        camera_movement.mouse_pitch = camera_movement.mouse_pitch.clamp(camera_movement.mouse_pitch_min_max.0, camera_movement.mouse_pitch_min_max.1);
+        camera_movement.mouse_pitch = camera_movement.mouse_pitch.clamp(camera_settings.mouse_pitch_min_max.0, camera_settings.mouse_pitch_min_max.1);
 
         // keep yaw in 0..360 range
-        camera_movement.mouse_yaw = camera_movement.mouse_yaw.rem_euclid(camera_movement.mouse_yaw_min_max.1);
+        camera_movement.mouse_yaw = camera_movement.mouse_yaw.rem_euclid(camera_settings.mouse_yaw_min_max.1);
 
         camera_transform.rotation = Quat::from_rotation_y(camera_movement.mouse_yaw.to_radians())
             * Quat::from_rotation_x(camera_movement.mouse_pitch.to_radians());
@@ -158,7 +164,7 @@ pub fn move_camera(
 
     let mut scroll_direction = 0.0;
     for event in scroll_events.iter() {
-        let increase = event.y * camera_movement.scroll_acceleration;
+        let increase = event.y * camera_settings.scroll_acceleration;
         scroll_direction += increase;
         camera_movement.target_camera_height += increase;
     }
@@ -166,29 +172,29 @@ pub fn move_camera(
     let mut spd = ComplexField::try_sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z).unwrap();
     if camera_movement_direction.length() == 0.0 {
         // decelerate camera
-        if spd <= camera_movement.deceleration {
+        if spd <= camera_settings.deceleration {
             camera_movement.velocity = Vec3::ZERO;
         } else {
-            camera_movement.velocity.x -= camera_movement.velocity.x / spd * camera_movement.deceleration;
-            camera_movement.velocity.z -= camera_movement.velocity.z / spd * camera_movement.deceleration;
+            camera_movement.velocity.x -= camera_movement.velocity.x / spd * camera_settings.deceleration;
+            camera_movement.velocity.z -= camera_movement.velocity.z / spd * camera_settings.deceleration;
         }
     } else {
         if camera_movement.velocity.x * camera_movement_direction.x + camera_movement.velocity.z * camera_movement_direction.z < 0.0 {
             // skid
-            if spd <= camera_movement.skid_deceleration {
+            if spd <= camera_settings.skid_deceleration {
                 camera_movement.velocity = Vec3::ZERO;
             } else {
-                camera_movement.velocity.x -= camera_movement.velocity.x / spd * camera_movement.skid_deceleration;
-                camera_movement.velocity.z -= camera_movement.velocity.z / spd * camera_movement.skid_deceleration;
+                camera_movement.velocity.x -= camera_movement.velocity.x / spd * camera_settings.skid_deceleration;
+                camera_movement.velocity.z -= camera_movement.velocity.z / spd * camera_settings.skid_deceleration;
             }
         } else {
             // accelerate camera
-            camera_movement.velocity.x += camera_movement_direction.x * camera_movement.acceleration;
-            camera_movement.velocity.z += camera_movement_direction.z * camera_movement.acceleration;
+            camera_movement.velocity.x += camera_movement_direction.x * camera_settings.acceleration;
+            camera_movement.velocity.z += camera_movement_direction.z * camera_settings.acceleration;
             spd = ComplexField::try_sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z).unwrap();
-            if spd > camera_movement.max_speed.get().length() {
-                camera_movement.velocity.x = camera_movement.velocity.x / spd * camera_movement.max_speed.get().x;
-                camera_movement.velocity.z = camera_movement.velocity.z / spd * camera_movement.max_speed.get().z;
+            if spd > camera_settings.max_speed.get().length() {
+                camera_movement.velocity.x = camera_movement.velocity.x / spd * camera_settings.max_speed.get().x;
+                camera_movement.velocity.z = camera_movement.velocity.z / spd * camera_settings.max_speed.get().z;
             }
         }
     }
@@ -198,22 +204,23 @@ pub fn move_camera(
 
     let target = camera_transform.translation.y + camera_movement.target_camera_height;
     // if distance between target and current height is greater than 0.1, move camera
-    if (target - camera_transform.translation.y).abs() > camera_movement.scroll_error_tolerance {
+    if (target - camera_transform.translation.y).abs() > camera_settings.scroll_error_tolerance {
         camera_transform.translation.y = lerp(camera_transform.translation.y..=target, scroll_speed * time.delta_seconds());
     }
 
     let mut scroll_spd = ComplexField::try_sqrt(camera_movement.target_camera_height * camera_movement.target_camera_height).unwrap();
     if scroll_direction == 0.0 {
         // decelerate camera
-        if scroll_spd <= camera_movement.scroll_deceleration {
+        if scroll_spd <= camera_settings.scroll_deceleration {
             camera_movement.target_camera_height = 0.0;
         } else {
-            camera_movement.target_camera_height -= (camera_movement.target_camera_height / scroll_spd * camera_movement.scroll_deceleration);
+            camera_movement.target_camera_height -= (camera_movement.target_camera_height / scroll_spd * camera_settings.scroll_deceleration);
         }
     }
 }
 
 pub fn client_update_system(
+    mut q_camera: Query<&mut Transform, With<MainCamera>>,
     mut bevy_commands: Commands,
     mut client: ResMut<RenetClient>,
     mut lobby: ResMut<ClientLobby>,
@@ -227,8 +234,10 @@ pub fn client_update_system(
     mut unit_query: Query<(Entity, Option<&MoveTarget>, Option<&PlayerControlled>, Option<&OtherPlayerControlled>), With<Unit>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    camera_movement: Res<CameraMovement>,
 ) {
     let client_id = client.client_id();
+    let mut camera_transform = q_camera.single_mut();
 
     while let Some(message) = client.receive_message(ServerChannel::ServerMessages.id()) {
         let server_message = bincode::deserialize(&message).unwrap();
@@ -241,6 +250,8 @@ pub fn client_update_system(
                         id: player.id,
                         username: player.username.clone(),
                         entity: None,
+                        camera_settings: player.camera_settings,
+                        camera_movement: player.camera_movement,
                     })
                     .id();
 
@@ -253,13 +264,12 @@ pub fn client_update_system(
                         .insert_bundle(
                             PbrBundle {
                                 mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-                                material: materials.add(Color::rgb(0.0, 0.0, 1.0).into()),
+                                material: materials.add(Color::YELLOW_GREEN.into()),
                                 transform: Transform::from_xyz(0.0, 2.5, 5.0),
                                 ..default()
                             }
                         )
                         .insert(OtherPlayerCamera(player.id));
-                    ;
                 }
 
                 let player_info = PlayerInfo {
@@ -302,7 +312,7 @@ pub fn client_update_system(
     while let Some(message) = client.receive_message(ServerChannel::ServerTick.id()) {
         let server_message = bincode::deserialize(&message).unwrap();
         match server_message {
-            UpdateTick { target_tick, commands } => {
+            UpdateTick { target_tick, commands, player_movement } => {
                 most_recent_server_tick.0.0 = target_tick.0;
 
                 synced_commands.0.insert(target_tick, commands.clone());
@@ -393,6 +403,8 @@ pub fn client_update_system(
                 let message = bincode::serialize(&ClientUpdateTick {
                     current_tick: *most_recent_tick,
                     commands: to_sync_commands.clone().0,
+                    player_movement: camera_movement.clone(),
+                    player_position: SerializableTransform::from_transform(camera_transform.clone()),
                 }).unwrap();
 
                 to_sync_commands.reset();
@@ -401,6 +413,23 @@ pub fn client_update_system(
             _ => {
                 panic!("Unexpected message on ServerTick channel");
             }
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SerializableTransform{
+    pub translation: Vec3,
+    pub rotation: Quat,
+    pub scale: Vec3,
+}
+
+impl SerializableTransform {
+    pub fn from_transform(transform: Transform) -> Self {
+        Self {
+            translation: transform.translation,
+            rotation: transform.rotation,
+            scale: transform.scale,
         }
     }
 }

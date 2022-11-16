@@ -24,12 +24,12 @@ use rand::prelude::SliceRandom;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 use serde_json::json;
 
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, move_camera, move_units, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
-use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, server_update_system};
+use lockstep_multiplayer_experimenting::server_functionality::{fixed_time_step, new_renet_server, server_update_system};
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
 use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
 
@@ -209,6 +209,7 @@ fn main() {
     app.insert_resource(Tick(0));
     app.insert_resource(NetworkMapping::default());
     app.insert_resource(CameraMovement::default());
+    app.insert_resource(CameraSettings::default());
 
     app.run();
 }
@@ -319,37 +320,6 @@ fn run_if_tick_in_sync(
     } else {
         ShouldRun::No
     };
-}
-
-fn fixed_time_step(
-    // Client/All
-    mut server_tick: ResMut<ServerTick>,
-    mut synced_commands: ResMut<ServerSyncedPlayerCommandsList>,
-    // Server
-    mut server: Option<ResMut<RenetServer>>,
-) {
-    if let Some(server) = server.as_mut() { // we're server
-        let server_tick = server_tick.as_mut();
-
-        let commands = synced_commands.0.0.get(&Tick(server_tick.get()));
-
-        server_tick.increment();
-
-        let message = bincode::serialize(&UpdateTick {
-            target_tick: server_tick.0,
-            commands: {
-                if let Some(commands) = commands {
-                    commands.clone()
-                } else {
-                    SyncedPlayerCommand::default()
-                }
-            },
-        }).unwrap();
-
-        synced_commands.0.0.insert(server_tick.0, SyncedPlayerCommand(PlayerCommandsList::default(), MyDateTime::now()));
-
-        server.broadcast_message(ServerChannel::ServerTick.id(), message);
-    }
 }
 
 ////////// RENET NETWORKING //////////

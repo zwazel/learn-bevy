@@ -6,9 +6,10 @@ use std::fmt::*;
 use std::time::*;
 
 use bevy::math::Vec3;
-use bevy::prelude::{Component, Entity, Vec2};
+use bevy::prelude::{Component, Deref, DerefMut, Entity, Transform, Vec2};
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
 use serde::{Deserialize, Serialize};
+use crate::client_functionality::SerializableTransform;
 
 use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, SyncedPlayerCommand};
 
@@ -17,7 +18,7 @@ pub mod server_functionality;
 pub mod client_functionality;
 pub mod asset_handling;
 pub mod entities;
-pub mod PhysicStuff;
+pub mod physic_stuff;
 
 pub const PORT: i32 = 5000;
 pub const AMOUNT_PLAYERS: usize = 4;
@@ -55,7 +56,7 @@ impl ServerTick {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum Speeds {
     Normal(Vec3),
     Sprint(Vec3),
@@ -84,10 +85,34 @@ impl DefaultSpeeds {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Serialize, Deserialize, Clone)]
 pub struct CameraMovement {
     // x = left/right y = up/down z = forward/backward
     pub velocity: Vec3,
+
+    pub target_camera_height: f32,
+
+    pub last_mouse_position: Vec2,
+    pub mouse_yaw: f32,
+    pub mouse_pitch: f32,
+}
+
+impl Default for CameraMovement {
+    fn default() -> Self {
+        Self {
+            velocity: Vec3::ZERO,
+
+            target_camera_height: 0.0,
+
+            last_mouse_position: Default::default(),
+            mouse_yaw: 0.0,
+            mouse_pitch: 0.0,
+        }
+    }
+}
+
+#[derive(Debug, Component, Serialize, Deserialize, Clone)]
+pub struct CameraSettings {
     pub acceleration: f32,
     pub deceleration: f32,
     pub skid_deceleration: f32,
@@ -97,23 +122,18 @@ pub struct CameraMovement {
     pub scroll_sprint_speed: f32,
     pub scroll_acceleration: f32,
     pub scroll_deceleration: f32,
-    pub target_camera_height: f32,
     pub scroll_error_tolerance: f32,
 
     pub mouse_sensitivity: f32,
-    pub last_mouse_position: Vec2,
-    pub mouse_yaw: f32,
-    pub mouse_pitch: f32,
     pub mouse_pitch_min_max: (f32, f32),
     pub mouse_yaw_min_max: (f32, f32),
     pub rotation_speed: f32,
     pub rotation_sprint_speed: f32,
 }
 
-impl Default for CameraMovement {
+impl Default for CameraSettings {
     fn default() -> Self {
         Self {
-            velocity: Vec3::ZERO,
             acceleration: 2.0,
             deceleration: 0.1,
             skid_deceleration: 3.0,
@@ -123,13 +143,9 @@ impl Default for CameraMovement {
             scroll_sprint_speed: 5.0,
             scroll_acceleration: 3.0,
             scroll_deceleration: 0.07,
-            target_camera_height: 0.0,
             scroll_error_tolerance: 0.01,
 
             mouse_sensitivity: 30.0,
-            last_mouse_position: Default::default(),
-            mouse_yaw: 0.0,
-            mouse_pitch: 0.0,
             mouse_pitch_min_max: (-89.0, 80.0),
             mouse_yaw_min_max: (0.0, 360.0),
             rotation_speed: 30.0,
@@ -196,6 +212,8 @@ pub struct Player {
     pub id: PlayerId,
     pub username: Username,
     pub entity: Option<Entity>,
+    pub camera_settings: Option<CameraSettings>,
+    pub camera_movement: Option<CameraMovement>,
 }
 
 #[derive(Debug, Clone, Component, Serialize, Deserialize)]
@@ -219,6 +237,8 @@ impl Default for Player {
             id: PlayerId(0),
             username: Self::default_username(),
             entity: None,
+            camera_settings: None,
+            camera_movement: None
         }
     }
 }
@@ -291,11 +311,15 @@ pub enum ServerChannel {
 
 #[derive(Debug, Serialize, Deserialize, Component)]
 pub enum ServerMessages {
-    PlayerCreate { entity: Entity, player: Player },
+    PlayerCreate {
+        entity: Entity,
+        player: Player
+    },
     PlayerRemove { id: PlayerId },
     UpdateTick {
         target_tick: Tick,
         commands: SyncedPlayerCommand,
+        player_movement: CameraMovement,
     },
 }
 
@@ -304,6 +328,8 @@ pub enum ClientMessages {
     ClientUpdateTick {
         current_tick: Tick,
         commands: Vec<PlayerCommand>,
+        player_movement: CameraMovement,
+        player_position: SerializableTransform,
     },
 }
 
