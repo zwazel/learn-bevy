@@ -51,7 +51,6 @@ pub fn fixed_time_step(
                     SyncedPlayerCommand::default()
                 }
             },
-            player_movement: Default::default()
         }).unwrap();
 
         synced_commands.0.0.insert(server_tick.0, SyncedPlayerCommand(PlayerCommandsList::default(), MyDateTime::now()));
@@ -100,8 +99,6 @@ pub fn server_update_system(
                     id: PlayerId(*id),
                     username: username.clone(),
                     entity: Some(player_entity),
-                    camera_settings: None,
-                    camera_movement: None
                 });
 
                 client_ticks.0.insert(PlayerId(*id), Tick::new());
@@ -111,8 +108,6 @@ pub fn server_update_system(
                         id: PlayerId(*id),
                         username: username.clone(),
                         entity: Some(player_entity),
-                        camera_settings: None,
-                        camera_movement: None
                     },
                     entity: player_entity,
                 })
@@ -145,17 +140,11 @@ pub fn server_update_system(
             let client_message: ClientMessages = bincode::deserialize(&message).unwrap();
 
             match client_message {
-                ClientMessages::ClientUpdateTick { current_tick, commands, player_movement, player_position } => {
+                ClientMessages::ClientUpdateTick { current_tick, commands} => {
                     let client_tick = client_ticks.0.get_mut(&PlayerId(client_id)).unwrap();
 
                     client_tick.0 = current_tick.0;
                     synced_commands.add_command(*client_tick, PlayerId(client_id), commands);
-
-                    if let Some(player) = lobby.0.get_mut(&PlayerId(client_id)) {
-                        player.camera_movement = Some(player_movement);
-
-                        println!("Player {} moved\n\tnew movement: {:?}\n\tnew position: {:?}", player.username.0, player.camera_movement, player_position);
-                    }
                 }
             }
         }

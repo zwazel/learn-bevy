@@ -212,8 +212,6 @@ pub struct Player {
     pub id: PlayerId,
     pub username: Username,
     pub entity: Option<Entity>,
-    pub camera_settings: Option<CameraSettings>,
-    pub camera_movement: Option<CameraMovement>,
 }
 
 #[derive(Debug, Clone, Component, Serialize, Deserialize)]
@@ -237,8 +235,6 @@ impl Default for Player {
             id: PlayerId(0),
             username: Self::default_username(),
             entity: None,
-            camera_settings: None,
-            camera_movement: None
         }
     }
 }
@@ -319,7 +315,6 @@ pub enum ServerMessages {
     UpdateTick {
         target_tick: Tick,
         commands: SyncedPlayerCommand,
-        player_movement: CameraMovement,
     },
 }
 
@@ -328,8 +323,6 @@ pub enum ClientMessages {
     ClientUpdateTick {
         current_tick: Tick,
         commands: Vec<PlayerCommand>,
-        player_movement: CameraMovement,
-        player_position: SerializableTransform,
     },
 }
 

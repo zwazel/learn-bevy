@@ -251,8 +251,6 @@ pub fn client_update_system(
                         id: player.id,
                         username: player.username.clone(),
                         entity: None,
-                        camera_settings: player.camera_settings,
-                        camera_movement: player.camera_movement,
                     })
                     .id();
 
@@ -313,7 +311,7 @@ pub fn client_update_system(
     while let Some(message) = client.receive_message(ServerChannel::ServerTick.id()) {
         let server_message = bincode::deserialize(&message).unwrap();
         match server_message {
-            UpdateTick { target_tick, commands, player_movement } => {
+            UpdateTick { target_tick, commands } => {
                 most_recent_server_tick.0.0 = target_tick.0;
 
                 synced_commands.0.insert(target_tick, commands.clone());
@@ -392,14 +390,21 @@ pub fn client_update_system(
                                         bevy_commands.entity(unit_entity).insert(OtherPlayerControlled(player_id));
                                     }
                                 }
-                                PlayerCommand::UpdatePlayerPosition(movement, transform) => {
+                                PlayerCommand::UpdatePlayerPosition(_movement, transform) => {
                                     if let Some(_player_info) = lobby.0.get_mut(&player_id) {
                                         for (_, mut player, mut entity_transform) in players.iter_mut() {
                                             if player.id.0 == player_id.0 {
-                                                player.camera_movement = Some(movement);
+                                                println!("Updating player position to {:?}", transform.translation);
+                                                println!("Updating player rotation to {:?}", transform.rotation);
+                                                println!("Updating player scale to {:?}", transform.scale);
+
                                                 entity_transform.translation = transform.translation;
                                                 entity_transform.rotation = transform.rotation;
                                                 entity_transform.scale = transform.scale;
+
+                                                println!("Updated player position to {:?}", entity_transform.translation);
+                                                println!("Updated player rotation to {:?}", entity_transform.rotation);
+                                                println!("Updated player scale to {:?}", entity_transform.scale);
                                             }
                                         }
                                     }
@@ -410,14 +415,16 @@ pub fn client_update_system(
                         println!("Unknown player sent a command!");
                     }
                 }
+                to_sync_commands.add_command(PlayerCommand::UpdatePlayerPosition(
+                    camera_movement.clone(),
+                    SerializableTransform::from_transform(camera_transform.clone()),
+                ));
 
                 most_recent_tick.0 = most_recent_server_tick.0.0;
 
                 let message = bincode::serialize(&ClientUpdateTick {
                     current_tick: *most_recent_tick,
                     commands: to_sync_commands.clone().0,
-                    player_movement: camera_movement.clone(),
-                    player_position: SerializableTransform::from_transform(camera_transform.clone()),
                 }).unwrap();
 
                 to_sync_commands.reset();
