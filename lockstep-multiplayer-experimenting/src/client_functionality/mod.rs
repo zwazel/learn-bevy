@@ -17,9 +17,9 @@ use nalgebra::ComplexField;
 use rand::Rng;
 use rapier3d::prelude::ColliderBuilder;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
+use serde::{de, Serializer};
 use serde::de::{MapAccess, Visitor};
 use serde::ser::SerializeStruct;
-use serde::{de, Serializer};
 
 use crate::*;
 use crate::asset_handling::{TargetAssets, UnitAssets};
@@ -235,6 +235,7 @@ pub fn client_update_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     camera_movement: Res<CameraMovement>,
+    mut players: Query<(Entity, &mut Player, &mut Transform), Without<MainCamera>>,
 ) {
     let client_id = client.client_id();
     let mut camera_transform = q_camera.single_mut();
@@ -391,6 +392,18 @@ pub fn client_update_system(
                                         bevy_commands.entity(unit_entity).insert(OtherPlayerControlled(player_id));
                                     }
                                 }
+                                PlayerCommand::UpdatePlayerPosition(movement, transform) => {
+                                    if let Some(_player_info) = lobby.0.get_mut(&player_id) {
+                                        for (_, mut player, mut entity_transform) in players.iter_mut() {
+                                            if player.id.0 == player_id.0 {
+                                                player.camera_movement = Some(movement);
+                                                entity_transform.translation = transform.translation;
+                                                entity_transform.rotation = transform.rotation;
+                                                entity_transform.scale = transform.scale;
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     } else {
@@ -417,8 +430,8 @@ pub fn client_update_system(
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SerializableTransform{
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+pub struct SerializableTransform {
     pub translation: Vec3,
     pub rotation: Quat,
     pub scale: Vec3,

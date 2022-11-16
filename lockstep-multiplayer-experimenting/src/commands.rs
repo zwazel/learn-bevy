@@ -8,13 +8,15 @@ use env_logger::fmt::Timestamp;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::ser::SerializeMap;
 
-use crate::{Player, PlayerId, Tick};
+use crate::{CameraMovement, Player, PlayerId, Tick};
+use crate::client_functionality::SerializableTransform;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PlayerCommand {
     Test(String),
     SetTargetPosition(f32, f32),
     SpawnUnit(f32, f32),
+    UpdatePlayerPosition(CameraMovement, SerializableTransform),
 }
 
 impl PlayerCommand {
@@ -34,6 +36,7 @@ impl Display for PlayerCommand {
             Self::Test(s) => write!(f, "Test({})", s),
             Self::SetTargetPosition(x, y) => write!(f, "SetTargetPosition({}, {})", x, y),
             Self::SpawnUnit(x, y) => write!(f, "SpawnUnit({}, {})", x, y),
+            Self::UpdatePlayerPosition(movement, transform) => write!(f, "UpdatePlayerPosition({:?}, {:?})", movement, transform),
         }
     }
 }

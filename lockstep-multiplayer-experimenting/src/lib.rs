@@ -85,7 +85,7 @@ impl DefaultSpeeds {
     }
 }
 
-#[derive(Debug, Component, Serialize, Deserialize, Clone)]
+#[derive(Debug, Component, Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub struct CameraMovement {
     // x = left/right y = up/down z = forward/backward
     pub velocity: Vec3,
