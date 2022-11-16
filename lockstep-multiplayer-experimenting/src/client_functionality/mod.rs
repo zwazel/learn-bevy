@@ -11,16 +11,16 @@ use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
 use bevy_egui::egui::{lerp, remap_clamp};
 use bevy_mod_picking::RayCastSource;
-use rand::Rng;
-use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 use nalgebra::ComplexField;
+use rand::Rng;
 use rapier3d::prelude::ColliderBuilder;
+use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 
 use crate::*;
 use crate::asset_handling::{TargetAssets, UnitAssets};
 use crate::ClientMessages::ClientUpdateTick;
 use crate::commands::{CommandQueue, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
-use crate::entities::{MoveTarget, OtherPlayerControlled, PlayerControlled, Target, Unit};
+use crate::entities::{MoveTarget, OtherPlayerCamera, OtherPlayerControlled, PlayerControlled, Target, Unit};
 use crate::ServerMessages::UpdateTick;
 use crate::Speeds::{Normal, Sprint};
 
@@ -225,6 +225,8 @@ pub fn client_update_system(
     target_assets: Res<TargetAssets>,
     unit_assets: Res<UnitAssets>,
     mut unit_query: Query<(Entity, Option<&MoveTarget>, Option<&PlayerControlled>, Option<&OtherPlayerControlled>), With<Unit>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let client_id = client.client_id();
 
@@ -234,8 +236,7 @@ pub fn client_update_system(
             ServerMessages::PlayerCreate { player, entity } => {
                 let is_player = client_id == player.id.0;
 
-                let client_entity = bevy_commands
-                    .spawn()
+                let client_entity = bevy_commands.spawn()
                     .insert(Player {
                         id: player.id,
                         username: player.username.clone(),
@@ -248,6 +249,17 @@ pub fn client_update_system(
                     println!("You're now connected to the server!")
                 } else {
                     println!("Player {} connected to the server.", player.username);
+                    bevy_commands.entity(client_entity)
+                        .insert_bundle(
+                            PbrBundle {
+                                mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+                                material: materials.add(Color::rgb(0.0, 0.0, 1.0).into()),
+                                transform: Transform::from_xyz(0.0, 2.5, 5.0),
+                                ..default()
+                            }
+                        )
+                        .insert(OtherPlayerCamera(player.id));
+                    ;
                 }
 
                 let player_info = PlayerInfo {
