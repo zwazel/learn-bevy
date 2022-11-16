@@ -394,17 +394,9 @@ pub fn client_update_system(
                                     if let Some(_player_info) = lobby.0.get_mut(&player_id) {
                                         for (_, mut player, mut entity_transform) in players.iter_mut() {
                                             if player.id.0 == player_id.0 {
-                                                println!("Updating player position to {:?}", transform.translation);
-                                                println!("Updating player rotation to {:?}", transform.rotation);
-                                                println!("Updating player scale to {:?}", transform.scale);
-
                                                 entity_transform.translation = transform.translation;
                                                 entity_transform.rotation = transform.rotation;
                                                 entity_transform.scale = transform.scale;
-
-                                                println!("Updated player position to {:?}", entity_transform.translation);
-                                                println!("Updated player rotation to {:?}", entity_transform.rotation);
-                                                println!("Updated player scale to {:?}", entity_transform.scale);
                                             }
                                         }
                                     }
