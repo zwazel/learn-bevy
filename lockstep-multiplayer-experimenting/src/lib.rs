@@ -9,8 +9,8 @@ use bevy::math::Vec3;
 use bevy::prelude::{Component, Deref, DerefMut, Entity, Transform, Vec2};
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
 use serde::{Deserialize, Serialize};
-use crate::client_functionality::SerializableTransform;
 
+use crate::client_functionality::SerializableTransform;
 use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, SyncedPlayerCommand};
 
 pub mod commands;
@@ -333,7 +333,7 @@ pub enum ServerChannel {
 pub enum ServerMessages {
     PlayerCreate {
         entity: Entity,
-        player: Player
+        player: Player,
     },
     PlayerRemove { id: PlayerId },
     UpdateTick {
@@ -368,7 +368,7 @@ impl ClientChannel {
                 .into(),
             ReliableChannelConfig {
                 channel_id: Self::ClientTick.id(),
-                message_resend_time: Duration::ZERO,
+                message_resend_time: Duration::from_millis(100),
                 ..Default::default()
             }
                 .into(),
@@ -394,7 +394,9 @@ impl ServerChannel {
                 .into(),
             ReliableChannelConfig {
                 channel_id: Self::ServerTick.id(),
-                message_resend_time: Duration::from_millis(50),
+                message_resend_time: Duration::from_millis(100),
+                max_message_size: 10000,
+                packet_budget: 10000,
                 ..Default::default()
             }
                 .into(),
