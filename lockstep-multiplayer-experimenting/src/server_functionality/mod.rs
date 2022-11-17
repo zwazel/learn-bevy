@@ -30,7 +30,7 @@ pub fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> Renet
     RenetServer::new(current_time, server_config, connection_config, socket).unwrap()
 }
 
-pub fn fixed_time_step(
+pub fn fixed_time_step_server(
     mut server_tick: ResMut<ServerTick>,
     mut synced_commands: ResMut<ServerSyncedPlayerCommandsList>,
     mut server: Option<ResMut<RenetServer>>,

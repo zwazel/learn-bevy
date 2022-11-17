@@ -219,8 +219,132 @@ pub fn move_camera(
     }
 }
 
-pub fn client_update_system(
+pub fn fixed_time_step_client(
+    mut to_sync_commands: ResMut<CommandQueue>,
+    target_assets: Res<TargetAssets>,
+    unit_assets: Res<UnitAssets>,
+    mut unit_query: Query<(Entity, Option<&MoveTarget>, Option<&PlayerControlled>, Option<&OtherPlayerControlled>), With<Unit>>,
+    camera_movement: Res<CameraMovement>,
     mut q_camera: Query<&mut Transform, With<MainCamera>>,
+    mut players: Query<(Entity, &mut Player, &mut Transform), Without<MainCamera>>,
+    mut bevy_commands: Commands,
+    mut client: ResMut<RenetClient>,
+    mut lobby: ResMut<ClientLobby>,
+    mut most_recent_tick: ResMut<Tick>,
+    mut most_recent_server_tick: ResMut<ServerTick>,
+    mut synced_commands: ResMut<SyncedPlayerCommandsList>,
+) {
+    let client_id = client.client_id();
+    let mut camera_transform = q_camera.single_mut();
+
+    for (player_id, commands_list_of_player) in synced_commands.get_commands_for_tick(*most_recent_tick).0 {
+        let is_player = player_id.0 == client_id;
+        let command_username = lobby.get_username(player_id);
+        if let Some(command_username) = command_username {
+            for command in commands_list_of_player {
+                match command {
+                    PlayerCommand::Test(text) => {
+                        if is_player {
+                            println!("I said '{}' in tick {}", text, most_recent_server_tick.get());
+                        } else {
+                            println!("{} said '{}' in tick {}", command_username, text, most_recent_server_tick.get());
+                        }
+                    }
+                    PlayerCommand::SetTargetPosition(x, y) => {
+                        let target_entity = bevy_commands
+                            .spawn_bundle(SpriteBundle {
+                                texture: if is_player {
+                                    target_assets.friendly_target.clone()
+                                } else {
+                                    target_assets.enemy_target.clone()
+                                },
+                                transform: Transform::from_xyz(x, y, 0.0),
+                                ..Default::default()
+                            })
+                            .insert(Target(player_id))
+                            .id();
+                        if is_player {
+                            bevy_commands.entity(target_entity).insert(PlayerControlled);
+                        } else {
+                            bevy_commands.entity(target_entity).insert(OtherPlayerControlled(player_id));
+                        }
+
+                        for (entity, optional_move_target, optional_player_controlled, optional_other_controlled) in unit_query.iter_mut() {
+                            let mut add_command = false;
+
+                            if let Some(PlayerControlled) = optional_player_controlled {
+                                if is_player {
+                                    add_command = true;
+                                }
+                            } else if let Some(OtherPlayerControlled(other_player_id)) = optional_other_controlled {
+                                if other_player_id.0 == player_id.0 {
+                                    add_command = true;
+                                }
+                            }
+
+                            if add_command {
+                                if let Some(_) = optional_move_target {
+                                    bevy_commands.entity(entity).remove::<MoveTarget>();
+                                }
+
+                                bevy_commands.entity(entity).insert(MoveTarget(x, y));
+                            }
+                        }
+                    }
+                    PlayerCommand::SpawnUnit(x, y) => {
+                        let unit_entity = bevy_commands
+                            .spawn_bundle(SpriteBundle {
+                                texture: if is_player {
+                                    unit_assets.friendly.clone()
+                                } else {
+                                    unit_assets.enemy.clone()
+                                },
+                                transform: Transform::from_xyz(x, y, 0.0),
+                                ..Default::default()
+                            })
+                            .insert(Unit)
+                            .id();
+
+                        if is_player {
+                            bevy_commands.entity(unit_entity).insert(PlayerControlled);
+                        } else {
+                            bevy_commands.entity(unit_entity).insert(OtherPlayerControlled(player_id));
+                        }
+                    }
+                    PlayerCommand::UpdatePlayerPosition(_movement, transform) => {
+                        if let Some(_player_info) = lobby.0.get_mut(&player_id) {
+                            for (_, mut player, mut entity_transform) in players.iter_mut() {
+                                if player.id.0 == player_id.0 {
+                                    entity_transform.translation = transform.translation;
+                                    entity_transform.rotation = transform.rotation;
+                                    entity_transform.scale = transform.scale;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            println!("Unknown player sent a command!");
+        }
+    }
+    to_sync_commands.add_command(PlayerCommand::UpdatePlayerPosition(
+        camera_movement.clone(),
+        SerializableTransform::from_transform(camera_transform.clone()),
+    ));
+
+    most_recent_tick.0 = most_recent_server_tick.0.0;
+
+    let message = bincode::serialize(&ClientUpdateTick {
+        current_tick: *most_recent_tick,
+        commands: to_sync_commands.clone().0,
+    }).unwrap();
+
+    to_sync_commands.reset();
+    client.send_message(ClientChannel::ClientTick.id(), message);
+}
+
+pub fn client_update_system(
     mut bevy_commands: Commands,
     mut client: ResMut<RenetClient>,
     mut lobby: ResMut<ClientLobby>,
@@ -228,17 +352,10 @@ pub fn client_update_system(
     mut most_recent_tick: ResMut<Tick>,
     mut most_recent_server_tick: ResMut<ServerTick>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
-    mut to_sync_commands: ResMut<CommandQueue>,
-    target_assets: Res<TargetAssets>,
-    unit_assets: Res<UnitAssets>,
-    mut unit_query: Query<(Entity, Option<&MoveTarget>, Option<&PlayerControlled>, Option<&OtherPlayerControlled>), With<Unit>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    camera_movement: Res<CameraMovement>,
-    mut players: Query<(Entity, &mut Player, &mut Transform), Without<MainCamera>>,
 ) {
     let client_id = client.client_id();
-    let mut camera_transform = q_camera.single_mut();
 
     while let Some(message) = client.receive_message(ServerChannel::ServerMessages.id()) {
         let server_message = bincode::deserialize(&message).unwrap();
@@ -315,112 +432,6 @@ pub fn client_update_system(
                 most_recent_server_tick.0.0 = target_tick.0;
 
                 synced_commands.0.insert(target_tick, commands.clone());
-
-                for (player_id, commands_list_of_player) in commands.0.0 {
-                    let is_player = player_id.0 == client_id;
-                    let command_username = lobby.get_username(player_id);
-                    if let Some(command_username) = command_username {
-                        for command in commands_list_of_player {
-                            match command {
-                                PlayerCommand::Test(text) => {
-                                    if is_player {
-                                        println!("I said '{}' in tick {}", text, target_tick.0);
-                                    } else {
-                                        println!("{} said '{}' in tick {}", command_username, text, target_tick.0);
-                                    }
-                                }
-                                PlayerCommand::SetTargetPosition(x, y) => {
-                                    let target_entity = bevy_commands
-                                        .spawn_bundle(SpriteBundle {
-                                            texture: if is_player {
-                                                target_assets.friendly_target.clone()
-                                            } else {
-                                                target_assets.enemy_target.clone()
-                                            },
-                                            transform: Transform::from_xyz(x, y, 0.0),
-                                            ..Default::default()
-                                        })
-                                        .insert(Target(player_id))
-                                        .id();
-                                    if is_player {
-                                        bevy_commands.entity(target_entity).insert(PlayerControlled);
-                                    } else {
-                                        bevy_commands.entity(target_entity).insert(OtherPlayerControlled(player_id));
-                                    }
-
-                                    for (entity, optional_move_target, optional_player_controlled, optional_other_controlled) in unit_query.iter_mut() {
-                                        let mut add_command = false;
-
-                                        if let Some(PlayerControlled) = optional_player_controlled {
-                                            if is_player {
-                                                add_command = true;
-                                            }
-                                        } else if let Some(OtherPlayerControlled(other_player_id)) = optional_other_controlled {
-                                            if other_player_id.0 == player_id.0 {
-                                                add_command = true;
-                                            }
-                                        }
-
-                                        if add_command {
-                                            if let Some(_) = optional_move_target {
-                                                bevy_commands.entity(entity).remove::<MoveTarget>();
-                                            }
-
-                                            bevy_commands.entity(entity).insert(MoveTarget(x, y));
-                                        }
-                                    }
-                                }
-                                PlayerCommand::SpawnUnit(x, y) => {
-                                    let unit_entity = bevy_commands
-                                        .spawn_bundle(SpriteBundle {
-                                            texture: if is_player {
-                                                unit_assets.friendly.clone()
-                                            } else {
-                                                unit_assets.enemy.clone()
-                                            },
-                                            transform: Transform::from_xyz(x, y, 0.0),
-                                            ..Default::default()
-                                        })
-                                        .insert(Unit)
-                                        .id();
-
-                                    if is_player {
-                                        bevy_commands.entity(unit_entity).insert(PlayerControlled);
-                                    } else {
-                                        bevy_commands.entity(unit_entity).insert(OtherPlayerControlled(player_id));
-                                    }
-                                }
-                                PlayerCommand::UpdatePlayerPosition(_movement, transform) => {
-                                    if let Some(_player_info) = lobby.0.get_mut(&player_id) {
-                                        for (_, mut player, mut entity_transform) in players.iter_mut() {
-                                            if player.id.0 == player_id.0 {
-                                                entity_transform.translation = transform.translation;
-                                                entity_transform.rotation = transform.rotation;
-                                                entity_transform.scale = transform.scale;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        println!("Unknown player sent a command!");
-                    }
-                }
-                to_sync_commands.add_command(PlayerCommand::UpdatePlayerPosition(
-                    camera_movement.clone(),
-                    SerializableTransform::from_transform(camera_transform.clone()),
-                ));
-
-                most_recent_tick.0 = most_recent_server_tick.0.0;
-
-                let message = bincode::serialize(&ClientUpdateTick {
-                    current_tick: *most_recent_tick,
-                    commands: to_sync_commands.clone().0,
-                }).unwrap();
-
-                to_sync_commands.reset();
-                client.send_message(ClientChannel::ClientTick.id(), message);
             }
             _ => {
                 panic!("Unexpected message on ServerTick channel");

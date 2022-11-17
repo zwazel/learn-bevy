@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Display, Formatter};
 use std::time::{Instant, SystemTime};
+use bevy::prelude::{Deref, DerefMut};
 
 use bevy::render::render_resource::MapMode;
 use chrono::{DateTime, FixedOffset, Local, Utc};
@@ -41,7 +42,7 @@ impl Display for PlayerCommand {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Deref, DerefMut)]
 pub struct PlayerCommandsList(pub Vec<(PlayerId, Vec<PlayerCommand>)>);
 
 impl PlayerCommandsList {
@@ -147,6 +148,18 @@ impl<'de> Deserialize<'de> for MyDateTime {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, SyncedPlayerCommand>);
+
+impl SyncedPlayerCommandsList {
+    pub fn get_commands_for_tick(&self, tick: Tick) -> PlayerCommandsList {
+        let thing = self.0.get(&tick);
+
+        if let Some(thing) = thing {
+            thing.0.clone()
+        } else {
+            PlayerCommandsList::default()
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ServerSyncedPlayerCommandsList(pub SyncedPlayerCommandsList);

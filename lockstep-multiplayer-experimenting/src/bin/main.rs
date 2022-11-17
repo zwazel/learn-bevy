@@ -26,10 +26,10 @@ use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
-use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, move_camera, move_units, new_renet_client};
+use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, fixed_time_step_client, move_camera, move_units, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
-use lockstep_multiplayer_experimenting::server_functionality::{fixed_time_step, new_renet_server, server_update_system};
+use lockstep_multiplayer_experimenting::server_functionality::{fixed_time_step_server, new_renet_server, server_update_system};
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
 use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
 
@@ -165,19 +165,30 @@ fn main() {
             let mut fixed_update_server = SystemStage::parallel();
             fixed_update_server.add_system_set(
                 SystemSet::on_update(GameState::InGame)
-                    .with_system(fixed_time_step)
-                    .with_run_criteria(run_if_tick_in_sync)
-                    .with_run_criteria(run_if_enough_players)
+                    .with_system(fixed_time_step_server)
+                    .with_run_criteria(run_server_time_step_if_in_sync)
             );
 
             app.add_stage_before(
                 CoreStage::Update,
-                "FixedUpdate",
+                "FixedUpdateServer",
                 FixedTimestepStage::from_stage(Duration::from_millis(tickrate), "FixedServerUpdate", fixed_update_server),
             );
         }
         _ => {}
     }
+
+    let mut fixed_update_client = SystemStage::parallel();
+    fixed_update_client.add_system_set(
+        SystemSet::on_update(GameState::InGame)
+            .with_system(fixed_time_step_client)
+            .with_run_criteria(run_if_tick_in_sync_client)
+    );
+    app.add_stage_before(
+        CoreStage::Update,
+        "FixedUpdateClient",
+        FixedTimestepStage::from_stage(Duration::from_millis(tickrate), "FixedClientUpdate", fixed_update_client),
+    );
 
     app.add_system_set(
         SystemSet::on_update(GameState::InGame)
@@ -230,18 +241,6 @@ enum MySystems {
 }
 
 struct AmountPlayers(usize);
-
-fn run_if_enough_players(
-    lobby: Res<ServerLobby>,
-    amount_players: Res<AmountPlayers>,
-) -> ShouldRun {
-    if lobby.0.len() >= amount_players.0 {
-        ShouldRun::Yes
-    } else {
-        println!("Current amount of players: {}, needed amount of players: {}", lobby.0.len(), amount_players.0);
-        ShouldRun::No
-    }
-}
 
 fn setup_camera(mut commands: Commands) {
     // camera
@@ -300,11 +299,17 @@ fn fade_away_targets(
     }
 }
 
-fn run_if_tick_in_sync(
+fn run_server_time_step_if_in_sync(
     server_tick: Res<ServerTick>,
     client_ticks: Res<ClientTicks>,
     lobby: Res<ServerLobby>,
+    amount_players: Res<AmountPlayers>,
 ) -> ShouldRun {
+    if lobby.0.len() < amount_players.0 {
+        println!("Current amount of players: {}, needed amount of players: {}", lobby.0.len(), amount_players.0);
+        return ShouldRun::No
+    }
+
     let mut client_iter = client_ticks.0.iter().peekable();
     let mut players_synced = true;
     while let Some((client_id, client_tick)) = client_iter.next() {
@@ -315,11 +320,23 @@ fn run_if_tick_in_sync(
         }
     }
 
-    return if players_synced {
+    if !players_synced {
+        return ShouldRun::No
+    }
+
+    ShouldRun::Yes
+}
+
+fn run_if_tick_in_sync_client(
+    server_tick: Res<ServerTick>,
+    client_tick: ResMut<Tick>,
+) -> ShouldRun {
+    if client_tick.get() + 1 == server_tick.get() {
         ShouldRun::Yes
     } else {
+        println!("Waiting for Server! Client: {}, Server: {}", client_tick.get(), server_tick.get());
         ShouldRun::No
-    };
+    }
 }
 
 ////////// RENET NETWORKING //////////
