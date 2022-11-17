@@ -274,7 +274,10 @@ fn setup_scene(mut commands: Commands,
         ..default()
     })
         .insert_bundle(PickableBundle::default())
-        .insert(Collider::cuboid(2.5, 0.1, 2.5))
+        .with_children(|children| {
+            children.spawn()
+                .insert(Collider::cuboid(2.5, 0.0, 2.5));
+        })
         .insert(PlaceableSurface);
     // cube
     commands.spawn()

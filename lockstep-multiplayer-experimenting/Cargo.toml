@@ -32,7 +32,7 @@ bevy_asset_loader = "0.13.0"
 bevy_asset_loader_derive = "0.13.0"
 bevy_mod_raycast = "0.6.2"
 bevy_mod_picking = "0.9.0"
-bevy_rapier3d = { version = "0.18.0", features = [ "simd-stable", "debug-render" ] }
+bevy_rapier3d = { version = "0.18.0", features = [ "enhanced-determinism", "debug-render" ] }
 nalgebra = "0.31.3"
 
 # Enable a small amount of optimization in debug mode

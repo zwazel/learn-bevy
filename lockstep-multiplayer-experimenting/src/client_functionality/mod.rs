@@ -12,7 +12,7 @@ use bevy::prelude::*;
 use bevy::reflect::erased_serde::Deserializer;
 use bevy::render::camera::RenderTarget;
 use bevy_egui::egui::{lerp, remap_clamp};
-use bevy_mod_picking::{PickingCamera, RayCastSource};
+use bevy_mod_picking::{PickableBundle, PickingCamera, RayCastSource};
 use bevy_mod_raycast::{Ray3d, RayCastMethod};
 use bevy_rapier3d::plugin::RapierContext;
 use bevy_rapier3d::prelude::QueryFilter;
@@ -77,13 +77,16 @@ pub fn raycast_to_world(
     mouse_input: Res<Input<MouseButton>>,
     mut motion_evr: EventReader<MouseMotion>,
     rapier_context: Res<RapierContext>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     if mouse_input.just_pressed(MouseButton::Left) {
         let camera_transform = q_camera.single_mut();
 
         let ray_pos = camera_transform.translation;
         let ray_dir = camera_transform.rotation.mul_vec3(Vec3::new(0.0, 0.0, -1.0));
-        let max_toi = 100.0;
+        let max_toi = 100.0; // maximum "time-of-impact" that can be reported by the ray-cast. This is used to limit the ray-cast length.
         let solid = true;
         let filter = QueryFilter::default();
 
@@ -94,6 +97,16 @@ pub fn raycast_to_world(
                 let hit_point = intersection.point;
                 let hit_normal = intersection.normal;
                 println!("Entity {:?} hit at point {} with normal {}", entity, hit_point, hit_normal);
+
+                commands.spawn()
+                    .insert_bundle(PbrBundle {
+                        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+                        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+                        transform: Transform::from_xyz(hit_point.x, hit_point.y + 0.5, hit_point.z),
+                        ..default()
+                    })
+                    .insert_bundle(PickableBundle::default());
+
                 true // Return `false` instead if we want to stop searching for other hits.
             });
     }
