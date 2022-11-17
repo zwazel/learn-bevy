@@ -18,6 +18,7 @@ use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
 use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, HighlightablePickingPlugins, PickableBundle, PickingCameraBundle};
 use bevy_mod_raycast::RayCastSource;
+use bevy_rapier3d::prelude::*;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::{DateTime, Utc};
 use iyes_loopless::prelude::*;
@@ -131,7 +132,9 @@ fn main() {
     app.add_plugin(RenetClientPlugin);
     app.add_plugins(DefaultPickingPlugins); // <- Adds Picking, Interaction, and Highlighting plugins.
     app.add_plugin(DebugCursorPickingPlugin); // <- Adds the green debug cursor.
-    app.add_plugin(DebugEventsPickingPlugin); // <- Adds debug event logging.
+    // app.add_plugin(DebugEventsPickingPlugin); // <- Adds debug event logging.
+    app.add_plugin(RapierPhysicsPlugin::<NoUserData>::default());
+    app.add_plugin(RapierDebugRenderPlugin::default());
 
     app.add_system(panic_on_error_system);
     app.add_system_to_stage(CoreStage::Last, disconnect);
@@ -271,6 +274,7 @@ fn setup_scene(mut commands: Commands,
         ..default()
     })
         .insert_bundle(PickableBundle::default())
+        .insert(Collider::cuboid(2.5, 0.1, 2.5))
         .insert(PlaceableSurface);
     // cube
     commands.spawn()
@@ -323,7 +327,7 @@ fn run_server_time_step_if_in_sync(
     while let Some((client_id, client_tick)) = client_iter.next() {
         if client_tick.get() != server_tick.get() {
             let username = lobby.0.get(&client_id).unwrap().username.clone();
-            println!("Waiting for Client {}!", username);
+            // println!("Waiting for Client {}!", username);
             players_synced = false;
         }
     }
@@ -343,7 +347,7 @@ fn run_if_tick_in_sync_client(
     if future_client_tick == server_tick.get() {
         ShouldRun::Yes
     } else {
-        println!("Waiting for Server! Current Client Tick: {}, Target Client Tick: {}, Server Tick: {}", client_tick.get(), future_client_tick, server_tick.get());
+        // println!("Waiting for Server! Current Client Tick: {}, Target Client Tick: {}, Server Tick: {}", client_tick.get(), future_client_tick, server_tick.get());
         ShouldRun::No
     }
 }

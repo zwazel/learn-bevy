@@ -14,11 +14,10 @@ use bevy::render::camera::RenderTarget;
 use bevy_egui::egui::{lerp, remap_clamp};
 use bevy_mod_picking::{PickingCamera, RayCastSource};
 use bevy_mod_raycast::{Ray3d, RayCastMethod};
+use bevy_rapier3d::plugin::RapierContext;
+use bevy_rapier3d::prelude::QueryFilter;
 use nalgebra::ComplexField;
 use rand::Rng;
-use rapier3d::math::Point;
-use rapier3d::parry::transformation::intersect_meshes;
-use rapier3d::prelude::{ColliderBuilder, PhysicsPipeline, Ray, Real, Vector};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 use serde::{de, Serializer};
 use serde::de::{MapAccess, Visitor};
@@ -73,22 +72,30 @@ pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit
 }
 
 pub fn raycast_to_world(
-    mut q_camera: Query<(&mut Transform, &mut PickingCamera), With<MainCamera>>,
+    mut q_camera: Query<&mut Transform, With<MainCamera>>,
     mut floor_query: Query<&mut Transform, (With<PlaceableSurface>, Without<MainCamera>)>,
     mouse_input: Res<Input<MouseButton>>,
     mut motion_evr: EventReader<MouseMotion>,
+    rapier_context: Res<RapierContext>,
 ) {
     if mouse_input.just_pressed(MouseButton::Left) {
-        let (mut camera_transform, mut pick_source) = q_camera.single_mut();
-        let camera_position = camera_transform.translation;
-        let camera_rotation = camera_transform.rotation;
-        let camera_direction = camera_rotation.mul_vec3(Vec3::new(0.0, 0.0, -1.0));
+        let camera_transform = q_camera.single_mut();
 
-        let mouse_moved = motion_evr.iter().last().unwrap().delta;
+        let ray_pos = camera_transform.translation;
+        let ray_dir = camera_transform.rotation.mul_vec3(Vec3::new(0.0, 0.0, -1.0));
+        let max_toi = 100.0;
+        let solid = true;
+        let filter = QueryFilter::default();
 
-        pick_source.cast_method = RayCastMethod::Screenspace(mouse_moved)
-
-
+        rapier_context.intersections_with_ray(
+            ray_pos, ray_dir, max_toi, solid, filter,
+            |entity, intersection| {
+                // Callback called on each collider hit by the ray.
+                let hit_point = intersection.point;
+                let hit_normal = intersection.normal;
+                println!("Entity {:?} hit at point {} with normal {}", entity, hit_point, hit_normal);
+                true // Return `false` instead if we want to stop searching for other hits.
+            });
     }
 }
 
