@@ -7,15 +7,18 @@ use std::time::SystemTime;
 use bevy::ecs::query::OrFetch;
 use bevy::input::Input;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
-use bevy::math::{DQuat, Vec2};
+use bevy::math::{DQuat, Vec2, Vec3};
 use bevy::prelude::*;
 use bevy::reflect::erased_serde::Deserializer;
 use bevy::render::camera::RenderTarget;
 use bevy_egui::egui::{lerp, remap_clamp};
-use bevy_mod_picking::RayCastSource;
+use bevy_mod_picking::{PickingCamera, RayCastSource};
+use bevy_mod_raycast::{Ray3d, RayCastMethod};
 use nalgebra::ComplexField;
 use rand::Rng;
-use rapier3d::prelude::ColliderBuilder;
+use rapier3d::math::Point;
+use rapier3d::parry::transformation::intersect_meshes;
+use rapier3d::prelude::{ColliderBuilder, PhysicsPipeline, Ray, Real, Vector};
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
 use serde::{de, Serializer};
 use serde::de::{MapAccess, Visitor};
@@ -26,6 +29,7 @@ use crate::asset_handling::{TargetAssets, UnitAssets};
 use crate::ClientMessages::ClientUpdateTick;
 use crate::commands::{CommandQueue, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
 use crate::entities::{MoveTarget, OtherPlayerCamera, OtherPlayerControlled, PlayerControlled, Target, Unit};
+use crate::physic_stuff::PlaceableSurface;
 use crate::ServerMessages::UpdateTick;
 use crate::Speeds::{Normal, Sprint};
 
@@ -65,6 +69,26 @@ pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit
             transform.translation.x += direction.x * 0.5 * time.delta_seconds();
             transform.translation.y += direction.y * 0.5 * time.delta_seconds();
         }
+    }
+}
+
+pub fn raycast_to_world(
+    mut q_camera: Query<(&mut Transform, &mut PickingCamera), With<MainCamera>>,
+    mut floor_query: Query<&mut Transform, (With<PlaceableSurface>, Without<MainCamera>)>,
+    mouse_input: Res<Input<MouseButton>>,
+    mut motion_evr: EventReader<MouseMotion>,
+) {
+    if mouse_input.just_pressed(MouseButton::Left) {
+        let (mut camera_transform, mut pick_source) = q_camera.single_mut();
+        let camera_position = camera_transform.translation;
+        let camera_rotation = camera_transform.rotation;
+        let camera_direction = camera_rotation.mul_vec3(Vec3::new(0.0, 0.0, -1.0));
+
+        let mouse_moved = motion_evr.iter().last().unwrap().delta;
+
+        pick_source.cast_method = RayCastMethod::Screenspace(mouse_moved)
+
+
     }
 }
 

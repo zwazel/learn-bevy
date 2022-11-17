@@ -30,6 +30,8 @@ pub const TICKRATE: u64 = 250;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+
+
 pub struct CurrentServerTick(pub Tick);
 
 pub struct LocalServerTick(pub Tick);

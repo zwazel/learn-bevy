@@ -17,6 +17,7 @@ use bevy::window::{PresentMode, WindowSettings};
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
 use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, HighlightablePickingPlugins, PickableBundle, PickingCameraBundle};
+use bevy_mod_raycast::RayCastSource;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::{DateTime, Utc};
 use iyes_loopless::prelude::*;
@@ -26,9 +27,10 @@ use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
-use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, fixed_time_step_client, move_camera, move_units, new_renet_client};
+use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, fixed_time_step_client, move_camera, move_units, new_renet_client, raycast_to_world};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
+use lockstep_multiplayer_experimenting::physic_stuff::PlaceableSurface;
 use lockstep_multiplayer_experimenting::server_functionality::{fixed_time_step_server, new_renet_server, server_update_system};
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
 use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
@@ -207,6 +209,9 @@ fn main() {
             .with_system(
                 move_camera
             )
+            .with_system(
+                raycast_to_world
+            )
             .with_run_criteria(run_if_client_connected)
     );
 
@@ -262,9 +267,11 @@ fn setup_scene(mut commands: Commands,
     commands.spawn_bundle(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+        transform: Transform::from_xyz(0.0, 0.0, 0.0),
         ..default()
     })
-        .insert_bundle(PickableBundle::default());
+        .insert_bundle(PickableBundle::default())
+        .insert(PlaceableSurface);
     // cube
     commands.spawn()
         .insert_bundle(PbrBundle {
