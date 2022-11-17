@@ -14,8 +14,10 @@ use bevy::render::camera::RenderTarget;
 use bevy_egui::egui::{lerp, remap_clamp};
 use bevy_mod_picking::{PickableBundle, PickingCamera, RayCastSource};
 use bevy_mod_raycast::{Ray3d, RayCastMethod};
+use bevy_rapier3d::parry::transformation::utils::transform;
 use bevy_rapier3d::plugin::RapierContext;
 use bevy_rapier3d::prelude::QueryFilter;
+use bevy_rapier3d::rapier::prelude::Ray;
 use nalgebra::ComplexField;
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
@@ -72,21 +74,43 @@ pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit
 }
 
 pub fn raycast_to_world(
-    mut q_camera: Query<&mut Transform, With<MainCamera>>,
+    mut q_camera: Query<(&mut Transform, &Camera), With<MainCamera>>,
     mut floor_query: Query<&mut Transform, (With<PlaceableSurface>, Without<MainCamera>)>,
     mouse_input: Res<Input<MouseButton>>,
-    mut motion_evr: EventReader<MouseMotion>,
+    mut mouse_motion: EventReader<MouseMotion>,
+    mut cursor_moved_events: EventReader<CursorMoved>,
     rapier_context: Res<RapierContext>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut mouse_position: ResMut<MousePosition>,
 ) {
+    for event in cursor_moved_events.iter() {
+        mouse_position.0 = event.position;
+    }
+
     if mouse_input.just_pressed(MouseButton::Left) {
-        let camera_transform = q_camera.single_mut();
+        let (camera_transform, camera): (Mut<Transform>, &Camera) = q_camera.single_mut();
 
         let ray_pos = camera_transform.translation;
         let ray_dir = camera_transform.rotation.mul_vec3(Vec3::new(0.0, 0.0, -1.0));
-        let max_toi = 100.0; // maximum "time-of-impact" that can be reported by the ray-cast. This is used to limit the ray-cast length.
+
+        println!("Ray dir: {:?}, Ray pos: {:?}", ray_dir, ray_pos);
+
+        commands.spawn()
+            .insert_bundle(PbrBundle {
+                mesh: meshes.add(Mesh::from(shape::Cube { size: 0.3 })),
+                material: materials.add(Color::YELLOW_GREEN.into()),
+                transform: Transform {
+                    translation: ray_pos,
+                    // rotation from ray_dir
+                    rotation: Quat::from_rotation_arc(Vec3::new(0.0, 0.0, 1.0), ray_dir),
+                    ..Default::default()
+                },
+                ..default()
+            });
+
+        let max_toi = 10000.0; // maximum "time-of-impact" that can be reported by the ray-cast. This is used to limit the ray-cast length.
         let solid = true;
         let filter = QueryFilter::default();
 

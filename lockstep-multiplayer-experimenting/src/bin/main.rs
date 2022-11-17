@@ -26,7 +26,7 @@ use rand::prelude::SliceRandom;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 use serde_json::json;
 
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, MousePosition, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, fixed_time_step_client, move_camera, move_units, new_renet_client, raycast_to_world};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
@@ -230,6 +230,7 @@ fn main() {
     app.insert_resource(NetworkMapping::default());
     app.insert_resource(CameraMovement::default());
     app.insert_resource(CameraSettings::default());
+    app.insert_resource(MousePosition(Vec2::ZERO));
 
     app.run();
 }
@@ -267,8 +268,9 @@ fn setup_scene(mut commands: Commands,
                mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // plane
+    let floor_size = 20.0;
     commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
+        mesh: meshes.add(Mesh::from(shape::Plane { size: floor_size })),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         transform: Transform::from_xyz(0.0, 0.0, 0.0),
         ..default()
@@ -276,7 +278,7 @@ fn setup_scene(mut commands: Commands,
         .insert_bundle(PickableBundle::default())
         .with_children(|children| {
             children.spawn()
-                .insert(Collider::cuboid(2.5, 0.0, 2.5));
+                .insert(Collider::cuboid(floor_size / 2.0, 0.0, floor_size / 2.0));
         })
         .insert(PlaceableSurface);
     // cube

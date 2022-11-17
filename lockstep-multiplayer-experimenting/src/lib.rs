@@ -30,6 +30,9 @@ pub const TICKRATE: u64 = 250;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct MousePosition(pub Vec2);
+
 pub struct CurrentServerTick(pub Tick);
 
 pub struct LocalServerTick(pub Tick);
