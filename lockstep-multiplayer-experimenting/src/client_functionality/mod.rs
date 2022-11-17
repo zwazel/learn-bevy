@@ -231,7 +231,7 @@ pub fn fixed_time_step_client(
     mut client: ResMut<RenetClient>,
     mut lobby: ResMut<ClientLobby>,
     mut most_recent_tick: ResMut<Tick>,
-    mut most_recent_server_tick: ResMut<ServerTick>,
+    mut most_recent_server_tick: ResMut<LocalServerTick>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
 ) {
     let client_id = client.client_id();
@@ -350,7 +350,7 @@ pub fn client_update_system(
     mut lobby: ResMut<ClientLobby>,
     mut network_mapping: ResMut<NetworkMapping>,
     mut most_recent_tick: ResMut<Tick>,
-    mut most_recent_server_tick: ResMut<ServerTick>,
+    mut most_recent_server_tick: ResMut<LocalServerTick>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,

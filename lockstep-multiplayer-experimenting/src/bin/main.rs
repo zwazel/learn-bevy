@@ -24,7 +24,7 @@ use rand::prelude::SliceRandom;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 use serde_json::json;
 
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, CurrentServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION, LocalServerTick};
 use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, fixed_time_step_client, move_camera, move_units, new_renet_client};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
@@ -138,7 +138,7 @@ fn main() {
         Defines the tick the server is on currently
         The client isn't yet on this tick, it's the target tick.
      */
-    app.insert_resource(ServerTick::new());
+    app.insert_resource(LocalServerTick::new());
     app.insert_resource(SyncedPlayerCommandsList::default());
     app.insert_resource(CommandQueue::default());
 
@@ -155,6 +155,7 @@ fn main() {
     match my_type {
         ClientType::Server => {
             app.insert_resource(new_renet_server(amount_of_players, host, port));
+            app.insert_resource(CurrentServerTick::new());
             app.insert_resource(ClientTicks::default());
             app.insert_resource(ServerLobby::default());
             app.insert_resource(ServerMarker);
@@ -300,7 +301,7 @@ fn fade_away_targets(
 }
 
 fn run_server_time_step_if_in_sync(
-    server_tick: Res<ServerTick>,
+    server_tick: Res<CurrentServerTick>,
     client_ticks: Res<ClientTicks>,
     lobby: Res<ServerLobby>,
     amount_players: Res<AmountPlayers>,
@@ -328,13 +329,14 @@ fn run_server_time_step_if_in_sync(
 }
 
 fn run_if_tick_in_sync_client(
-    server_tick: Res<ServerTick>,
+    server_tick: Res<LocalServerTick>,
     client_tick: ResMut<Tick>,
 ) -> ShouldRun {
-    if client_tick.get() + 1 == server_tick.get() {
+    let future_client_tick = client_tick.get() + 1;
+    if future_client_tick == server_tick.get() {
         ShouldRun::Yes
     } else {
-        println!("Waiting for Server! Client: {}, Server: {}", client_tick.get(), server_tick.get());
+        println!("Waiting for Server! Current Client Tick: {}, Target Client Tick: {}, Server Tick: {}", client_tick.get(), future_client_tick, server_tick.get());
         ShouldRun::No
     }
 }

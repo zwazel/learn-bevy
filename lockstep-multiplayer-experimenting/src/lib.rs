@@ -30,11 +30,35 @@ pub const TICKRATE: u64 = 250;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub struct ServerTick(pub Tick);
+pub struct CurrentServerTick(pub Tick);
+
+pub struct LocalServerTick(pub Tick);
+
+impl LocalServerTick {
+    pub fn new() -> Self {
+        Self(Tick::new())
+    }
+
+    pub fn get(&self) -> i64 {
+        self.0.get()
+    }
+
+    pub fn set(&mut self, tick: i64) {
+        self.0.set(tick);
+    }
+
+    pub fn increment(&mut self) {
+        self.0.increment();
+    }
+
+    pub fn reset(&mut self) {
+        self.0.reset();
+    }
+}
 
 pub struct ServerMarker;
 
-impl ServerTick {
+impl CurrentServerTick {
     pub fn new() -> Self {
         Self(Tick::new())
     }
