@@ -434,6 +434,7 @@ pub fn translate_host<'a>(host: &'a str, default: &'a str) -> &'a str {
     let host = match host {
         "localhost" => default,
         "-" => default,
+        "." => default,
         _ => host,
     };
     host
