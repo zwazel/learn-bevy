@@ -307,7 +307,7 @@ fn run_server_time_step_if_in_sync(
 ) -> ShouldRun {
     if lobby.0.len() < amount_players.0 {
         println!("Current amount of players: {}, needed amount of players: {}", lobby.0.len(), amount_players.0);
-        return ShouldRun::No
+        return ShouldRun::No;
     }
 
     let mut client_iter = client_ticks.0.iter().peekable();
@@ -321,7 +321,7 @@ fn run_server_time_step_if_in_sync(
     }
 
     if !players_synced {
-        return ShouldRun::No
+        return ShouldRun::No;
     }
 
     ShouldRun::Yes
