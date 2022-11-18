@@ -16,7 +16,7 @@ use bevy_mod_picking::{PickableBundle, PickingCamera, RayCastSource};
 use bevy_mod_raycast::{Ray3d, RayCastMethod};
 use bevy_rapier3d::parry::transformation::utils::transform;
 use bevy_rapier3d::plugin::RapierContext;
-use bevy_rapier3d::prelude::QueryFilter;
+use bevy_rapier3d::prelude::{InteractionGroups, QueryFilter};
 use bevy_rapier3d::rapier::prelude::Ray;
 use nalgebra::ComplexField;
 use rand::Rng;
@@ -74,45 +74,32 @@ pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit
 }
 
 pub fn raycast_to_world(
-    mut q_camera: Query<(&mut Transform, &Camera), With<MainCamera>>,
-    mut floor_query: Query<&mut Transform, (With<PlaceableSurface>, Without<MainCamera>)>,
+    windows: Res<Windows>,
+    query_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     mouse_input: Res<Input<MouseButton>>,
-    mut mouse_motion: EventReader<MouseMotion>,
-    mut cursor_moved_events: EventReader<CursorMoved>,
     rapier_context: Res<RapierContext>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut mouse_position: ResMut<MousePosition>,
 ) {
-    for event in cursor_moved_events.iter() {
-        mouse_position.0 = event.position;
-    }
-
     if mouse_input.just_pressed(MouseButton::Left) {
-        let (camera_transform, camera): (Mut<Transform>, &Camera) = q_camera.single_mut();
-
-        let ray_pos = camera_transform.translation;
-        let ray_dir = camera_transform.rotation.mul_vec3(Vec3::new(0.0, 0.0, -1.0));
-
-        println!("Ray dir: {:?}, Ray pos: {:?}", ray_dir, ray_pos);
-
-        commands.spawn()
-            .insert_bundle(PbrBundle {
-                mesh: meshes.add(Mesh::from(shape::Cube { size: 0.3 })),
-                material: materials.add(Color::YELLOW_GREEN.into()),
-                transform: Transform {
-                    translation: ray_pos,
-                    // rotation from ray_dir
-                    rotation: Quat::from_rotation_arc(Vec3::new(0.0, 0.0, 1.0), ray_dir),
-                    ..Default::default()
-                },
-                ..default()
-            });
-
-        let max_toi = 10000.0; // maximum "time-of-impact" that can be reported by the ray-cast. This is used to limit the ray-cast length.
+        let (camera, camera_transform) = query_camera.single();
+        let window = if let RenderTarget::Window(id) = camera.target {
+            windows.get(id).unwrap()
+        } else {
+            windows.get_primary().unwrap()
+        };
+        let window_size = Vec2::new(window.width() as f32, window.height() as f32);
+        let (ray_pos, ray_dir) = ray_from_screenspace(
+            window_size,
+            window.cursor_position().unwrap(),
+            camera,
+            camera_transform,
+        );
         let solid = true;
-        let filter = QueryFilter::default();
+        let groups = InteractionGroups::all();
+        let filter = QueryFilter::new().groups(groups);
+        let max_toi = 1000.0;
 
         rapier_context.intersections_with_ray(
             ray_pos, ray_dir, max_toi, solid, filter,
@@ -134,6 +121,31 @@ pub fn raycast_to_world(
                 true // Return `false` instead if we want to stop searching for other hits.
             });
     }
+}
+
+/// @credit <a href="https://github.com/hallettj/redstone-designer/blob/main/src/cursor.rs#L76">hallettj</a>
+/// Returns origin and direction for a ray from the camera through the cursor. This involves
+/// reversing the camera projection to map the cursor's coordinates in screen space to a set of
+/// coordinates in world space.
+fn ray_from_screenspace(
+    window_size: Vec2,
+    cursor_pos_screen: Vec2,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+) -> (Vec3, Vec3) {
+    // convert screen position [0..resolution] to ndc [-1..1] (gpu coordinates)
+    let ndc = (cursor_pos_screen / window_size) * 2.0 - Vec2::ONE;
+
+    // matrix for undoing the projection and camera transform
+    let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
+
+    // use it to convert ndc to world-space coordinates
+    let cursor_pos_world = ndc_to_world.project_point3(ndc.extend(-1.0));
+
+    let origin = cursor_pos_world;
+    let ray_direction = (camera_transform.translation() - cursor_pos_world).normalize();
+
+    (origin, ray_direction)
 }
 
 pub fn move_camera(
