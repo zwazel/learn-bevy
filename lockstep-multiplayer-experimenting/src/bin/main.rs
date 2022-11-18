@@ -16,7 +16,9 @@ use bevy::reflect::GetPath;
 use bevy::window::{PresentMode};
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
-use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, PickableBundle, PickingCameraBundle};
+use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, HighlightablePickingPlugins, PickableBundle, PickingCameraBundle};
+use bevy_mod_raycast::RayCastSource;
+use bevy_rapier3d::prelude::*;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::{DateTime, Utc};
 use iyes_loopless::prelude::*;
@@ -24,11 +26,13 @@ use rand::prelude::SliceRandom;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 use serde_json::json;
 
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, GameState, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, ServerTick, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
-use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, move_camera, move_units, new_renet_client, RenetClientResource};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
+use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
+use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, fixed_time_step_client, move_camera, move_units, new_renet_client, raycast_to_world};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
-use lockstep_multiplayer_experimenting::server_functionality::{new_renet_server, RenetServerResource, server_update_system};
+use lockstep_multiplayer_experimenting::physic_stuff::PlaceableSurface;
+use lockstep_multiplayer_experimenting::server_functionality::{fixed_time_step_server, new_renet_server, server_update_system};
 use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
 use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
 
@@ -126,7 +130,9 @@ fn main() {
     app.add_plugin(RenetClientPlugin);
     app.add_plugins(DefaultPickingPlugins); // <- Adds Picking, Interaction, and Highlighting plugins.
     app.add_plugin(DebugCursorPickingPlugin); // <- Adds the green debug cursor.
-    app.add_plugin(DebugEventsPickingPlugin); // <- Adds debug event logging.
+    // app.add_plugin(DebugEventsPickingPlugin); // <- Adds debug event logging.
+    app.add_plugin(RapierPhysicsPlugin::<NoUserData>::default());
+    app.add_plugin(RapierDebugRenderPlugin::default());
 
     app.add_system(panic_on_error_system);
     app.add_system_to_stage(CoreStage::Last, disconnect);
@@ -135,7 +141,7 @@ fn main() {
         Defines the tick the server is on currently
         The client isn't yet on this tick, it's the target tick.
      */
-    app.insert_resource(ServerTick::new());
+    app.insert_resource(LocalServerTick::new());
     app.insert_resource(SyncedPlayerCommandsList::default());
     app.insert_resource(CommandQueue::default());
 
@@ -152,6 +158,7 @@ fn main() {
     match my_type {
         ClientType::Server => {
             app.insert_resource(new_renet_server(amount_of_players, host, port));
+            app.insert_resource(CurrentServerTick::new());
             app.insert_resource(ClientTicks::default());
             app.insert_resource(ServerLobby::default());
             app.insert_resource(ServerMarker);
@@ -162,19 +169,30 @@ fn main() {
             let mut fixed_update_server = SystemStage::parallel();
             fixed_update_server.add_system_set(
                 SystemSet::on_update(GameState::InGame)
-                    .with_system(fixed_time_step)
-                    .with_run_criteria(run_if_tick_in_sync)
-                    .with_run_criteria(run_if_enough_players)
+                    .with_system(fixed_time_step_server)
+                    .with_run_criteria(run_server_time_step_if_in_sync)
             );
 
             app.add_stage_before(
                 CoreStage::Update,
-                "FixedUpdate",
+                "FixedUpdateServer",
                 FixedTimestepStage::from_stage(Duration::from_millis(tickrate), "FixedServerUpdate", fixed_update_server),
             );
         }
         _ => {}
     }
+
+    let mut fixed_update_client = SystemStage::parallel();
+    fixed_update_client.add_system_set(
+        SystemSet::on_update(GameState::InGame)
+            .with_system(fixed_time_step_client)
+            .with_run_criteria(run_if_tick_in_sync_client)
+    );
+    app.add_stage_before(
+        CoreStage::Update,
+        "FixedUpdateClient",
+        FixedTimestepStage::from_stage(Duration::from_millis(tickrate), "FixedClientUpdate", fixed_update_client),
+    );
 
     app.add_system_set(
         SystemSet::on_update(GameState::InGame)
@@ -192,7 +210,10 @@ fn main() {
             .with_system(
                 move_camera
             )
-            .with_run_criteria(my_run_if_client_connected)
+            .with_system(
+                raycast_to_world
+            )
+            .with_run_criteria(run_if_client_connected)
     );
 
     app.add_system_set(
@@ -206,6 +227,7 @@ fn main() {
     app.insert_resource(Tick(0));
     app.insert_resource(NetworkMapping::default());
     app.insert_resource(CameraMovement::default());
+    app.insert_resource(CameraSettings::default());
 
     app.run();
 }
@@ -227,32 +249,6 @@ enum MySystems {
 #[derive(Resource)]
 struct AmountPlayers(usize);
 
-fn run_if_enough_players(
-    lobby: Res<ServerLobby>,
-    amount_players: Res<AmountPlayers>,
-) -> ShouldRun {
-    if lobby.0.len() >= amount_players.0 {
-        ShouldRun::Yes
-    } else {
-        println!("Current amount of players: {}, needed amount of players: {}", lobby.0.len(), amount_players.0);
-        ShouldRun::No
-    }
-}
-
-fn my_run_if_client_connected(client: Option<Res<RenetClientResource>>) -> ShouldRun {
-    match client {
-        Some(client) => {
-            let client = &client.client;
-            if client.is_connected() {
-                ShouldRun::Yes
-            } else {
-                ShouldRun::No
-            }
-        }
-        _ => ShouldRun::No,
-    }
-}
-
 fn setup_camera(mut commands: Commands) {
     // camera
     commands.spawn((
@@ -270,14 +266,19 @@ fn setup_scene(mut commands: Commands,
                mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // plane
-    commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
-            material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
-            ..default()
-        },
-        PickableBundle::default(),
-    ));
+    let floor_size = 20.0;
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Plane { size: floor_size })),
+        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+        transform: Transform::from_xyz(0.0, 0.0, 0.0),
+        ..default()
+    })
+        .insert_bundle(PickableBundle::default())
+        .with_children(|children| {
+            children.spawn()
+                .insert(Collider::cuboid(floor_size / 2.0, 0.0, floor_size / 2.0));
+        })
+        .insert(PlaceableSurface);
     // cube
     commands.spawn((
         PbrBundle {
@@ -314,61 +315,44 @@ fn fade_away_targets(
     }
 }
 
-fn run_if_tick_in_sync(
-    server_tick: Res<ServerTick>,
+fn run_server_time_step_if_in_sync(
+    server_tick: Res<CurrentServerTick>,
     client_ticks: Res<ClientTicks>,
     lobby: Res<ServerLobby>,
+    amount_players: Res<AmountPlayers>,
 ) -> ShouldRun {
+    if lobby.0.len() < amount_players.0 {
+        println!("Current amount of players: {}, needed amount of players: {}", lobby.0.len(), amount_players.0);
+        return ShouldRun::No;
+    }
+
     let mut client_iter = client_ticks.0.iter().peekable();
     let mut players_synced = true;
     while let Some((client_id, client_tick)) = client_iter.next() {
         if client_tick.get() != server_tick.get() {
             let username = lobby.0.get(&client_id).unwrap().username.clone();
-            println!("Waiting for Client {}!", username);
+            // println!("Waiting for Client {}!", username);
             players_synced = false;
         }
     }
 
-    return if players_synced {
-        ShouldRun::Yes
-    } else {
-        ShouldRun::No
-    };
+    if !players_synced {
+        return ShouldRun::No;
+    }
+
+    ShouldRun::Yes
 }
 
-fn fixed_time_step(
-    // Client/All
-    mut server_tick: ResMut<ServerTick>,
-    mut synced_commands: ResMut<ServerSyncedPlayerCommandsList>,
-    // Server
-    mut server: Option<ResMut<RenetServerResource>>,
-) {
-    match server {
-        Some(server) => {
-            // we're server
-            let server = &mut server.server;
-            let server_tick = server_tick.as_mut();
-
-            let commands = synced_commands.0.0.get(&Tick(server_tick.get()));
-
-            server_tick.increment();
-
-            let message = bincode::serialize(&UpdateTick {
-                target_tick: server_tick.0,
-                commands: {
-                    if let Some(commands) = commands {
-                        commands.clone()
-                    } else {
-                        SyncedPlayerCommand::default()
-                    }
-                },
-            }).unwrap();
-
-            synced_commands.0.0.insert(server_tick.0, SyncedPlayerCommand(PlayerCommandsList::default(), MyDateTime::now()));
-
-            server.broadcast_message(ServerChannel::ServerTick.id(), message);
-        }
-        _ => {}
+fn run_if_tick_in_sync_client(
+    server_tick: Res<LocalServerTick>,
+    client_tick: ResMut<Tick>,
+) -> ShouldRun {
+    let future_client_tick = client_tick.get() + 1;
+    if future_client_tick == server_tick.get() {
+        ShouldRun::Yes
+    } else {
+        // println!("Waiting for Server! Current Client Tick: {}, Target Client Tick: {}, Server Tick: {}", client_tick.get(), future_client_tick, server_tick.get());
+        ShouldRun::No
     }
 }
 

@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Display, Formatter};
 use std::time::{Instant, SystemTime};
 use bevy::prelude::Resource;
+use bevy::math::Vec3;
+use bevy::prelude::{Deref, DerefMut};
 
 use bevy::render::render_resource::MapMode;
 use chrono::{DateTime, FixedOffset, Local, Utc};
@@ -9,13 +11,15 @@ use env_logger::fmt::Timestamp;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::ser::SerializeMap;
 
-use crate::{Player, PlayerId, Tick};
+use crate::{CameraMovement, Player, PlayerId, Tick};
+use crate::client_functionality::SerializableTransform;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PlayerCommand {
     Test(String),
     SetTargetPosition(f32, f32),
-    SpawnUnit(f32, f32),
+    SpawnUnit(Vec3),
+    UpdatePlayerPosition(CameraMovement, SerializableTransform),
 }
 
 impl PlayerCommand {
@@ -23,7 +27,7 @@ impl PlayerCommand {
         match (self, other) {
             (PlayerCommand::Test(a), PlayerCommand::Test(b)) => a == b,
             (PlayerCommand::SetTargetPosition(a_x, a_y), PlayerCommand::SetTargetPosition(b_x, b_y)) => a_x == b_x && a_y == b_y,
-            (PlayerCommand::SpawnUnit(a_x, a_b), PlayerCommand::SpawnUnit(b_x, b_y)) => a_x == b_x && a_b == b_y,
+            (PlayerCommand::SpawnUnit(vec_a), PlayerCommand::SpawnUnit(vec_b)) => vec_a.x == vec_b.x && vec_a.y == vec_b.y && vec_a.z == vec_b.z,
             _ => false
         }
     }
@@ -34,12 +38,13 @@ impl Display for PlayerCommand {
         match self {
             Self::Test(s) => write!(f, "Test({})", s),
             Self::SetTargetPosition(x, y) => write!(f, "SetTargetPosition({}, {})", x, y),
-            Self::SpawnUnit(x, y) => write!(f, "SpawnUnit({}, {})", x, y),
+            Self::SpawnUnit(vec) => write!(f, "SpawnUnit({}, {}, {})", vec.x, vec.y, vec.z),
+            Self::UpdatePlayerPosition(movement, transform) => write!(f, "UpdatePlayerPosition({:?}, {:?})", movement, transform),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Deref, DerefMut)]
 pub struct PlayerCommandsList(pub Vec<(PlayerId, Vec<PlayerCommand>)>);
 
 impl PlayerCommandsList {
@@ -145,6 +150,19 @@ impl<'de> Deserialize<'de> for MyDateTime {
 
 #[derive(Serialize, Deserialize, Debug, Resource)]
 pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, SyncedPlayerCommand>);
+
+impl SyncedPlayerCommandsList {
+    pub fn get_commands_for_tick(&self, tick: Tick) -> PlayerCommandsList {
+        let thing = self.0.get(&tick);
+
+        if let Some(thing) = thing {
+            thing.0.clone()
+        } else {
+            PlayerCommandsList::default()
+        }
+    }
+}
+
 
 #[derive(Serialize, Deserialize, Debug, Resource)]
 pub struct ServerSyncedPlayerCommandsList(pub SyncedPlayerCommandsList);

@@ -19,6 +19,9 @@ pub struct PlayerControlled;
 pub struct OtherPlayerControlled(pub PlayerId);
 
 #[derive(Component)]
+pub struct OtherPlayerCamera(pub PlayerId);
+
+#[derive(Component)]
 pub struct Enemy;
 
 #[derive(Component)]

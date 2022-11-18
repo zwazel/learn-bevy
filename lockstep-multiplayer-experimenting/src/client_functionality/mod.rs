@@ -1,4 +1,5 @@
 use std::f32::consts::PI;
+use std::fmt;
 use std::net::UdpSocket;
 use std::ops::Mul;
 use std::time::SystemTime;
@@ -6,21 +7,30 @@ use std::time::SystemTime;
 use bevy::ecs::query::OrFetch;
 use bevy::input::Input;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
-use bevy::math::{DQuat, Vec2};
+use bevy::math::{DQuat, Vec2, Vec3};
 use bevy::prelude::*;
+use bevy::reflect::erased_serde::Deserializer;
 use bevy::render::camera::RenderTarget;
 use bevy::window::CursorGrabMode;
 use bevy_egui::egui::{lerp, remap_clamp};
-use bevy_mod_picking::RaycastSource;
+use bevy_mod_picking::{PickableBundle, PickingCamera, RayCastSource};
+use bevy_mod_raycast::{Ray3d, RayCastMethod};
+use bevy_rapier3d::parry::transformation::utils::transform;
+use bevy_rapier3d::plugin::RapierContext;
+use bevy_rapier3d::prelude::{InteractionGroups, QueryFilter};
+use bevy_rapier3d::rapier::prelude::Ray;
 use nalgebra::ComplexField;
 use rand::Rng;
-use rapier3d::prelude::ColliderBuilder;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
+use serde::{de, Serializer};
+use serde::de::{MapAccess, Visitor};
+use serde::ser::SerializeStruct;
 
 use crate::*;
 use crate::ClientMessages::ClientUpdateTick;
 use crate::commands::{CommandQueue, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
-use crate::entities::{MoveTarget, OtherPlayerControlled, PlayerControlled, Target, Unit};
+use crate::entities::{MoveTarget, OtherPlayerCamera, OtherPlayerControlled, PlayerControlled, Target, Unit};
+use crate::physic_stuff::PlaceableSurface;
 use crate::ServerMessages::UpdateTick;
 use crate::Speeds::{Normal, Sprint};
 
@@ -70,6 +80,74 @@ pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit
     }
 }
 
+/// @credit <a href="https://github.com/hallettj/redstone-designer/blob/main/src/cursor.rs#L76">hallettj</a>
+pub fn raycast_to_world(
+    windows: Res<Windows>,
+    query_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    mouse_input: Res<Input<MouseButton>>,
+    rapier_context: Res<RapierContext>,
+    mut commands_to_sync: ResMut<CommandQueue>,
+) {
+    if mouse_input.just_pressed(MouseButton::Left) {
+        let (camera, camera_transform) = query_camera.single();
+        let window = if let RenderTarget::Window(id) = camera.target {
+            windows.get(id).unwrap()
+        } else {
+            windows.get_primary().unwrap()
+        };
+        let window_size = Vec2::new(window.width() as f32, window.height() as f32);
+        let (ray_pos, ray_dir) = ray_from_screenspace(
+            window_size,
+            window.cursor_position().unwrap(),
+            camera,
+            camera_transform,
+        );
+        let solid = true;
+        let groups = InteractionGroups::all();
+        let filter = QueryFilter::new().groups(groups);
+        let max_toi = 1000.0;
+
+        rapier_context.intersections_with_ray(
+            ray_pos, ray_dir, max_toi, solid, filter,
+            |entity, intersection| {
+                // Callback called on each collider hit by the ray.
+                let hit_point = intersection.point;
+                let hit_normal = intersection.normal;
+
+                let mut command = PlayerCommand::SpawnUnit(hit_point);
+
+                commands_to_sync.add_command(command);
+
+                true // Return `false` instead if we want to stop searching for other hits.
+            });
+    }
+}
+
+/// @credit <a href="https://github.com/hallettj/redstone-designer/blob/main/src/cursor.rs#L76">hallettj</a>
+/// Returns origin and direction for a ray from the camera through the cursor. This involves
+/// reversing the camera projection to map the cursor's coordinates in screen space to a set of
+/// coordinates in world space.
+fn ray_from_screenspace(
+    window_size: Vec2,
+    cursor_pos_screen: Vec2,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+) -> (Vec3, Vec3) {
+    // convert screen position [0..resolution] to ndc [-1..1] (gpu coordinates)
+    let ndc = (cursor_pos_screen / window_size) * 2.0 - Vec2::ONE;
+
+    // matrix for undoing the projection and camera transform
+    let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
+
+    // use it to convert ndc to world-space coordinates
+    let cursor_pos_world = ndc_to_world.project_point3(ndc.extend(-1.0));
+
+    let origin = cursor_pos_world;
+    let ray_direction = (camera_transform.translation() - cursor_pos_world).normalize();
+
+    (origin, ray_direction)
+}
+
 pub fn move_camera(
     mut q_camera: Query<&mut Transform, With<MainCamera>>,
     keyboard_input: Res<Input<KeyCode>>,
@@ -77,20 +155,21 @@ pub fn move_camera(
     mut motion_evr: EventReader<MouseMotion>,
     mut scroll_events: EventReader<MouseWheel>,
     mut camera_movement: ResMut<CameraMovement>,
+    mut camera_settings: ResMut<CameraSettings>,
     time: Res<Time>,
     mut windows: ResMut<Windows>,
 ) {
     let window = windows.get_primary_mut().unwrap();
     let mut camera_transform = q_camera.single_mut();
-    let mut scroll_speed = camera_movement.scroll_speed;
-    let mut rotation_speed = camera_movement.rotation_speed;
+    let mut scroll_speed = camera_settings.scroll_speed;
+    let mut rotation_speed = camera_settings.rotation_speed;
 
     if keyboard_input.pressed(KeyCode::LShift) {
-        camera_movement.max_speed = DefaultSpeeds::Sprint.get();
-        scroll_speed = camera_movement.scroll_sprint_speed;
-        rotation_speed = camera_movement.rotation_sprint_speed;
+        camera_settings.max_speed = DefaultSpeeds::Sprint.get();
+        scroll_speed = camera_settings.scroll_sprint_speed;
+        rotation_speed = camera_settings.rotation_sprint_speed;
     } else {
-        camera_movement.max_speed = DefaultSpeeds::Normal.get();
+        camera_settings.max_speed = DefaultSpeeds::Normal.get();
     }
 
     let mut direction = Vec3::new(
@@ -121,8 +200,8 @@ pub fn move_camera(
     if mouse_input.pressed(MouseButton::Middle) {
         for event in motion_evr.iter() {
             // rotate camera, only left/right and up/down, no roll
-            camera_movement.mouse_pitch -= event.delta.y * camera_movement.mouse_sensitivity * time.delta_seconds(); // up/down
-            camera_movement.mouse_yaw -= event.delta.x * camera_movement.mouse_sensitivity * time.delta_seconds(); // left/right
+            camera_movement.mouse_pitch -= event.delta.y * camera_settings.mouse_sensitivity * time.delta_seconds(); // up/down
+            camera_movement.mouse_yaw -= event.delta.x * camera_settings.mouse_sensitivity * time.delta_seconds(); // left/right
         }
     }
     if keyboard_input.pressed(KeyCode::R) {
@@ -137,10 +216,10 @@ pub fn move_camera(
 
     if camera_movement.mouse_yaw != current_yaw || camera_movement.mouse_pitch != current_pitch {
         // clamp pitch to prevent camera from flipping
-        camera_movement.mouse_pitch = camera_movement.mouse_pitch.clamp(camera_movement.mouse_pitch_min_max.0, camera_movement.mouse_pitch_min_max.1);
+        camera_movement.mouse_pitch = camera_movement.mouse_pitch.clamp(camera_settings.mouse_pitch_min_max.0, camera_settings.mouse_pitch_min_max.1);
 
         // keep yaw in 0..360 range
-        camera_movement.mouse_yaw = camera_movement.mouse_yaw.rem_euclid(camera_movement.mouse_yaw_min_max.1);
+        camera_movement.mouse_yaw = camera_movement.mouse_yaw.rem_euclid(camera_settings.mouse_yaw_min_max.1);
 
         camera_transform.rotation = Quat::from_rotation_y(camera_movement.mouse_yaw.to_radians())
             * Quat::from_rotation_x(camera_movement.mouse_pitch.to_radians());
@@ -165,7 +244,7 @@ pub fn move_camera(
 
     let mut scroll_direction = 0.0;
     for event in scroll_events.iter() {
-        let increase = event.y * camera_movement.scroll_acceleration;
+        let increase = event.y * camera_settings.scroll_acceleration;
         scroll_direction += increase;
         camera_movement.target_camera_height += increase;
     }
@@ -173,29 +252,29 @@ pub fn move_camera(
     let mut spd = ComplexField::try_sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z).unwrap();
     if camera_movement_direction.length() == 0.0 {
         // decelerate camera
-        if spd <= camera_movement.deceleration {
+        if spd <= camera_settings.deceleration {
             camera_movement.velocity = Vec3::ZERO;
         } else {
-            camera_movement.velocity.x -= camera_movement.velocity.x / spd * camera_movement.deceleration;
-            camera_movement.velocity.z -= camera_movement.velocity.z / spd * camera_movement.deceleration;
+            camera_movement.velocity.x -= camera_movement.velocity.x / spd * camera_settings.deceleration;
+            camera_movement.velocity.z -= camera_movement.velocity.z / spd * camera_settings.deceleration;
         }
     } else {
         if camera_movement.velocity.x * camera_movement_direction.x + camera_movement.velocity.z * camera_movement_direction.z < 0.0 {
             // skid
-            if spd <= camera_movement.skid_deceleration {
+            if spd <= camera_settings.skid_deceleration {
                 camera_movement.velocity = Vec3::ZERO;
             } else {
-                camera_movement.velocity.x -= camera_movement.velocity.x / spd * camera_movement.skid_deceleration;
-                camera_movement.velocity.z -= camera_movement.velocity.z / spd * camera_movement.skid_deceleration;
+                camera_movement.velocity.x -= camera_movement.velocity.x / spd * camera_settings.skid_deceleration;
+                camera_movement.velocity.z -= camera_movement.velocity.z / spd * camera_settings.skid_deceleration;
             }
         } else {
             // accelerate camera
-            camera_movement.velocity.x += camera_movement_direction.x * camera_movement.acceleration;
-            camera_movement.velocity.z += camera_movement_direction.z * camera_movement.acceleration;
+            camera_movement.velocity.x += camera_movement_direction.x * camera_settings.acceleration;
+            camera_movement.velocity.z += camera_movement_direction.z * camera_settings.acceleration;
             spd = ComplexField::try_sqrt(camera_movement.velocity.x * camera_movement.velocity.x + camera_movement.velocity.z * camera_movement.velocity.z).unwrap();
-            if spd > camera_movement.max_speed.get().length() {
-                camera_movement.velocity.x = camera_movement.velocity.x / spd * camera_movement.max_speed.get().x;
-                camera_movement.velocity.z = camera_movement.velocity.z / spd * camera_movement.max_speed.get().z;
+            if spd > camera_settings.max_speed.get().length() {
+                camera_movement.velocity.x = camera_movement.velocity.x / spd * camera_settings.max_speed.get().x;
+                camera_movement.velocity.z = camera_movement.velocity.z / spd * camera_settings.max_speed.get().z;
             }
         }
     }
@@ -205,19 +284,147 @@ pub fn move_camera(
 
     let target = camera_transform.translation.y + camera_movement.target_camera_height;
     // if distance between target and current height is greater than 0.1, move camera
-    if (target - camera_transform.translation.y).abs() > camera_movement.scroll_error_tolerance {
+    if (target - camera_transform.translation.y).abs() > camera_settings.scroll_error_tolerance {
         camera_transform.translation.y = lerp(camera_transform.translation.y..=target, scroll_speed * time.delta_seconds());
     }
 
     let mut scroll_spd = ComplexField::try_sqrt(camera_movement.target_camera_height * camera_movement.target_camera_height).unwrap();
     if scroll_direction == 0.0 {
         // decelerate camera
-        if scroll_spd <= camera_movement.scroll_deceleration {
+        if scroll_spd <= camera_settings.scroll_deceleration {
             camera_movement.target_camera_height = 0.0;
         } else {
-            camera_movement.target_camera_height -= (camera_movement.target_camera_height / scroll_spd * camera_movement.scroll_deceleration);
+            camera_movement.target_camera_height -= (camera_movement.target_camera_height / scroll_spd * camera_settings.scroll_deceleration);
         }
     }
+}
+
+pub fn fixed_time_step_client(
+    mut to_sync_commands: ResMut<CommandQueue>,
+    target_assets: Res<TargetAssets>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut unit_query: Query<(Entity, Option<&MoveTarget>, Option<&PlayerControlled>, Option<&OtherPlayerControlled>), With<Unit>>,
+    camera_movement: Res<CameraMovement>,
+    mut q_camera: Query<&mut Transform, With<MainCamera>>,
+    mut players: Query<(Entity, &mut Player, &mut Transform), Without<MainCamera>>,
+    mut bevy_commands: Commands,
+    mut client: ResMut<RenetClient>,
+    mut lobby: ResMut<ClientLobby>,
+    mut most_recent_tick: ResMut<Tick>,
+    mut most_recent_server_tick: ResMut<LocalServerTick>,
+    mut synced_commands: ResMut<SyncedPlayerCommandsList>,
+) {
+    let client_id = client.client_id();
+    let mut camera_transform = q_camera.single_mut();
+
+    for (player_id, commands_list_of_player) in synced_commands.get_commands_for_tick(*most_recent_tick).0 {
+        let is_player = player_id.0 == client_id;
+        let command_username = lobby.get_username(player_id);
+        if let Some(command_username) = command_username {
+            for command in commands_list_of_player {
+                match command {
+                    PlayerCommand::Test(text) => {
+                        if is_player {
+                            println!("I said '{}' in tick {}", text, most_recent_server_tick.get());
+                        } else {
+                            println!("{} said '{}' in tick {}", command_username, text, most_recent_server_tick.get());
+                        }
+                    }
+                    PlayerCommand::SetTargetPosition(x, y) => {
+                        let target_entity = bevy_commands
+                            .spawn_bundle(SpriteBundle {
+                                texture: if is_player {
+                                    target_assets.friendly_target.clone()
+                                } else {
+                                    target_assets.enemy_target.clone()
+                                },
+                                transform: Transform::from_xyz(x, y, 0.0),
+                                ..Default::default()
+                            })
+                            .insert(Target(player_id))
+                            .id();
+                        if is_player {
+                            bevy_commands.entity(target_entity).insert(PlayerControlled);
+                        } else {
+                            bevy_commands.entity(target_entity).insert(OtherPlayerControlled(player_id));
+                        }
+
+                        for (entity, optional_move_target, optional_player_controlled, optional_other_controlled) in unit_query.iter_mut() {
+                            let mut add_command = false;
+
+                            if let Some(PlayerControlled) = optional_player_controlled {
+                                if is_player {
+                                    add_command = true;
+                                }
+                            } else if let Some(OtherPlayerControlled(other_player_id)) = optional_other_controlled {
+                                if other_player_id.0 == player_id.0 {
+                                    add_command = true;
+                                }
+                            }
+
+                            if add_command {
+                                if let Some(_) = optional_move_target {
+                                    bevy_commands.entity(entity).remove::<MoveTarget>();
+                                }
+
+                                bevy_commands.entity(entity).insert(MoveTarget(x, y));
+                            }
+                        }
+                    }
+                    PlayerCommand::SpawnUnit(vec3) => {
+                        let unit_entity = bevy_commands.spawn()
+                            .insert_bundle(PbrBundle {
+                                mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+                                material: if is_player {
+                                    materials.add(Color::rgb(0.8, 0.7, 0.6).into())
+                                } else {
+                                    materials.add(Color::rgb(0.6, 0.7, 0.8).into())
+                                },
+                                transform: Transform::from_xyz(vec3.x, vec3.y + 0.5, vec3.z),
+                                ..default()
+                            })
+                            .insert_bundle(PickableBundle::default())
+                            .insert(Unit)
+                            .id();
+
+                        if is_player {
+                            bevy_commands.entity(unit_entity).insert(PlayerControlled);
+                        } else {
+                            bevy_commands.entity(unit_entity).insert(OtherPlayerControlled(player_id));
+                        }
+                    }
+                    PlayerCommand::UpdatePlayerPosition(_movement, transform) => {
+                        if let Some(_player_info) = lobby.0.get_mut(&player_id) {
+                            for (_, mut player, mut entity_transform) in players.iter_mut() {
+                                if player.id.0 == player_id.0 {
+                                    entity_transform.translation = transform.translation;
+                                    entity_transform.rotation = transform.rotation;
+                                    entity_transform.scale = transform.scale;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            println!("Unknown player sent a command!");
+        }
+    }
+    to_sync_commands.add_command(PlayerCommand::UpdatePlayerPosition(
+        camera_movement.clone(),
+        SerializableTransform::from_transform(camera_transform.clone()),
+    ));
+
+    most_recent_tick.0 = most_recent_server_tick.0.0;
+
+    let message = bincode::serialize(&ClientUpdateTick {
+        current_tick: *most_recent_tick,
+        commands: to_sync_commands.clone().0,
+    }).unwrap();
+
+    to_sync_commands.reset();
+    client.send_message(ClientChannel::ClientTick.id(), message);
 }
 
 pub fn client_update_system(
@@ -226,10 +433,10 @@ pub fn client_update_system(
     mut lobby: ResMut<ClientLobby>,
     mut network_mapping: ResMut<NetworkMapping>,
     mut most_recent_tick: ResMut<Tick>,
-    mut most_recent_server_tick: ResMut<ServerTick>,
+    mut most_recent_server_tick: ResMut<LocalServerTick>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
-    mut to_sync_commands: ResMut<CommandQueue>,
-    mut unit_query: Query<(Entity, Option<&MoveTarget>, Option<&PlayerControlled>, Option<&OtherPlayerControlled>), With<Unit>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let client = &mut client.client;
     let client_id = client.client_id();
@@ -240,14 +447,12 @@ pub fn client_update_system(
             ServerMessages::PlayerCreate { player, entity } => {
                 let is_player = client_id == player.id.0;
 
-                let client_entity = bevy_commands
-                    .spawn((
-                        Player {
-                            id: player.id,
-                            username: player.username.clone(),
-                            entity: None,
-                        },
-                    ))
+                let client_entity = bevy_commands.spawn()
+                    .insert(Player {
+                        id: player.id,
+                        username: player.username.clone(),
+                        entity: None,
+                    })
                     .id();
 
                 if is_player {
@@ -255,6 +460,16 @@ pub fn client_update_system(
                     println!("You're now connected to the server!")
                 } else {
                     println!("Player {} connected to the server.", player.username);
+                    bevy_commands.entity(client_entity)
+                        .insert_bundle(
+                            PbrBundle {
+                                mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+                                material: materials.add(Color::YELLOW_GREEN.into()),
+                                transform: Transform::from_xyz(0.0, 2.5, 5.0),
+                                ..default()
+                            }
+                        )
+                        .insert(OtherPlayerCamera(player.id));
                 }
 
                 let player_info = PlayerInfo {
@@ -301,42 +516,27 @@ pub fn client_update_system(
                 most_recent_server_tick.0.0 = target_tick.0;
 
                 synced_commands.0.insert(target_tick, commands.clone());
-
-                for (player_id, commands_list_of_player) in commands.0.0 {
-                    let is_player = player_id.0 == client_id;
-                    let command_username = lobby.get_username(player_id);
-                    if let Some(command_username) = command_username {
-                        for command in commands_list_of_player {
-                            match command {
-                                PlayerCommand::Test(text) => {
-                                    if is_player {
-                                        println!("I said '{}' in tick {}", text, target_tick.0);
-                                    } else {
-                                        println!("{} said '{}' in tick {}", command_username, text, target_tick.0);
-                                    }
-                                }
-                                PlayerCommand::SetTargetPosition(..) => {}
-                                PlayerCommand::SpawnUnit(..) => {}
-                            }
-                        }
-                    } else {
-                        println!("Unknown player sent a command!");
-                    }
-                }
-
-                most_recent_tick.0 = most_recent_server_tick.0.0;
-
-                let message = bincode::serialize(&ClientUpdateTick {
-                    current_tick: *most_recent_tick,
-                    commands: to_sync_commands.clone().0,
-                }).unwrap();
-
-                to_sync_commands.reset();
-                client.send_message(ClientChannel::ClientTick.id(), message);
             }
             _ => {
                 panic!("Unexpected message on ServerTick channel");
             }
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+pub struct SerializableTransform {
+    pub translation: Vec3,
+    pub rotation: Quat,
+    pub scale: Vec3,
+}
+
+impl SerializableTransform {
+    pub fn from_transform(transform: Transform) -> Self {
+        Self {
+            translation: transform.translation,
+            rotation: transform.rotation,
+            scale: transform.scale,
         }
     }
 }

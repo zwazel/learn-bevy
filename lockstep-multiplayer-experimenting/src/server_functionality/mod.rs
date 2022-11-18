@@ -4,10 +4,10 @@ use std::time::SystemTime;
 use bevy::prelude::{Commands, default, Deref, DerefMut, EventReader, ResMut, Resource};
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerLobby, ServerTick, Tick, Username};
-use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
+use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, CurrentServerTick, Tick, Username};
+use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use crate::ServerChannel::ServerMessages;
-use crate::ServerMessages::{PlayerCreate, PlayerRemove};
+use crate::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
 
 /// Utility function for extracting a players name from renet user data
 pub fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String {
@@ -37,6 +37,35 @@ pub fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> Renet
     }
 }
 
+pub fn fixed_time_step_server(
+    mut server_tick: ResMut<CurrentServerTick>,
+    mut synced_commands: ResMut<ServerSyncedPlayerCommandsList>,
+    mut server: Option<ResMut<RenetServer>>,
+) {
+    if let Some(server) = server.as_mut() { // we're server
+        let server_tick = server_tick.as_mut();
+
+        let commands = synced_commands.0.0.get(&Tick(server_tick.get()));
+
+        server_tick.increment();
+
+        let message = bincode::serialize(&UpdateTick {
+            target_tick: server_tick.0,
+            commands: {
+                if let Some(commands) = commands {
+                    commands.clone()
+                } else {
+                    SyncedPlayerCommand::default()
+                }
+            },
+        }).unwrap();
+
+        synced_commands.0.0.insert(server_tick.0, SyncedPlayerCommand(PlayerCommandsList::default(), MyDateTime::now()));
+
+        server.broadcast_message(ServerChannel::ServerTick.id(), message);
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn server_update_system(
     mut server_events: EventReader<ServerEvent>,
@@ -44,7 +73,7 @@ pub fn server_update_system(
     mut lobby: ResMut<ServerLobby>,
     mut server: ResMut<RenetServerResource>,
     mut client_ticks: ResMut<ClientTicks>,
-    mut server_ticks: ResMut<ServerTick>,
+    mut server_ticks: ResMut<CurrentServerTick>,
     mut synced_commands: ResMut<ServerSyncedPlayerCommandsList>,
 ) {
     let server = &mut server.server;
@@ -121,7 +150,7 @@ pub fn server_update_system(
             let client_message: ClientMessages = bincode::deserialize(&message).unwrap();
 
             match client_message {
-                ClientMessages::ClientUpdateTick { current_tick, commands } => {
+                ClientMessages::ClientUpdateTick { current_tick, commands} => {
                     let client_tick = client_ticks.0.get_mut(&PlayerId(client_id)).unwrap();
 
                     client_tick.0 = current_tick.0;
