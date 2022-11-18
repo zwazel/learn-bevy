@@ -13,8 +13,7 @@ use bevy::reflect::erased_serde::Deserializer;
 use bevy::render::camera::RenderTarget;
 use bevy::window::CursorGrabMode;
 use bevy_egui::egui::{lerp, remap_clamp};
-use bevy_mod_picking::{PickableBundle, PickingCamera, RayCastSource};
-use bevy_mod_raycast::{Ray3d, RayCastMethod};
+use bevy_mod_picking::{PickableBundle, PickingCamera};
 use bevy_rapier3d::parry::transformation::utils::transform;
 use bevy_rapier3d::plugin::RapierContext;
 use bevy_rapier3d::prelude::{InteractionGroups, QueryFilter};
@@ -301,20 +300,19 @@ pub fn move_camera(
 
 pub fn fixed_time_step_client(
     mut to_sync_commands: ResMut<CommandQueue>,
-    target_assets: Res<TargetAssets>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut unit_query: Query<(Entity, Option<&MoveTarget>, Option<&PlayerControlled>, Option<&OtherPlayerControlled>), With<Unit>>,
     camera_movement: Res<CameraMovement>,
     mut q_camera: Query<&mut Transform, With<MainCamera>>,
     mut players: Query<(Entity, &mut Player, &mut Transform), Without<MainCamera>>,
     mut bevy_commands: Commands,
-    mut client: ResMut<RenetClient>,
+    mut client: ResMut<RenetClientResource>,
     mut lobby: ResMut<ClientLobby>,
     mut most_recent_tick: ResMut<Tick>,
     mut most_recent_server_tick: ResMut<LocalServerTick>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
 ) {
+    let mut client = &mut client.client;
     let client_id = client.client_id();
     let mut camera_transform = q_camera.single_mut();
 
@@ -332,60 +330,24 @@ pub fn fixed_time_step_client(
                         }
                     }
                     PlayerCommand::SetTargetPosition(x, y) => {
-                        let target_entity = bevy_commands
-                            .spawn_bundle(SpriteBundle {
-                                texture: if is_player {
-                                    target_assets.friendly_target.clone()
-                                } else {
-                                    target_assets.enemy_target.clone()
-                                },
-                                transform: Transform::from_xyz(x, y, 0.0),
-                                ..Default::default()
-                            })
-                            .insert(Target(player_id))
-                            .id();
-                        if is_player {
-                            bevy_commands.entity(target_entity).insert(PlayerControlled);
-                        } else {
-                            bevy_commands.entity(target_entity).insert(OtherPlayerControlled(player_id));
-                        }
-
-                        for (entity, optional_move_target, optional_player_controlled, optional_other_controlled) in unit_query.iter_mut() {
-                            let mut add_command = false;
-
-                            if let Some(PlayerControlled) = optional_player_controlled {
-                                if is_player {
-                                    add_command = true;
-                                }
-                            } else if let Some(OtherPlayerControlled(other_player_id)) = optional_other_controlled {
-                                if other_player_id.0 == player_id.0 {
-                                    add_command = true;
-                                }
-                            }
-
-                            if add_command {
-                                if let Some(_) = optional_move_target {
-                                    bevy_commands.entity(entity).remove::<MoveTarget>();
-                                }
-
-                                bevy_commands.entity(entity).insert(MoveTarget(x, y));
-                            }
-                        }
+                        println!("{} set target position to ({}, {}) in tick {}", command_username, x, y, most_recent_server_tick.get());
                     }
                     PlayerCommand::SpawnUnit(vec3) => {
-                        let unit_entity = bevy_commands.spawn()
-                            .insert_bundle(PbrBundle {
-                                mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-                                material: if is_player {
-                                    materials.add(Color::rgb(0.8, 0.7, 0.6).into())
-                                } else {
-                                    materials.add(Color::rgb(0.6, 0.7, 0.8).into())
+                        let unit_entity = bevy_commands
+                            .spawn((
+                                PbrBundle {
+                                    mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+                                    material: if is_player {
+                                        materials.add(Color::rgb(0.8, 0.7, 0.6).into())
+                                    } else {
+                                        materials.add(Color::rgb(0.6, 0.7, 0.8).into())
+                                    },
+                                    transform: Transform::from_xyz(vec3.x, vec3.y + 0.5, vec3.z),
+                                    ..default()
                                 },
-                                transform: Transform::from_xyz(vec3.x, vec3.y + 0.5, vec3.z),
-                                ..default()
-                            })
-                            .insert_bundle(PickableBundle::default())
-                            .insert(Unit)
+                                PickableBundle::default(),
+                                Unit
+                            ))
                             .id();
 
                         if is_player {
@@ -447,12 +409,14 @@ pub fn client_update_system(
             ServerMessages::PlayerCreate { player, entity } => {
                 let is_player = client_id == player.id.0;
 
-                let client_entity = bevy_commands.spawn()
-                    .insert(Player {
-                        id: player.id,
-                        username: player.username.clone(),
-                        entity: None,
-                    })
+                let client_entity = bevy_commands
+                    .spawn((
+                        Player {
+                            id: player.id,
+                            username: player.username.clone(),
+                            entity: None,
+                        },
+                    ))
                     .id();
 
                 if is_player {
@@ -461,14 +425,12 @@ pub fn client_update_system(
                 } else {
                     println!("Player {} connected to the server.", player.username);
                     bevy_commands.entity(client_entity)
-                        .insert_bundle(
-                            PbrBundle {
-                                mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-                                material: materials.add(Color::YELLOW_GREEN.into()),
-                                transform: Transform::from_xyz(0.0, 2.5, 5.0),
-                                ..default()
-                            }
-                        )
+                        .insert(PbrBundle {
+                            mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+                            material: materials.add(Color::YELLOW_GREEN.into()),
+                            transform: Transform::from_xyz(0.0, 2.5, 5.0),
+                            ..default()
+                        })
                         .insert(OtherPlayerCamera(player.id));
                 }
 

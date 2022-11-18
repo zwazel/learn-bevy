@@ -13,7 +13,7 @@ use bevy::DefaultPlugins;
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::reflect::GetPath;
-use bevy::window::{PresentMode};
+use bevy::window::PresentMode;
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
 use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, HighlightablePickingPlugins, PickableBundle, PickingCameraBundle};
@@ -28,7 +28,7 @@ use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
-use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, fixed_time_step_client, move_camera, move_units, new_renet_client, raycast_to_world};
+use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, fixed_time_step_client, move_camera, move_units, new_renet_client, raycast_to_world, RenetClientResource};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
 use lockstep_multiplayer_experimenting::physic_stuff::PlaceableSurface;
@@ -267,18 +267,20 @@ fn setup_scene(mut commands: Commands,
 ) {
     // plane
     let floor_size = 20.0;
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Plane { size: floor_size })),
-        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
-        transform: Transform::from_xyz(0.0, 0.0, 0.0),
-        ..default()
-    })
-        .insert_bundle(PickableBundle::default())
-        .with_children(|children| {
-            children.spawn()
-                .insert(Collider::cuboid(floor_size / 2.0, 0.0, floor_size / 2.0));
+    commands
+        .spawn((
+            PickableBundle::default(),
+            PlaceableSurface,
+        ))
+        .insert(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Plane { size: floor_size })),
+            material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+            transform: Transform::from_xyz(0.0, 0.0, 0.0),
+            ..default()
         })
-        .insert(PlaceableSurface);
+        .with_children(|children| {
+            children.spawn(Collider::cuboid(floor_size / 2.0, 0.0, floor_size / 2.0));
+        });
     // cube
     commands.spawn((
         PbrBundle {

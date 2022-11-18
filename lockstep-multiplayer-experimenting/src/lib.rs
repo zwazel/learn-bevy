@@ -33,6 +33,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Resource)]
 pub struct CurrentServerTick(pub Tick);
 
+#[derive(Resource)]
 pub struct LocalServerTick(pub Tick);
 
 #[derive(Resource)]
@@ -137,7 +138,7 @@ impl Default for CameraMovement {
     }
 }
 
-#[derive(Debug, Component, Serialize, Deserialize, Clone)]
+#[derive(Debug, Component, Serialize, Deserialize, Clone, Resource)]
 pub struct CameraSettings {
     pub acceleration: f32,
     pub deceleration: f32,

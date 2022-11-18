@@ -4,7 +4,7 @@ use std::time::SystemTime;
 use bevy::prelude::{Commands, default, Deref, DerefMut, EventReader, ResMut, Resource};
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, CurrentServerTick, Tick, Username};
+use crate::{ClientChannel, ClientMessages, ClientTicks, CurrentServerTick, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, Tick, Username};
 use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use crate::ServerChannel::ServerMessages;
 use crate::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
@@ -40,9 +40,10 @@ pub fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> Renet
 pub fn fixed_time_step_server(
     mut server_tick: ResMut<CurrentServerTick>,
     mut synced_commands: ResMut<ServerSyncedPlayerCommandsList>,
-    mut server: Option<ResMut<RenetServer>>,
+    mut server: Option<ResMut<RenetServerResource>>,
 ) {
     if let Some(server) = server.as_mut() { // we're server
+        let mut server = &mut server.server;
         let server_tick = server_tick.as_mut();
 
         let commands = synced_commands.0.0.get(&Tick(server_tick.get()));
@@ -150,7 +151,7 @@ pub fn server_update_system(
             let client_message: ClientMessages = bincode::deserialize(&message).unwrap();
 
             match client_message {
-                ClientMessages::ClientUpdateTick { current_tick, commands} => {
+                ClientMessages::ClientUpdateTick { current_tick, commands } => {
                     let client_tick = client_ticks.0.get_mut(&PlayerId(client_id)).unwrap();
 
                     client_tick.0 = current_tick.0;
