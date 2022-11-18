@@ -73,14 +73,13 @@ pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit
     }
 }
 
+/// @credit <a href="https://github.com/hallettj/redstone-designer/blob/main/src/cursor.rs#L76">hallettj</a>
 pub fn raycast_to_world(
     windows: Res<Windows>,
     query_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     mouse_input: Res<Input<MouseButton>>,
     rapier_context: Res<RapierContext>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut commands_to_sync: ResMut<CommandQueue>,
 ) {
     if mouse_input.just_pressed(MouseButton::Left) {
         let (camera, camera_transform) = query_camera.single();
@@ -107,16 +106,10 @@ pub fn raycast_to_world(
                 // Callback called on each collider hit by the ray.
                 let hit_point = intersection.point;
                 let hit_normal = intersection.normal;
-                println!("Entity {:?} hit at point {} with normal {}", entity, hit_point, hit_normal);
 
-                commands.spawn()
-                    .insert_bundle(PbrBundle {
-                        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-                        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-                        transform: Transform::from_xyz(hit_point.x, hit_point.y + 0.5, hit_point.z),
-                        ..default()
-                    })
-                    .insert_bundle(PickableBundle::default());
+                let mut command = PlayerCommand::SpawnUnit(hit_point);
+
+                commands_to_sync.add_command(command);
 
                 true // Return `false` instead if we want to stop searching for other hits.
             });
@@ -302,7 +295,8 @@ pub fn move_camera(
 pub fn fixed_time_step_client(
     mut to_sync_commands: ResMut<CommandQueue>,
     target_assets: Res<TargetAssets>,
-    unit_assets: Res<UnitAssets>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
     mut unit_query: Query<(Entity, Option<&MoveTarget>, Option<&PlayerControlled>, Option<&OtherPlayerControlled>), With<Unit>>,
     camera_movement: Res<CameraMovement>,
     mut q_camera: Query<&mut Transform, With<MainCamera>>,
@@ -371,17 +365,19 @@ pub fn fixed_time_step_client(
                             }
                         }
                     }
-                    PlayerCommand::SpawnUnit(x, y) => {
-                        let unit_entity = bevy_commands
-                            .spawn_bundle(SpriteBundle {
-                                texture: if is_player {
-                                    unit_assets.friendly.clone()
+                    PlayerCommand::SpawnUnit(vec3) => {
+                        let unit_entity = bevy_commands.spawn()
+                            .insert_bundle(PbrBundle {
+                                mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+                                material: if is_player {
+                                    materials.add(Color::rgb(0.8, 0.7, 0.6).into())
                                 } else {
-                                    unit_assets.enemy.clone()
+                                    materials.add(Color::rgb(0.6, 0.7, 0.8).into())
                                 },
-                                transform: Transform::from_xyz(x, y, 0.0),
-                                ..Default::default()
+                                transform: Transform::from_xyz(vec3.x, vec3.y + 0.5, vec3.z),
+                                ..default()
                             })
+                            .insert_bundle(PickableBundle::default())
                             .insert(Unit)
                             .id();
 

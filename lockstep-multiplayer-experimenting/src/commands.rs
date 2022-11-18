@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Display, Formatter};
 use std::time::{Instant, SystemTime};
+use bevy::math::Vec3;
 use bevy::prelude::{Deref, DerefMut};
 
 use bevy::render::render_resource::MapMode;
@@ -16,7 +17,7 @@ use crate::client_functionality::SerializableTransform;
 pub enum PlayerCommand {
     Test(String),
     SetTargetPosition(f32, f32),
-    SpawnUnit(f32, f32),
+    SpawnUnit(Vec3),
     UpdatePlayerPosition(CameraMovement, SerializableTransform),
 }
 
@@ -25,7 +26,7 @@ impl PlayerCommand {
         match (self, other) {
             (PlayerCommand::Test(a), PlayerCommand::Test(b)) => a == b,
             (PlayerCommand::SetTargetPosition(a_x, a_y), PlayerCommand::SetTargetPosition(b_x, b_y)) => a_x == b_x && a_y == b_y,
-            (PlayerCommand::SpawnUnit(a_x, a_b), PlayerCommand::SpawnUnit(b_x, b_y)) => a_x == b_x && a_b == b_y,
+            (PlayerCommand::SpawnUnit(vec_a), PlayerCommand::SpawnUnit(vec_b)) => vec_a.x == vec_b.x && vec_a.y == vec_b.y && vec_a.z == vec_b.z,
             _ => false
         }
     }
@@ -36,7 +37,7 @@ impl Display for PlayerCommand {
         match self {
             Self::Test(s) => write!(f, "Test({})", s),
             Self::SetTargetPosition(x, y) => write!(f, "SetTargetPosition({}, {})", x, y),
-            Self::SpawnUnit(x, y) => write!(f, "SpawnUnit({}, {})", x, y),
+            Self::SpawnUnit(vec) => write!(f, "SpawnUnit({}, {}, {})", vec.x, vec.y, vec.z),
             Self::UpdatePlayerPosition(movement, transform) => write!(f, "UpdatePlayerPosition({:?}, {:?})", movement, transform),
         }
     }
