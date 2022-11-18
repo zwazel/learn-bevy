@@ -17,8 +17,7 @@ use bevy_mod_picking::{PickableBundle, PickingCamera, RayCastSource};
 use bevy_mod_raycast::{Ray3d, RayCastMethod};
 use bevy_rapier3d::parry::transformation::utils::transform;
 use bevy_rapier3d::plugin::RapierContext;
-use bevy_rapier3d::prelude::{InteractionGroups, QueryFilter};
-use bevy_rapier3d::rapier::prelude::Ray;
+use bevy_rapier3d::prelude::{Collider, CollisionGroups, Group, InteractionGroups, QueryFilter};
 use nalgebra::ComplexField;
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
@@ -97,7 +96,9 @@ pub fn raycast_to_world(
             camera_transform,
         );
         let solid = true;
-        let groups = InteractionGroups::all();
+        let group = 0b0010;
+        // println!("Group: {}", group);
+        let groups = InteractionGroups::new(group.into(), group.into());
         let filter = QueryFilter::new().groups(groups);
         let max_toi = 1000.0;
 
@@ -115,7 +116,7 @@ pub fn raycast_to_world(
 
                 commands_to_sync.add_command(command);
 
-                true // Return `false` instead if we want to stop searching for other hits.
+                false // Return `false` instead if we want to stop searching for other hits.
             });
     }
 }
@@ -202,6 +203,8 @@ pub fn move_camera(
         }
     }
     if keyboard_input.pressed(KeyCode::R) {
+        camera_movement.mouse_yaw = 0.0;
+        camera_movement.mouse_pitch = 0.0;
         camera_transform.rotation = Quat::from_rotation_y(0.0);
     }
     if keyboard_input.pressed(KeyCode::Q) {
@@ -371,26 +374,44 @@ pub fn fixed_time_step_client(
                     }
                     PlayerCommand::SpawnUnit(vec3) => {
                         let unit_entity = bevy_commands.spawn()
-                            .insert_bundle(PbrBundle {
+                            .insert_bundle(SpatialBundle {
+                                transform: Transform::from_xyz(vec3.x, vec3.y + 0.5, vec3.z),
+                                ..Default::default()
+                            })
+                            .insert(Unit)
+                            .id();
+
+                        let collider = bevy_commands
+                            .spawn_bundle(PbrBundle {
                                 mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
                                 material: if is_player {
                                     materials.add(Color::rgb(0.8, 0.7, 0.6).into())
                                 } else {
                                     materials.add(Color::rgb(0.6, 0.7, 0.8).into())
                                 },
-                                transform: Transform::from_xyz(vec3.x, vec3.y + 0.5, vec3.z),
                                 ..default()
                             })
-                            .insert(Unit)
+                            .with_children(|parent| {
+                                parent.spawn()
+                                    .insert(Collider::cuboid(0.5, 0.5, 0.5))
+                                    .insert(CollisionGroups::new(Group::GROUP_1, Group::GROUP_1))
+                                    .insert_bundle(TransformBundle {
+                                        ..Default::default()
+                                    });
+                            })
                             .id();
 
                         if is_player {
                             bevy_commands.entity(unit_entity)
-                                .insert(PlayerControlled)
+                                .insert(PlayerControlled);
+                            bevy_commands.entity(collider)
                                 .insert_bundle(PickableBundle::default());
                         } else {
-                            bevy_commands.entity(unit_entity).insert(OtherPlayerControlled(player_id));
+                            bevy_commands.entity(unit_entity)
+                                .insert(OtherPlayerControlled(player_id));
                         }
+
+                        bevy_commands.entity(unit_entity).push_children(&[collider]);
                     }
                     PlayerCommand::UpdatePlayerPosition(_movement, transform) => {
                         if let Some(_player_info) = lobby.0.get_mut(&player_id) {

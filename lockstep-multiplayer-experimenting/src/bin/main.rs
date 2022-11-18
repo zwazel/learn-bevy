@@ -299,7 +299,11 @@ fn setup_scene(mut commands: Commands,
     })
         .with_children(|children| {
             children.spawn()
-                .insert(Collider::cuboid(floor_size / 2.0, 0.0, floor_size / 2.0));
+                .insert(Collider::cuboid(floor_size / 2.0, 0.0, floor_size / 2.0))
+                .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_2))
+                .insert_bundle(TransformBundle {
+                    ..Default::default()
+                });
         })
         .insert(PlaceableSurface);
 }
