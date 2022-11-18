@@ -297,7 +297,6 @@ fn setup_scene(mut commands: Commands,
         transform: Transform::from_xyz(0.0, 0.0, 0.0),
         ..default()
     })
-        .insert_bundle(PickableBundle::default())
         .with_children(|children| {
             children.spawn()
                 .insert(Collider::cuboid(floor_size / 2.0, 0.0, floor_size / 2.0));
