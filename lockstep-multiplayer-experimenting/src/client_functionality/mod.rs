@@ -100,12 +100,15 @@ pub fn raycast_to_world(
         let filter = QueryFilter::new().groups(groups);
         let max_toi = 1000.0;
 
+        // let hits: Vec<()>
+
         rapier_context.intersections_with_ray(
             ray_pos, ray_dir, max_toi, solid, filter,
             |entity, intersection| {
                 // Callback called on each collider hit by the ray.
                 let hit_point = intersection.point;
                 let hit_normal = intersection.normal;
+                let hit_toi = intersection.toi;
 
                 let mut command = PlayerCommand::SpawnUnit(hit_point);
 
@@ -142,7 +145,7 @@ fn ray_from_screenspace(
 }
 
 pub fn move_camera(
-    mut q_camera: Query<&mut Transform, With<MainCamera>>,
+    mut q_camera: Query<&mut Transform, (With<MainCamera>, Without<Camera>)>,
     keyboard_input: Res<Input<KeyCode>>,
     mouse_input: Res<Input<MouseButton>>,
     mut motion_evr: EventReader<MouseMotion>,
@@ -299,8 +302,8 @@ pub fn fixed_time_step_client(
     mut meshes: ResMut<Assets<Mesh>>,
     mut unit_query: Query<(Entity, Option<&MoveTarget>, Option<&PlayerControlled>, Option<&OtherPlayerControlled>), With<Unit>>,
     camera_movement: Res<CameraMovement>,
-    mut q_camera: Query<&mut Transform, With<MainCamera>>,
-    mut players: Query<(Entity, &mut Player, &mut Transform), Without<MainCamera>>,
+    mut q_camera: Query<&mut Transform, (With<MainCamera>, Without<Camera>)>,
+    mut players: Query<(Entity, &mut Player, &mut Transform), (Without<MainCamera>)>,
     mut bevy_commands: Commands,
     mut client: ResMut<RenetClient>,
     mut lobby: ResMut<ClientLobby>,
@@ -394,6 +397,8 @@ pub fn fixed_time_step_client(
                                     entity_transform.translation = transform.translation;
                                     entity_transform.rotation = transform.rotation;
                                     entity_transform.scale = transform.scale;
+
+                                    break;
                                 }
                             }
                         }
@@ -452,16 +457,36 @@ pub fn client_update_system(
                     println!("You're now connected to the server!")
                 } else {
                     println!("Player {} connected to the server.", player.username);
+
                     bevy_commands.entity(client_entity)
-                        .insert_bundle(
-                            PbrBundle {
-                                mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-                                material: materials.add(Color::YELLOW_GREEN.into()),
-                                transform: Transform::from_xyz(0.0, 2.5, 5.0),
-                                ..default()
-                            }
-                        )
-                        .insert(OtherPlayerCamera(player.id));
+                        .insert(OtherPlayerControlled(player.id))
+                        .insert_bundle(SpatialBundle {
+                            transform: Transform::from_xyz(0.0, 2.5, 5.0),
+                            ..default()
+                        })
+                        .with_children(|children| {
+                            children
+                                .spawn_bundle(SpotLightBundle {
+                                    spot_light: SpotLight {
+                                        range: 100.0,
+                                        ..Default::default()
+                                    },
+                                    ..Default::default()
+                                });
+                            children
+                                .spawn_bundle(PbrBundle {
+                                    mesh: meshes.add(Mesh::from(shape::Cube { size: 0.1 })),
+                                    material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+                                    transform: Transform::from_xyz(0.0, 0.0, -1.5),
+                                    ..Default::default()
+                                });
+                            children
+                                .spawn_bundle(PbrBundle {
+                                    mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+                                    material: materials.add(Color::YELLOW_GREEN.into()),
+                                    ..default()
+                                });
+                        });
                 }
 
                 let player_info = PlayerInfo {

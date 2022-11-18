@@ -184,6 +184,9 @@ impl Default for CameraSettings {
 #[derive(Component)]
 pub struct MainCamera;
 
+#[derive(Component)]
+pub struct CameraLight;
+
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 pub enum GameState {
     Loading,
