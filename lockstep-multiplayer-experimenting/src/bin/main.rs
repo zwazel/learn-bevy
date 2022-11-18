@@ -253,8 +253,6 @@ struct AmountPlayers(usize);
 
 fn setup_camera(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let spatial_bundle = commands
         .spawn_bundle(SpatialBundle {
@@ -274,7 +272,9 @@ fn setup_camera(
     let light = commands
         .spawn_bundle(SpotLightBundle {
             spot_light: SpotLight {
-                range: 100.0,
+                range: 500.0,
+                intensity: 1000.0,
+                shadows_enabled: true,
                 ..Default::default()
             },
             ..Default::default()
@@ -303,16 +303,6 @@ fn setup_scene(mut commands: Commands,
                 .insert(Collider::cuboid(floor_size / 2.0, 0.0, floor_size / 2.0));
         })
         .insert(PlaceableSurface);
-    // light
-    // commands.spawn_bundle(PointLightBundle {
-    //     point_light: PointLight {
-    //         intensity: 1500.0,
-    //         shadows_enabled: true,
-    //         ..default()
-    //     },
-    //     transform: Transform::from_xyz(4.0, 8.0, 4.0),
-    //     ..default()
-    // });
 }
 
 fn fade_away_targets(

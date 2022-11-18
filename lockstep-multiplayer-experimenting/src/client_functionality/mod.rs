@@ -8,6 +8,7 @@ use bevy::ecs::query::OrFetch;
 use bevy::input::Input;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::math::{DQuat, Vec2, Vec3};
+use bevy::pbr::NotShadowCaster;
 use bevy::prelude::*;
 use bevy::reflect::erased_serde::Deserializer;
 use bevy::render::camera::RenderTarget;
@@ -380,12 +381,13 @@ pub fn fixed_time_step_client(
                                 transform: Transform::from_xyz(vec3.x, vec3.y + 0.5, vec3.z),
                                 ..default()
                             })
-                            .insert_bundle(PickableBundle::default())
                             .insert(Unit)
                             .id();
 
                         if is_player {
-                            bevy_commands.entity(unit_entity).insert(PlayerControlled);
+                            bevy_commands.entity(unit_entity)
+                                .insert(PlayerControlled)
+                                .insert_bundle(PickableBundle::default());
                         } else {
                             bevy_commands.entity(unit_entity).insert(OtherPlayerControlled(player_id));
                         }
@@ -468,7 +470,9 @@ pub fn client_update_system(
                             children
                                 .spawn_bundle(SpotLightBundle {
                                     spot_light: SpotLight {
-                                        range: 100.0,
+                                        range: 500.0,
+                                        intensity: 1000.0,
+                                        shadows_enabled: true,
                                         ..Default::default()
                                     },
                                     ..Default::default()
@@ -479,7 +483,8 @@ pub fn client_update_system(
                                     material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
                                     transform: Transform::from_xyz(0.0, 0.0, -1.5),
                                     ..Default::default()
-                                });
+                                })
+                                .insert(NotShadowCaster);
                             children
                                 .spawn_bundle(PbrBundle {
                                     mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
