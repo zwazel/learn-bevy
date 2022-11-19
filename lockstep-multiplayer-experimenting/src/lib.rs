@@ -243,6 +243,7 @@ pub struct Player {
     pub id: PlayerId,
     pub username: Username,
     pub entity: Option<Entity>,
+    pub movement: Option<CameraMovement>,
 }
 
 #[derive(Debug, Clone, Component, Serialize, Deserialize)]
@@ -266,6 +267,7 @@ impl Default for Player {
             id: PlayerId(0),
             username: Self::default_username(),
             entity: None,
+            movement: None
         }
     }
 }

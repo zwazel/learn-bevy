@@ -304,6 +304,23 @@ pub fn move_camera(
     }
 }
 
+pub fn interpolate_movement_of_other_players(
+    mut players: Query<(Entity, &mut Player, &mut Transform), (Without<MainCamera>)>,
+    time: Res<Time>,
+) {
+    let camera_settings = CameraSettings::default();
+
+    for (_, mut player, mut entity_transform) in players.iter_mut() {
+        let player: &mut Player = &mut player;
+        let entity_transform: &mut Transform = &mut entity_transform;
+        if let Some(player_movement) = player.movement {
+            if player_movement.velocity.length() != 0.0 {
+                entity_transform.translation += player_movement.velocity * time.delta_seconds();
+            }
+        }
+    }
+}
+
 pub fn fixed_time_step_client(
     mut to_sync_commands: ResMut<CommandQueue>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -426,13 +443,15 @@ pub fn fixed_time_step_client(
 
                         bevy_commands.entity(unit_entity).push_children(&[collider]);
                     }
-                    PlayerCommand::UpdatePlayerPosition(_movement, transform) => {
+                    PlayerCommand::UpdatePlayerPosition(movement, transform) => {
                         if let Some(_player_info) = lobby.0.get_mut(&player_id) {
                             for (_, mut player, mut entity_transform) in players.iter_mut() {
                                 if player.id.0 == player_id.0 {
                                     entity_transform.translation = transform.translation;
                                     entity_transform.rotation = transform.rotation;
                                     entity_transform.scale = transform.scale;
+
+                                    player.movement = Some(movement);
 
                                     break;
                                 }
@@ -486,6 +505,7 @@ pub fn client_update_system(
                             id: player.id,
                             username: player.username.clone(),
                             entity: None,
+                            movement: player.movement,
                         },
                     ))
                     .id();

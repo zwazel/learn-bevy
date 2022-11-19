@@ -101,6 +101,7 @@ pub fn server_update_system(
                     id: PlayerId(*id),
                     username: username.clone(),
                     entity: Some(player_entity),
+                    movement: None,
                 });
 
                 client_ticks.0.insert(PlayerId(*id), Tick::new());
@@ -110,6 +111,7 @@ pub fn server_update_system(
                         id: PlayerId(*id),
                         username: username.clone(),
                         entity: Some(player_entity),
+                        movement: None
                     },
                     entity: player_entity,
                 })
