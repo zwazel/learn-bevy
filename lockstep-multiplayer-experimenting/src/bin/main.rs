@@ -26,7 +26,7 @@ use rand::prelude::SliceRandom;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 use serde_json::json;
 
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraLight, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraLight, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, SAVE_REPLAY, server_connection_config, ServerChannel, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, create_new_units, fixed_time_step_client, move_camera, move_units, new_renet_client, place_move_target, raycast_to_world};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
@@ -49,6 +49,8 @@ fn translate_amount_players(amount_players: &str) -> usize {
     amount_players.parse::<usize>().unwrap_or(AMOUNT_PLAYERS)
 }
 
+struct SaveReplay(bool);
+
 fn main() {
     // env::set_var("RUST_BACKTRACE", "full");
 
@@ -60,6 +62,8 @@ fn main() {
     let mut my_type = ClientType::Client;
     let mut amount_of_players = AMOUNT_PLAYERS;
     let mut tickrate = TICKRATE;
+    let mut save_replay = SAVE_REPLAY;
+
     match args.len() {
         2 => {
             my_type = resolve_type(&args[1]);
@@ -106,9 +110,20 @@ fn main() {
 
             println!("Type has been set to: {}, Username has been set to: {}, Amount of players has been set to: {}, Host has been set to: {}, Port has been set to: {}, Tickrate has been set to: {}", my_type, username, amount_of_players, host, port, tickrate);
         }
+        8 => {
+            my_type = resolve_type(&args[1]);
+            username = args[2].clone();
+            amount_of_players = translate_amount_players(&args[3]);
+            host = translate_host(&args[4], "");
+            port = translate_port(&args[5]);
+            tickrate = args[6].parse::<u64>().unwrap_or(TICKRATE);
+            save_replay = args[7].parse::<bool>().unwrap_or(SAVE_REPLAY);
+
+            println!("Type has been set to: {}, Username has been set to: {}, Amount of players has been set to: {}, Host has been set to: {}, Port has been set to: {}, Tickrate has been set to: {}, save replay has been set to: {}", my_type, username, amount_of_players, host, port, tickrate, save_replay);
+        }
         _ => {
-            println!("Usage: client [ClientType: server/client] [username] [host] [port] [amount of players]");
-            println!("Default values:\n\tClientType: {}\n\tusername: {}\n\thost: {}\n\tport: {}\n\tamount players: {}", my_type, username, host, port, amount_of_players);
+            println!("Usage: client [ClientType: server/client] [username] [host] [port] [amount of players] [tickrate] [save replay]");
+            println!("Default values:\n\tClientType: {}\n\tusername: {}\n\thost: {}\n\tport: {}\n\tamount players: {}\n\ttickrate: {}\n\tsave replay: {}", my_type, username, host, port, amount_of_players, tickrate, save_replay);
         }
     }
 
@@ -146,6 +161,7 @@ fn main() {
     app.insert_resource(LocalServerTick::new());
     app.insert_resource(SyncedPlayerCommandsList::default());
     app.insert_resource(CommandQueue::default());
+    app.insert_resource(SaveReplay(save_replay));
 
     app.add_loading_state(
         LoadingState::new(GameState::Loading)
@@ -372,12 +388,15 @@ fn disconnect(
     client_lobby: Option<Res<ClientLobby>>,
     mut command_history: ResMut<SyncedPlayerCommandsList>,
     is_server: Option<Res<ServerMarker>>,
+    save_replay: Res<SaveReplay>,
 ) {
     if let Some(_) = events.iter().next() {
-        if let Some(client_lobby) = client_lobby.as_ref() {
-            let client_lobby = client_lobby.as_ref();
-            let username = client_lobby.get_username(PlayerId(client.client_id())).unwrap();
-            save_replays(username, command_history.borrow_mut());
+        if save_replay.0 {
+            if let Some(client_lobby) = client_lobby.as_ref() {
+                let client_lobby = client_lobby.as_ref();
+                let username = client_lobby.get_username(PlayerId(client.client_id())).unwrap();
+                save_replays(username, command_history.borrow_mut());
+            }
         }
 
         if let Some(_) = is_server {
