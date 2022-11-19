@@ -574,7 +574,7 @@ pub fn client_update_system(
                                 ..
                             }) = lobby.0.remove(&id)
                 {
-                    bevy_commands.entity(client_entity).despawn();
+                    bevy_commands.entity(client_entity).despawn_descendants();
                     network_mapping.0.remove(&server_entity);
                 }
 
