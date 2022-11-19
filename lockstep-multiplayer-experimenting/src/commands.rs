@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Display, Formatter};
 use std::time::{Instant, SystemTime};
-
+use bevy::prelude::Resource;
 use bevy::math::Vec3;
 use bevy::prelude::{Deref, DerefMut};
 use bevy::render::render_resource::MapMode;
@@ -52,7 +52,7 @@ impl PlayerCommandsList {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Resource)]
 pub struct CommandQueue(pub Vec<PlayerCommand>);
 
 impl CommandQueue {
@@ -156,7 +156,7 @@ impl<'de> Deserialize<'de> for MyDateTime {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Resource)]
 pub struct SyncedPlayerCommandsList(pub BTreeMap<Tick, SyncedPlayerCommand>);
 
 impl SyncedPlayerCommandsList {
@@ -171,7 +171,8 @@ impl SyncedPlayerCommandsList {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+
+#[derive(Serialize, Deserialize, Debug, Resource)]
 pub struct ServerSyncedPlayerCommandsList(pub SyncedPlayerCommandsList);
 
 impl ServerSyncedPlayerCommandsList {

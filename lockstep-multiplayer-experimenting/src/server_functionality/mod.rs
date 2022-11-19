@@ -1,10 +1,10 @@
 use std::net::{SocketAddr, UdpSocket};
 use std::time::SystemTime;
 
-use bevy::prelude::{Commands, default, EventReader, ResMut};
+use bevy::prelude::{Commands, default, Deref, DerefMut, EventReader, ResMut, Resource};
 use renet::{NETCODE_USER_DATA_BYTES, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
 
-use crate::{ClientChannel, ClientMessages, ClientTicks, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, CurrentServerTick, Tick, Username};
+use crate::{ClientChannel, ClientMessages, ClientTicks, CurrentServerTick, Player, PlayerId, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, Tick, Username};
 use crate::commands::{MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use crate::ServerChannel::ServerMessages;
 use crate::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
@@ -27,6 +27,7 @@ pub fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> Renet
     let connection_config = server_connection_config();
     let server_config = ServerConfig::new(amount_of_player, PROTOCOL_ID, server_addr, ServerAuthentication::Unsecure);
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
+
     RenetServer::new(current_time, server_config, connection_config, socket).unwrap()
 }
 
@@ -87,12 +88,13 @@ pub fn server_update_system(
                 }
 
                 let player_entity = commands
-                    .spawn()
-                    .insert(Player {
-                        id: PlayerId(*id),
-                        username: username.clone(),
-                        ..default()
-                    })
+                    .spawn((
+                        Player {
+                            id: PlayerId(*id),
+                            username: username.clone(),
+                            ..default()
+                        },
+                    ))
                     .id();
 
                 lobby.0.insert(PlayerId(*id), Player {
@@ -140,7 +142,7 @@ pub fn server_update_system(
             let client_message: ClientMessages = bincode::deserialize(&message).unwrap();
 
             match client_message {
-                ClientMessages::ClientUpdateTick { current_tick, commands} => {
+                ClientMessages::ClientUpdateTick { current_tick, commands } => {
                     let client_tick = client_ticks.0.get_mut(&PlayerId(client_id)).unwrap();
 
                     client_tick.0 = current_tick.0;

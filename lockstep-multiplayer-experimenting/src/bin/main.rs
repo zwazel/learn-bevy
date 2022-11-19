@@ -13,11 +13,10 @@ use bevy::DefaultPlugins;
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::reflect::GetPath;
-use bevy::window::{PresentMode, WindowSettings};
+use bevy::window::PresentMode;
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
-use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, HighlightablePickingPlugins, PickableBundle, PickingCameraBundle};
-use bevy_mod_raycast::RayCastSource;
+use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, PickableBundle, PickingCameraBundle};
 use bevy_rapier3d::prelude::*;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::{DateTime, Utc};
@@ -27,7 +26,6 @@ use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetErr
 use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraLight, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, SAVE_REPLAY, server_connection_config, ServerChannel, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
-use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
 use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, create_new_units, fixed_time_step_client, move_camera, move_units, new_renet_client, place_move_target, raycast_to_world};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
@@ -49,6 +47,7 @@ fn translate_amount_players(amount_players: &str) -> usize {
     amount_players.parse::<usize>().unwrap_or(AMOUNT_PLAYERS)
 }
 
+#[derive(Resource)]
 struct SaveReplay(bool);
 
 fn main() {
@@ -131,20 +130,18 @@ fn main() {
 
     let mut app = App::new();
 
-    app.insert_resource(WindowDescriptor {
-        title: format!("Lockstep Experimenting <{}>", username),
-        width: 480.0,
-        height: 540.0,
-        present_mode: PresentMode::AutoNoVsync, // Reduce input latency
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+        window: WindowDescriptor {
+            title: format!("Lockstep Experimenting <{}>", username),
+            width: 480.0,
+            height: 540.0,
+            present_mode: PresentMode::AutoNoVsync, // Reduce input latency
+            ..default()
+        },
         ..default()
-    });
-    app.insert_resource(WindowSettings {
-        ..default()
-    });
-
-    app.add_plugins(DefaultPlugins);
-    app.add_plugin(RenetServerPlugin);
-    app.add_plugin(RenetClientPlugin);
+    }));
+    app.add_plugin(RenetClientPlugin::default());
+    app.add_plugin(RenetServerPlugin::default());
     app.add_plugins(DefaultPickingPlugins); // <- Adds Picking, Interaction, and Highlighting plugins.
     app.add_plugin(DebugCursorPickingPlugin); // <- Adds the green debug cursor.
     // app.add_plugin(DebugEventsPickingPlugin); // <- Adds debug event logging.
@@ -163,13 +160,13 @@ fn main() {
     app.insert_resource(CommandQueue::default());
     app.insert_resource(SaveReplay(save_replay));
 
-    app.add_loading_state(
-        LoadingState::new(GameState::Loading)
-            .continue_to_state(GameState::InGame)
-            .with_collection::<TargetAssets>()
-            .with_collection::<UnitAssets>()
-    );
-    app.add_state(GameState::Loading);
+    // app.add_loading_state(
+    //     LoadingState::new(GameState::Loading)
+    //         .continue_to_state(GameState::InGame)
+    //         .with_collection::<TargetAssets>()
+    //         .with_collection::<UnitAssets>()
+    // );
+    app.add_state(GameState::InGame);
     app.add_startup_system(setup_camera);
     app.add_startup_system(setup_scene);
 
@@ -187,7 +184,9 @@ fn main() {
             let mut fixed_update_server = SystemStage::parallel();
             fixed_update_server.add_system_set(
                 SystemSet::on_update(GameState::InGame)
-                    .with_system(fixed_time_step_server)
+                    .with_system(fixed_time_step_server
+                        .ambiguous_with(fixed_time_step_client)
+                    )
                     .with_run_criteria(run_server_time_step_if_in_sync)
             );
 
@@ -212,6 +211,12 @@ fn main() {
         FixedTimestepStage::from_stage(Duration::from_millis(tickrate), "FixedClientUpdate", fixed_update_client),
     );
 
+    app.add_system(move_camera
+        .label(MySystems::Movement)
+        .before(MySystems::Syncing)
+        .before(MySystems::CommandCollection)
+    );
+
     app.add_system_set(
         SystemSet::on_update(GameState::InGame)
             .with_system(
@@ -226,12 +231,11 @@ fn main() {
                 move_units
             )
             .with_system(
-                move_camera
-            )
-            .with_system(
                 create_new_units
+                    .label(MySystems::CommandCollection)
             ).with_system(
             place_move_target
+                .label(MySystems::CommandCollection)
         )
             .with_run_criteria(run_if_client_connected)
     );
@@ -260,20 +264,21 @@ fn loading_informer() {
     println!("Loading finished");
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[derive(SystemLabel)]
+#[derive(SystemLabel, Debug, Clone, PartialEq, Eq, Hash)]
 enum MySystems {
     CommandCollection,
     Syncing,
+    Movement,
 }
 
+#[derive(Resource)]
 struct AmountPlayers(usize);
 
 fn setup_camera(
     mut commands: Commands,
 ) {
     let spatial_bundle = commands
-        .spawn_bundle(SpatialBundle {
+        .spawn(SpatialBundle {
             transform: Transform::from_xyz(-2.0, 2.5, 5.0),
             ..default()
         })
@@ -282,13 +287,13 @@ fn setup_camera(
 
     // camera
     let camera = commands
-        .spawn_bundle(Camera3dBundle::default())
-        .insert_bundle(PickingCameraBundle::default())
+        .spawn(Camera3dBundle::default())
+        .insert(PickingCameraBundle::default())
         .insert(MainCamera)
         .id();
 
     let light = commands
-        .spawn_bundle(SpotLightBundle {
+        .spawn(SpotLightBundle {
             spot_light: SpotLight {
                 range: 500.0,
                 intensity: 1000.0,
@@ -309,15 +314,15 @@ fn setup_scene(mut commands: Commands,
 ) {
     // plane
     let floor_size = 20.0;
-    commands.spawn_bundle(PbrBundle {
+    commands.spawn(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Plane { size: floor_size })),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         transform: Transform::from_xyz(0.0, 0.0, 0.0),
         ..default()
     })
         .with_children(|children| {
-            children.spawn()
-                .insert(Collider::cuboid(floor_size / 2.0, 0.0, floor_size / 2.0))
+            children
+                .spawn(Collider::cuboid(floor_size / 2.0, 0.0, floor_size / 2.0))
                 .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_2))
                 .insert_bundle(TransformBundle {
                     ..Default::default()

@@ -6,7 +6,7 @@ use std::fmt::*;
 use std::time::*;
 
 use bevy::math::Vec3;
-use bevy::prelude::{Component, Deref, DerefMut, Entity, Transform, Vec2};
+use bevy::prelude::{Component, Deref, DerefMut, Entity, Transform, Vec2, Resource};
 use renet::{ChannelConfig, NETCODE_KEY_BYTES, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig};
 use serde::{Deserialize, Serialize};
 
@@ -31,12 +31,14 @@ pub const SAVE_REPLAY: bool = true;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct MousePosition(pub Vec2);
-
+#[derive(Resource)]
 pub struct CurrentServerTick(pub Tick);
 
+#[derive(Resource)]
 pub struct LocalServerTick(pub Tick);
+
+#[derive(Resource)]
+pub struct ServerMarker;
 
 impl LocalServerTick {
     pub fn new() -> Self {
@@ -59,8 +61,6 @@ impl LocalServerTick {
         self.0.reset();
     }
 }
-
-pub struct ServerMarker;
 
 impl CurrentServerTick {
     pub fn new() -> Self {
@@ -113,7 +113,7 @@ impl DefaultSpeeds {
     }
 }
 
-#[derive(Debug, Component, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Component, Serialize, Deserialize, Clone, Copy, PartialEq, Resource)]
 pub struct CameraMovement {
     // x = left/right y = up/down z = forward/backward
     pub velocity: Vec3,
@@ -139,7 +139,7 @@ impl Default for CameraMovement {
     }
 }
 
-#[derive(Debug, Component, Serialize, Deserialize, Clone)]
+#[derive(Debug, Component, Serialize, Deserialize, Clone, Resource)]
 pub struct CameraSettings {
     pub acceleration: f32,
     pub deceleration: f32,
@@ -194,7 +194,7 @@ pub enum GameState {
     InGame,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Component, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Component, PartialOrd, Resource)]
 pub struct Tick(pub i64);
 
 impl Ord for Tick {
@@ -235,7 +235,7 @@ impl Display for PlayerId {
 }
 
 // Clients last received ticks
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Resource)]
 pub struct ClientTicks(pub HashMap<PlayerId, Tick>);
 
 #[derive(Debug, Clone, Component, Serialize, Deserialize)]
@@ -270,7 +270,7 @@ impl Default for Player {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Resource)]
 pub struct ServerLobby(pub HashMap<PlayerId, Player>);
 
 impl ServerLobby {
@@ -279,6 +279,7 @@ impl ServerLobby {
     }
 }
 
+#[derive(Resource)]
 pub struct ClientLobby(pub HashMap<PlayerId, PlayerInfo>);
 
 impl Default for ClientLobby {
@@ -323,7 +324,7 @@ impl Display for ClientType {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 pub struct NetworkMapping(HashMap<Entity, Entity>);
 
 pub enum ClientChannel {
