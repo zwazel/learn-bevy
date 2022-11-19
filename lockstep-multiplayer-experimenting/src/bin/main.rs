@@ -28,7 +28,7 @@ use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraLight, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, server_connection_config, ServerChannel, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
 use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
-use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, fixed_time_step_client, move_camera, move_units, new_renet_client, raycast_to_world};
+use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, create_new_units, fixed_time_step_client, move_camera, move_units, new_renet_client, place_move_target, raycast_to_world};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
 use lockstep_multiplayer_experimenting::physic_stuff::PlaceableSurface;
@@ -213,8 +213,10 @@ fn main() {
                 move_camera
             )
             .with_system(
-                raycast_to_world
-            )
+                create_new_units
+            ).with_system(
+            place_move_target
+        )
             .with_run_criteria(run_if_client_connected)
     );
 
