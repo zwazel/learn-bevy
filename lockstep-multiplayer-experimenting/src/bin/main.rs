@@ -209,6 +209,12 @@ fn main() {
         FixedTimestepStage::from_stage(Duration::from_millis(tickrate), "FixedClientUpdate", fixed_update_client),
     );
 
+    app.add_system(move_camera
+        .label(MySystems::Movement)
+        .before(MySystems::Syncing)
+        .before(MySystems::CommandCollection)
+    );
+
     app.add_system_set(
         SystemSet::on_update(GameState::InGame)
             .with_system(
@@ -223,12 +229,11 @@ fn main() {
                 move_units
             )
             .with_system(
-                move_camera
-            )
-            .with_system(
                 create_new_units
+                    .label(MySystems::CommandCollection)
             ).with_system(
             place_move_target
+                .label(MySystems::CommandCollection)
         )
             .with_run_criteria(run_if_client_connected)
     );
@@ -261,6 +266,7 @@ fn loading_informer() {
 enum MySystems {
     CommandCollection,
     Syncing,
+    Movement,
 }
 
 #[derive(Resource)]

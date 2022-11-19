@@ -211,7 +211,7 @@ pub fn move_camera(
     );
 
     if mouse_input.just_pressed(MouseButton::Middle) {
-        window.set_cursor_grab_mode(CursorGrabMode::Locked);
+        window.set_cursor_grab_mode(CursorGrabMode::Confined);
         window.set_cursor_visibility(false);
         camera_movement.last_mouse_position = window.cursor_position().unwrap();
     }
