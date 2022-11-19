@@ -16,8 +16,7 @@ use bevy::reflect::GetPath;
 use bevy::window::PresentMode;
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
-use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, HighlightablePickingPlugins, PickableBundle, PickingCameraBundle};
-use bevy_mod_raycast::RayCastSource;
+use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, PickableBundle, PickingCameraBundle};
 use bevy_rapier3d::prelude::*;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
 use chrono::{DateTime, Utc};
@@ -27,8 +26,7 @@ use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetErr
 use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraLight, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, SAVE_REPLAY, server_connection_config, ServerChannel, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
-use lockstep_multiplayer_experimenting::asset_handling::{TargetAssets, UnitAssets};
-use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, create_new_units, fixed_time_step_client, move_camera, move_units, new_renet_client, place_move_target, raycast_to_world};
+use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, create_new_units, fixed_time_step_client, move_camera, move_units, new_renet_client, place_move_target, raycast_to_world, RenetClientResource};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
 use lockstep_multiplayer_experimenting::physic_stuff::PlaceableSurface;
@@ -49,6 +47,7 @@ fn translate_amount_players(amount_players: &str) -> usize {
     amount_players.parse::<usize>().unwrap_or(AMOUNT_PLAYERS)
 }
 
+#[derive(Resource)]
 struct SaveReplay(bool);
 
 fn main() {
@@ -231,7 +230,7 @@ fn main() {
             ).with_system(
             place_move_target
         )
-            .with_run_criteria(run_if_client_connected)
+            .with_run_criteria(my_run_if_client_connected)
     );
 
     app.add_system_set(
@@ -258,6 +257,13 @@ fn loading_informer() {
     println!("Loading finished");
 }
 
+pub fn my_run_if_client_connected(client: Option<Res<RenetClientResource>>) -> ShouldRun {
+    match client {
+        Some(client) if client.client.is_connected() => ShouldRun::Yes,
+        _ => ShouldRun::No,
+    }
+}
+
 #[derive(SystemLabel, Debug, Clone, PartialEq, Eq, Hash)]
 enum MySystems {
     CommandCollection,
@@ -271,7 +277,7 @@ fn setup_camera(
     mut commands: Commands,
 ) {
     let spatial_bundle = commands
-        .spawn_bundle(SpatialBundle {
+        .spawn(SpatialBundle {
             transform: Transform::from_xyz(-2.0, 2.5, 5.0),
             ..default()
         })
@@ -280,13 +286,13 @@ fn setup_camera(
 
     // camera
     let camera = commands
-        .spawn_bundle(Camera3dBundle::default())
-        .insert_bundle(PickingCameraBundle::default())
+        .spawn(Camera3dBundle::default())
+        .insert(PickingCameraBundle::default())
         .insert(MainCamera)
         .id();
 
     let light = commands
-        .spawn_bundle(SpotLightBundle {
+        .spawn(SpotLightBundle {
             spot_light: SpotLight {
                 range: 500.0,
                 intensity: 1000.0,
@@ -307,15 +313,15 @@ fn setup_scene(mut commands: Commands,
 ) {
     // plane
     let floor_size = 20.0;
-    commands.spawn_bundle(PbrBundle {
+    commands.spawn(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Plane { size: floor_size })),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         transform: Transform::from_xyz(0.0, 0.0, 0.0),
         ..default()
     })
         .with_children(|children| {
-            children.spawn()
-                .insert(Collider::cuboid(floor_size / 2.0, 0.0, floor_size / 2.0))
+            children
+                .spawn(Collider::cuboid(floor_size / 2.0, 0.0, floor_size / 2.0))
                 .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_2))
                 .insert_bundle(TransformBundle {
                     ..Default::default()

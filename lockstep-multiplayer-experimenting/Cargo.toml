@@ -26,7 +26,8 @@ renet_visualizer = "0.0.2"
 bevy_renet = "0.0.5"
 anyhow = "1.0.66"
 bevy_egui = "0.17.1"
-iyes_loopless = "0.8.0"
+# specific commit from git
+iyes_loopless = { git = "https://github.com/IyesGames/iyes_loopless", rev = "92ecd3cc6e97a833581f8a7caeb4a155fa649c08" }
 chrono = "0.4.22"
 bevy_asset_loader = "0.13.0"
 bevy_asset_loader_derive = "0.13.0"

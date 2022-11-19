@@ -386,8 +386,8 @@ pub fn fixed_time_step_client(
                             }
                         }
 
-                        let target_entity = bevy_commands.spawn()
-                            .insert_bundle(SpatialBundle {
+                        let target_entity = bevy_commands
+                            .spawn(SpatialBundle {
                                 transform: Transform::from_xyz(vec3.x, vec3.y + 0.5, vec3.z),
                                 ..Default::default()
                             })
@@ -395,7 +395,7 @@ pub fn fixed_time_step_client(
                             .id();
 
                         let collider = bevy_commands
-                            .spawn_bundle(PbrBundle {
+                            .spawn(PbrBundle {
                                 mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),
                                 material: if is_player {
                                     materials.add(Color::YELLOW.into())
@@ -405,10 +405,10 @@ pub fn fixed_time_step_client(
                                 ..default()
                             })
                             .with_children(|parent| {
-                                parent.spawn()
-                                    .insert(Collider::cuboid(0.25, 0.25, 0.25))
+                                parent
+                                    .spawn(Collider::cuboid(0.25, 0.25, 0.25))
                                     .insert(CollisionGroups::new(Group::GROUP_3, Group::GROUP_3))
-                                    .insert_bundle(TransformBundle {
+                                    .insert(TransformBundle {
                                         ..Default::default()
                                     });
                             })
@@ -423,8 +423,8 @@ pub fn fixed_time_step_client(
                         }
                     }
                     PlayerCommand::SpawnUnit(vec3) => {
-                        let unit_entity = bevy_commands.spawn()
-                            .insert_bundle(SpatialBundle {
+                        let unit_entity = bevy_commands
+                            .spawn(SpatialBundle {
                                 transform: Transform::from_xyz(vec3.x, vec3.y + 0.5, vec3.z),
                                 ..Default::default()
                             })
@@ -432,7 +432,7 @@ pub fn fixed_time_step_client(
                             .id();
 
                         let collider = bevy_commands
-                            .spawn_bundle(PbrBundle {
+                            .spawn(PbrBundle {
                                 mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
                                 material: if is_player {
                                     materials.add(Color::rgb(0.8, 0.7, 0.6).into())
@@ -442,10 +442,10 @@ pub fn fixed_time_step_client(
                                 ..default()
                             })
                             .with_children(|parent| {
-                                parent.spawn()
-                                    .insert(Collider::cuboid(0.5, 0.5, 0.5))
+                                parent
+                                    .spawn(Collider::cuboid(0.5, 0.5, 0.5))
                                     .insert(CollisionGroups::new(Group::GROUP_1, Group::GROUP_1))
-                                    .insert_bundle(TransformBundle {
+                                    .insert(TransformBundle {
                                         ..Default::default()
                                     });
                             })
@@ -455,7 +455,7 @@ pub fn fixed_time_step_client(
                             bevy_commands.entity(unit_entity)
                                 .insert(PlayerControlled);
                             bevy_commands.entity(collider)
-                                .insert_bundle(PickableBundle::default());
+                                .insert(PickableBundle::default());
                         } else {
                             bevy_commands.entity(unit_entity)
                                 .insert(OtherPlayerControlled(player_id));
@@ -536,13 +536,13 @@ pub fn client_update_system(
 
                     bevy_commands.entity(client_entity)
                         .insert(OtherPlayerControlled(player.id))
-                        .insert_bundle(SpatialBundle {
+                        .insert(SpatialBundle {
                             transform: Transform::from_xyz(0.0, 2.5, 5.0),
                             ..default()
                         })
                         .with_children(|children| {
                             children
-                                .spawn_bundle(SpotLightBundle {
+                                .spawn(SpotLightBundle {
                                     spot_light: SpotLight {
                                         range: 500.0,
                                         intensity: 1000.0,
@@ -552,7 +552,7 @@ pub fn client_update_system(
                                     ..Default::default()
                                 });
                             children
-                                .spawn_bundle(PbrBundle {
+                                .spawn(PbrBundle {
                                     mesh: meshes.add(Mesh::from(shape::Cube { size: 0.1 })),
                                     material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
                                     transform: Transform::from_xyz(0.0, 0.0, -1.5),
@@ -560,7 +560,7 @@ pub fn client_update_system(
                                 })
                                 .insert(NotShadowCaster);
                             children
-                                .spawn_bundle(PbrBundle {
+                                .spawn(PbrBundle {
                                     mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
                                     material: materials.add(Color::YELLOW_GREEN.into()),
                                     ..default()
