@@ -110,7 +110,6 @@ pub fn place_move_target(
     }
 }
 
-/// @credit <a href="https://github.com/hallettj/redstone-designer/blob/main/src/cursor.rs#L76">hallettj</a>
 pub fn raycast_to_world(
     windows: Res<Windows>,
     camera: &Camera,
@@ -123,13 +122,7 @@ pub fn raycast_to_world(
     } else {
         windows.get_primary().unwrap()
     };
-    let window_size = Vec2::new(window.width() as f32, window.height() as f32);
-    let (ray_pos, ray_dir) = ray_from_screenspace(
-        window_size,
-        window.cursor_position().unwrap(),
-        camera,
-        camera_transform,
-    );
+    let ray = camera.viewport_to_world(camera_transform, window.cursor_position().unwrap()).unwrap();
     let solid = true;
     let group = 0b0010;
     // println!("Group: {}", group);
@@ -140,7 +133,7 @@ pub fn raycast_to_world(
     let mut hits: Vec<(Entity, Vec3, Vec3, f32)> = Vec::new();
 
     rapier_context.intersections_with_ray(
-        ray_pos, ray_dir, max_toi, solid, filter,
+        ray.origin, ray.direction, max_toi, solid, filter,
         |entity, intersection| {
             // Callback called on each collider hit by the ray.
             let hit_point = intersection.point;
@@ -153,31 +146,6 @@ pub fn raycast_to_world(
         });
 
     hits
-}
-
-/// @credit <a href="https://github.com/hallettj/redstone-designer/blob/main/src/cursor.rs#L76">hallettj</a>
-/// Returns origin and direction for a ray from the camera through the cursor. This involves
-/// reversing the camera projection to map the cursor's coordinates in screen space to a set of
-/// coordinates in world space.
-fn ray_from_screenspace(
-    window_size: Vec2,
-    cursor_pos_screen: Vec2,
-    camera: &Camera,
-    camera_transform: &GlobalTransform,
-) -> (Vec3, Vec3) {
-    // convert screen position [0..resolution] to ndc [-1..1] (gpu coordinates)
-    let ndc = (cursor_pos_screen / window_size) * 2.0 - Vec2::ONE;
-
-    // matrix for undoing the projection and camera transform
-    let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
-
-    // use it to convert ndc to world-space coordinates
-    let cursor_pos_world = ndc_to_world.project_point3(ndc.extend(-1.0));
-
-    let origin = cursor_pos_world;
-    let ray_direction = (camera_transform.translation() - cursor_pos_world).normalize();
-
-    (origin, ray_direction)
 }
 
 pub fn move_camera(
