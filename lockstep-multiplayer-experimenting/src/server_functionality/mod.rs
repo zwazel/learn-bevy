@@ -19,12 +19,7 @@ pub fn name_from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> String 
     String::from_utf8(data).unwrap()
 }
 
-#[derive(Resource, Deref, DerefMut)]
-pub struct RenetServerResource {
-    pub server: RenetServer,
-}
-
-pub fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> RenetServerResource {
+pub fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> RenetServer {
     let server_addr: SocketAddr = format!("{}:{}", host, port)
         .parse()
         .unwrap();
@@ -32,18 +27,16 @@ pub fn new_renet_server(amount_of_player: usize, host: &str, port: i32) -> Renet
     let connection_config = server_connection_config();
     let server_config = ServerConfig::new(amount_of_player, PROTOCOL_ID, server_addr, ServerAuthentication::Unsecure);
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-    RenetServerResource {
-        server: RenetServer::new(current_time, server_config, connection_config, socket).unwrap(),
-    }
+
+    RenetServer::new(current_time, server_config, connection_config, socket).unwrap()
 }
 
 pub fn fixed_time_step_server(
     mut server_tick: ResMut<CurrentServerTick>,
     mut synced_commands: ResMut<ServerSyncedPlayerCommandsList>,
-    mut server: Option<ResMut<RenetServerResource>>,
+    mut server: Option<ResMut<RenetServer>>,
 ) {
     if let Some(server) = server.as_mut() { // we're server
-        let mut server = &mut server.server;
         let server_tick = server_tick.as_mut();
 
         let commands = synced_commands.0.0.get(&Tick(server_tick.get()));
@@ -72,13 +65,11 @@ pub fn server_update_system(
     mut server_events: EventReader<ServerEvent>,
     mut commands: Commands,
     mut lobby: ResMut<ServerLobby>,
-    mut server: ResMut<RenetServerResource>,
+    mut server: ResMut<RenetServer>,
     mut client_ticks: ResMut<ClientTicks>,
     mut server_ticks: ResMut<CurrentServerTick>,
     mut synced_commands: ResMut<ServerSyncedPlayerCommandsList>,
 ) {
-    let server = &mut server.server;
-
     for event in server_events.iter() {
         match event {
             ServerEvent::ClientConnected(id, user_data) => {

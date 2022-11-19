@@ -26,7 +26,7 @@ use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetErr
 use serde_json::json;
 
 use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraLight, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, SAVE_REPLAY, server_connection_config, ServerChannel, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
-use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, create_new_units, fixed_time_step_client, move_camera, move_units, new_renet_client, place_move_target, raycast_to_world, RenetClientResource};
+use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, create_new_units, fixed_time_step_client, move_camera, move_units, new_renet_client, place_move_target, raycast_to_world};
 use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
 use lockstep_multiplayer_experimenting::physic_stuff::PlaceableSurface;
@@ -140,8 +140,8 @@ fn main() {
         },
         ..default()
     }));
-    app.add_plugin(RenetServerPlugin);
-    app.add_plugin(RenetClientPlugin);
+    app.add_plugin(RenetClientPlugin::default());
+    app.add_plugin(RenetServerPlugin::default());
     app.add_plugins(DefaultPickingPlugins); // <- Adds Picking, Interaction, and Highlighting plugins.
     app.add_plugin(DebugCursorPickingPlugin); // <- Adds the green debug cursor.
     // app.add_plugin(DebugEventsPickingPlugin); // <- Adds debug event logging.
@@ -230,7 +230,7 @@ fn main() {
             ).with_system(
             place_move_target
         )
-            .with_run_criteria(my_run_if_client_connected)
+            .with_run_criteria(run_if_client_connected)
     );
 
     app.add_system_set(
@@ -255,13 +255,6 @@ fn setup_ui() {
 
 fn loading_informer() {
     println!("Loading finished");
-}
-
-pub fn my_run_if_client_connected(client: Option<Res<RenetClientResource>>) -> ShouldRun {
-    match client {
-        Some(client) if client.client.is_connected() => ShouldRun::Yes,
-        _ => ShouldRun::No,
-    }
 }
 
 #[derive(SystemLabel, Debug, Clone, PartialEq, Eq, Hash)]
@@ -388,13 +381,12 @@ fn run_if_tick_in_sync_client(
 ////////// RENET NETWORKING //////////
 fn disconnect(
     mut events: EventReader<AppExit>,
-    mut client: ResMut<RenetClientResource>,
+    mut client: ResMut<RenetClient>,
     client_lobby: Option<Res<ClientLobby>>,
     mut command_history: ResMut<SyncedPlayerCommandsList>,
     is_server: Option<Res<ServerMarker>>,
     save_replay: Res<SaveReplay>,
 ) {
-    let client = &mut client.client;
     if let Some(_) = events.iter().next() {
         if save_replay.0 {
             if let Some(client_lobby) = client_lobby.as_ref() {

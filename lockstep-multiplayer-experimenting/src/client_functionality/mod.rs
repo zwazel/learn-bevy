@@ -33,12 +33,7 @@ use crate::physic_stuff::PlaceableSurface;
 use crate::ServerMessages::UpdateTick;
 use crate::Speeds::{Normal, Sprint};
 
-#[derive(Resource, Deref, DerefMut)]
-pub struct RenetClientResource {
-    pub client: RenetClient,
-}
-
-pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClientResource {
+pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
     let server_addr = format!("{}:{}", host, port).parse().unwrap();
     let socket = UdpSocket::bind(format!("0.0.0.0:0")).unwrap();
     let connection_config = client_connection_config();
@@ -60,9 +55,7 @@ pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient
         user_data: Some(user_data),
     };
 
-    RenetClientResource {
-        client: RenetClient::new(current_time, socket, client_id, connection_config, authentication).unwrap(),
-    }
+    RenetClient::new(current_time, socket, connection_config, authentication).unwrap()
 }
 
 pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit>>, time: Res<Time>) {
@@ -350,13 +343,12 @@ pub fn fixed_time_step_client(
     mut q_camera: Query<&mut Transform, (With<MainCamera>, Without<Camera>)>,
     mut players: Query<(Entity, &mut Player, &mut Transform), (Without<MainCamera>)>,
     mut bevy_commands: Commands,
-    mut client: ResMut<RenetClientResource>,
+    mut client: ResMut<RenetClient>,
     mut lobby: ResMut<ClientLobby>,
     mut most_recent_tick: ResMut<Tick>,
     mut most_recent_server_tick: ResMut<LocalServerTick>,
     mut synced_commands: ResMut<SyncedPlayerCommandsList>,
 ) {
-    let mut client = &mut client.client;
     let client_id = client.client_id();
     let mut camera_transform = q_camera.single_mut();
 
@@ -500,7 +492,7 @@ pub fn fixed_time_step_client(
 
 pub fn client_update_system(
     mut bevy_commands: Commands,
-    mut client: ResMut<RenetClientResource>,
+    mut client: ResMut<RenetClient>,
     mut lobby: ResMut<ClientLobby>,
     mut network_mapping: ResMut<NetworkMapping>,
     mut most_recent_tick: ResMut<Tick>,
@@ -509,7 +501,6 @@ pub fn client_update_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let client = &mut client.client;
     let client_id = client.client_id();
 
     while let Some(message) = client.receive_message(ServerChannel::ServerMessages.id()) {
