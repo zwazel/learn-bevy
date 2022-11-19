@@ -235,7 +235,10 @@ pub fn move_camera(
             camera_movement.mouse_pitch -= event.delta.y * camera_settings.mouse_sensitivity * time.delta_seconds(); // up/down
             camera_movement.mouse_yaw -= event.delta.x * camera_settings.mouse_sensitivity * time.delta_seconds(); // left/right
         }
+    } else {
+        motion_evr.clear();
     }
+
     if keyboard_input.pressed(KeyCode::R) {
         camera_movement.mouse_yaw = 0.0;
         camera_movement.mouse_pitch = 0.0;

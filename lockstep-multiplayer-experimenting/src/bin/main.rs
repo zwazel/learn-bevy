@@ -184,7 +184,9 @@ fn main() {
             let mut fixed_update_server = SystemStage::parallel();
             fixed_update_server.add_system_set(
                 SystemSet::on_update(GameState::InGame)
-                    .with_system(fixed_time_step_server)
+                    .with_system(fixed_time_step_server
+                        .ambiguous_with(fixed_time_step_client)
+                    )
                     .with_run_criteria(run_server_time_step_if_in_sync)
             );
 
