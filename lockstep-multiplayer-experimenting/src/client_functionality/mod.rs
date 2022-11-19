@@ -8,6 +8,7 @@ use bevy::ecs::query::OrFetch;
 use bevy::input::Input;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::math::{DQuat, Vec2, Vec3};
+use bevy::pbr::NotShadowCaster;
 use bevy::prelude::*;
 use bevy::reflect::erased_serde::Deserializer;
 use bevy::render::camera::RenderTarget;
@@ -16,8 +17,7 @@ use bevy_egui::egui::{lerp, remap_clamp};
 use bevy_mod_picking::{PickableBundle, PickingCamera};
 use bevy_rapier3d::parry::transformation::utils::transform;
 use bevy_rapier3d::plugin::RapierContext;
-use bevy_rapier3d::prelude::{InteractionGroups, QueryFilter};
-use bevy_rapier3d::rapier::prelude::Ray;
+use bevy_rapier3d::prelude::{Collider, CollisionGroups, Group, InteractionGroups, QueryFilter};
 use nalgebra::ComplexField;
 use rand::Rng;
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
@@ -79,47 +79,87 @@ pub fn move_units(mut unit_query: Query<(&MoveTarget, &mut Transform), With<Unit
     }
 }
 
-/// @credit <a href="https://github.com/hallettj/redstone-designer/blob/main/src/cursor.rs#L76">hallettj</a>
-pub fn raycast_to_world(
+pub fn create_new_units(
     windows: Res<Windows>,
     query_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     mouse_input: Res<Input<MouseButton>>,
     rapier_context: Res<RapierContext>,
     mut commands_to_sync: ResMut<CommandQueue>,
 ) {
+    let (camera, camera_transform) = query_camera.single();
+
     if mouse_input.just_pressed(MouseButton::Left) {
-        let (camera, camera_transform) = query_camera.single();
-        let window = if let RenderTarget::Window(id) = camera.target {
-            windows.get(id).unwrap()
-        } else {
-            windows.get_primary().unwrap()
-        };
-        let window_size = Vec2::new(window.width() as f32, window.height() as f32);
-        let (ray_pos, ray_dir) = ray_from_screenspace(
-            window_size,
-            window.cursor_position().unwrap(),
-            camera,
-            camera_transform,
-        );
-        let solid = true;
-        let groups = InteractionGroups::all();
-        let filter = QueryFilter::new().groups(groups);
-        let max_toi = 1000.0;
+        let hits = raycast_to_world(windows, camera, camera_transform, rapier_context, false);
 
-        rapier_context.intersections_with_ray(
-            ray_pos, ray_dir, max_toi, solid, filter,
-            |entity, intersection| {
-                // Callback called on each collider hit by the ray.
-                let hit_point = intersection.point;
-                let hit_normal = intersection.normal;
-
-                let mut command = PlayerCommand::SpawnUnit(hit_point);
-
-                commands_to_sync.add_command(command);
-
-                true // Return `false` instead if we want to stop searching for other hits.
-            });
+        for hit in hits {
+            let mut command = PlayerCommand::SpawnUnit(hit.1);
+            commands_to_sync.add_command(command);
+        }
     }
+}
+
+pub fn place_move_target(
+    windows: Res<Windows>,
+    query_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    mouse_input: Res<Input<MouseButton>>,
+    rapier_context: Res<RapierContext>,
+    mut commands_to_sync: ResMut<CommandQueue>,
+) {
+    let (camera, camera_transform) = query_camera.single();
+
+    if mouse_input.just_pressed(MouseButton::Right) {
+        let hits = raycast_to_world(windows, camera, camera_transform, rapier_context, false);
+
+        for hit in hits {
+            let mut command = PlayerCommand::SetTargetPosition(hit.1);
+            commands_to_sync.add_command(command);
+        }
+    }
+}
+
+/// @credit <a href="https://github.com/hallettj/redstone-designer/blob/main/src/cursor.rs#L76">hallettj</a>
+pub fn raycast_to_world(
+    windows: Res<Windows>,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+    rapier_context: Res<RapierContext>,
+    return_multiple_hits: bool,
+) -> Vec<(Entity, Vec3, Vec3, f32)> {
+    let window = if let RenderTarget::Window(id) = camera.target {
+        windows.get(id).unwrap()
+    } else {
+        windows.get_primary().unwrap()
+    };
+    let window_size = Vec2::new(window.width() as f32, window.height() as f32);
+    let (ray_pos, ray_dir) = ray_from_screenspace(
+        window_size,
+        window.cursor_position().unwrap(),
+        camera,
+        camera_transform,
+    );
+    let solid = true;
+    let group = 0b0010;
+    // println!("Group: {}", group);
+    let groups = InteractionGroups::new(group.into(), group.into());
+    let filter = QueryFilter::new().groups(groups);
+    let max_toi = 1000.0;
+
+    let mut hits: Vec<(Entity, Vec3, Vec3, f32)> = Vec::new();
+
+    rapier_context.intersections_with_ray(
+        ray_pos, ray_dir, max_toi, solid, filter,
+        |entity, intersection| {
+            // Callback called on each collider hit by the ray.
+            let hit_point = intersection.point;
+            let hit_normal = intersection.normal;
+            let hit_toi = intersection.toi;
+
+            hits.push((entity, hit_point, hit_normal, hit_toi));
+
+            return_multiple_hits // Return `false` if we want to stop searching for other hits.
+        });
+
+    hits
 }
 
 /// @credit <a href="https://github.com/hallettj/redstone-designer/blob/main/src/cursor.rs#L76">hallettj</a>
@@ -148,7 +188,7 @@ fn ray_from_screenspace(
 }
 
 pub fn move_camera(
-    mut q_camera: Query<&mut Transform, With<MainCamera>>,
+    mut q_camera: Query<&mut Transform, (With<MainCamera>, Without<Camera>)>,
     keyboard_input: Res<Input<KeyCode>>,
     mouse_input: Res<Input<MouseButton>>,
     mut motion_evr: EventReader<MouseMotion>,
@@ -204,6 +244,8 @@ pub fn move_camera(
         }
     }
     if keyboard_input.pressed(KeyCode::R) {
+        camera_movement.mouse_yaw = 0.0;
+        camera_movement.mouse_pitch = 0.0;
         camera_transform.rotation = Quat::from_rotation_y(0.0);
     }
     if keyboard_input.pressed(KeyCode::Q) {
@@ -302,9 +344,11 @@ pub fn fixed_time_step_client(
     mut to_sync_commands: ResMut<CommandQueue>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut player_target_query: Query<Entity, (With<Target>, With<PlayerControlled>)>,
+    mut other_target_query: Query<(Entity, &OtherPlayerControlled), (With<Target>)>,
     camera_movement: Res<CameraMovement>,
-    mut q_camera: Query<&mut Transform, With<MainCamera>>,
-    mut players: Query<(Entity, &mut Player, &mut Transform), Without<MainCamera>>,
+    mut q_camera: Query<&mut Transform, (With<MainCamera>, Without<Camera>)>,
+    mut players: Query<(Entity, &mut Player, &mut Transform), (Without<MainCamera>)>,
     mut bevy_commands: Commands,
     mut client: ResMut<RenetClientResource>,
     mut lobby: ResMut<ClientLobby>,
@@ -329,32 +373,95 @@ pub fn fixed_time_step_client(
                             println!("{} said '{}' in tick {}", command_username, text, most_recent_server_tick.get());
                         }
                     }
-                    PlayerCommand::SetTargetPosition(x, y) => {
-                        println!("{} set target position to ({}, {}) in tick {}", command_username, x, y, most_recent_server_tick.get());
+                    PlayerCommand::SetTargetPosition(vec3) => {
+                        if is_player {
+                            for player_target in player_target_query.iter_mut() {
+                                bevy_commands.entity(player_target).despawn_descendants();
+                            }
+                        } else {
+                            for (other_target, other_player_controlled) in other_target_query.iter_mut() {
+                                if other_player_controlled.0 == player_id {
+                                    bevy_commands.entity(other_target).despawn_descendants();
+                                }
+                            }
+                        }
+
+                        let target_entity = bevy_commands.spawn()
+                            .insert_bundle(SpatialBundle {
+                                transform: Transform::from_xyz(vec3.x, vec3.y + 0.5, vec3.z),
+                                ..Default::default()
+                            })
+                            .insert(Target)
+                            .id();
+
+                        let collider = bevy_commands
+                            .spawn_bundle(PbrBundle {
+                                mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),
+                                material: if is_player {
+                                    materials.add(Color::YELLOW.into())
+                                } else {
+                                    materials.add(Color::ORANGE_RED.into())
+                                },
+                                ..default()
+                            })
+                            .with_children(|parent| {
+                                parent.spawn()
+                                    .insert(Collider::cuboid(0.25, 0.25, 0.25))
+                                    .insert(CollisionGroups::new(Group::GROUP_3, Group::GROUP_3))
+                                    .insert_bundle(TransformBundle {
+                                        ..Default::default()
+                                    });
+                            })
+                            .id();
+
+                        bevy_commands.entity(target_entity).push_children(&[collider]);
+
+                        if is_player {
+                            bevy_commands.entity(target_entity).insert(PlayerControlled);
+                        } else {
+                            bevy_commands.entity(target_entity).insert(OtherPlayerControlled(player_id));
+                        }
                     }
                     PlayerCommand::SpawnUnit(vec3) => {
-                        let unit_entity = bevy_commands
-                            .spawn((
-                                PbrBundle {
-                                    mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-                                    material: if is_player {
-                                        materials.add(Color::rgb(0.8, 0.7, 0.6).into())
-                                    } else {
-                                        materials.add(Color::rgb(0.6, 0.7, 0.8).into())
-                                    },
-                                    transform: Transform::from_xyz(vec3.x, vec3.y + 0.5, vec3.z),
-                                    ..default()
+                        let unit_entity = bevy_commands.spawn()
+                            .insert_bundle(SpatialBundle {
+                                transform: Transform::from_xyz(vec3.x, vec3.y + 0.5, vec3.z),
+                                ..Default::default()
+                            })
+                            .insert(Unit)
+                            .id();
+
+                        let collider = bevy_commands
+                            .spawn_bundle(PbrBundle {
+                                mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+                                material: if is_player {
+                                    materials.add(Color::rgb(0.8, 0.7, 0.6).into())
+                                } else {
+                                    materials.add(Color::rgb(0.6, 0.7, 0.8).into())
                                 },
-                                PickableBundle::default(),
-                                Unit
-                            ))
+                                ..default()
+                            })
+                            .with_children(|parent| {
+                                parent.spawn()
+                                    .insert(Collider::cuboid(0.5, 0.5, 0.5))
+                                    .insert(CollisionGroups::new(Group::GROUP_1, Group::GROUP_1))
+                                    .insert_bundle(TransformBundle {
+                                        ..Default::default()
+                                    });
+                            })
                             .id();
 
                         if is_player {
-                            bevy_commands.entity(unit_entity).insert(PlayerControlled);
+                            bevy_commands.entity(unit_entity)
+                                .insert(PlayerControlled);
+                            bevy_commands.entity(collider)
+                                .insert_bundle(PickableBundle::default());
                         } else {
-                            bevy_commands.entity(unit_entity).insert(OtherPlayerControlled(player_id));
+                            bevy_commands.entity(unit_entity)
+                                .insert(OtherPlayerControlled(player_id));
                         }
+
+                        bevy_commands.entity(unit_entity).push_children(&[collider]);
                     }
                     PlayerCommand::UpdatePlayerPosition(_movement, transform) => {
                         if let Some(_player_info) = lobby.0.get_mut(&player_id) {
@@ -363,6 +470,8 @@ pub fn fixed_time_step_client(
                                     entity_transform.translation = transform.translation;
                                     entity_transform.rotation = transform.rotation;
                                     entity_transform.scale = transform.scale;
+
+                                    break;
                                 }
                             }
                         }
@@ -424,14 +533,39 @@ pub fn client_update_system(
                     println!("You're now connected to the server!")
                 } else {
                     println!("Player {} connected to the server.", player.username);
+
                     bevy_commands.entity(client_entity)
-                        .insert(PbrBundle {
-                            mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-                            material: materials.add(Color::YELLOW_GREEN.into()),
+                        .insert(OtherPlayerControlled(player.id))
+                        .insert_bundle(SpatialBundle {
                             transform: Transform::from_xyz(0.0, 2.5, 5.0),
                             ..default()
                         })
-                        .insert(OtherPlayerCamera(player.id));
+                        .with_children(|children| {
+                            children
+                                .spawn_bundle(SpotLightBundle {
+                                    spot_light: SpotLight {
+                                        range: 500.0,
+                                        intensity: 1000.0,
+                                        shadows_enabled: true,
+                                        ..Default::default()
+                                    },
+                                    ..Default::default()
+                                });
+                            children
+                                .spawn_bundle(PbrBundle {
+                                    mesh: meshes.add(Mesh::from(shape::Cube { size: 0.1 })),
+                                    material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+                                    transform: Transform::from_xyz(0.0, 0.0, -1.5),
+                                    ..Default::default()
+                                })
+                                .insert(NotShadowCaster);
+                            children
+                                .spawn_bundle(PbrBundle {
+                                    mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+                                    material: materials.add(Color::YELLOW_GREEN.into()),
+                                    ..default()
+                                });
+                        });
                 }
 
                 let player_info = PlayerInfo {

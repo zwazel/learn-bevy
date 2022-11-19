@@ -4,7 +4,6 @@ use std::time::{Instant, SystemTime};
 use bevy::prelude::Resource;
 use bevy::math::Vec3;
 use bevy::prelude::{Deref, DerefMut};
-
 use bevy::render::render_resource::MapMode;
 use chrono::{DateTime, FixedOffset, Local, Utc};
 use env_logger::fmt::Timestamp;
@@ -17,7 +16,7 @@ use crate::client_functionality::SerializableTransform;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PlayerCommand {
     Test(String),
-    SetTargetPosition(f32, f32),
+    SetTargetPosition(Vec3),
     SpawnUnit(Vec3),
     UpdatePlayerPosition(CameraMovement, SerializableTransform),
 }
@@ -26,7 +25,7 @@ impl PlayerCommand {
     pub fn equals(&self, other: &Self) -> bool {
         match (self, other) {
             (PlayerCommand::Test(a), PlayerCommand::Test(b)) => a == b,
-            (PlayerCommand::SetTargetPosition(a_x, a_y), PlayerCommand::SetTargetPosition(b_x, b_y)) => a_x == b_x && a_y == b_y,
+            (PlayerCommand::SetTargetPosition(vec_a), PlayerCommand::SetTargetPosition(vec_b)) => vec_a.x == vec_b.x && vec_a.y == vec_b.y && vec_a.z == vec_b.z,
             (PlayerCommand::SpawnUnit(vec_a), PlayerCommand::SpawnUnit(vec_b)) => vec_a.x == vec_b.x && vec_a.y == vec_b.y && vec_a.z == vec_b.z,
             _ => false
         }
@@ -37,7 +36,7 @@ impl Display for PlayerCommand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Test(s) => write!(f, "Test({})", s),
-            Self::SetTargetPosition(x, y) => write!(f, "SetTargetPosition({}, {})", x, y),
+            Self::SetTargetPosition(vec) => write!(f, "SetTargetPosition({}, {}, {})", vec.x, vec.y, vec.z),
             Self::SpawnUnit(vec) => write!(f, "SpawnUnit({}, {}, {})", vec.x, vec.y, vec.z),
             Self::UpdatePlayerPosition(movement, transform) => write!(f, "UpdatePlayerPosition({:?}, {:?})", movement, transform),
         }
@@ -73,7 +72,16 @@ impl CommandQueue {
 
     pub fn add_command(&mut self, command: PlayerCommand) {
         if !self.contains(&command) {
-            self.0.push(command);
+            match command {
+                PlayerCommand::SetTargetPosition(_) => {
+                    // remove all other SetTargetPosition commands
+                    self.0.retain(|c| !matches!(c, PlayerCommand::SetTargetPosition(_)));
+
+                    // add the new command
+                    self.0.push(command);
+                }
+                _ => self.0.push(command)
+            }
         } else {
             println!("Command already in queue");
         }
