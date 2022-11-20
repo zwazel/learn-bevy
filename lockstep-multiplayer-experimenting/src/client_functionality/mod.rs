@@ -78,11 +78,12 @@ pub fn create_new_units(
     mouse_input: Res<Input<MouseButton>>,
     rapier_context: Res<RapierContext>,
     mut commands_to_sync: ResMut<CommandQueue>,
+    camera_movement: Res<CameraMovement>,
 ) {
     let (camera, camera_transform) = query_camera.single();
 
     if mouse_input.just_pressed(MouseButton::Left) {
-        let hits = raycast_to_world(windows, camera, camera_transform, rapier_context, false);
+        let hits = raycast_to_world(windows, camera, camera_transform, rapier_context, false, camera_movement);
 
         for hit in hits {
             let mut command = PlayerCommand::SpawnUnit(hit.1);
@@ -97,11 +98,12 @@ pub fn place_move_target(
     mouse_input: Res<Input<MouseButton>>,
     rapier_context: Res<RapierContext>,
     mut commands_to_sync: ResMut<CommandQueue>,
+    camera_movement: Res<CameraMovement>,
 ) {
     let (camera, camera_transform) = query_camera.single();
 
     if mouse_input.just_pressed(MouseButton::Right) {
-        let hits = raycast_to_world(windows, camera, camera_transform, rapier_context, false);
+        let hits = raycast_to_world(windows, camera, camera_transform, rapier_context, false, camera_movement);
 
         for hit in hits {
             let mut command = PlayerCommand::SetTargetPosition(hit.1);
@@ -116,13 +118,19 @@ pub fn raycast_to_world(
     camera_transform: &GlobalTransform,
     rapier_context: Res<RapierContext>,
     return_multiple_hits: bool,
+    camera_movement: Res<CameraMovement>,
 ) -> Vec<(Entity, Vec3, Vec3, f32)> {
     let window = if let RenderTarget::Window(id) = camera.target {
         windows.get(id).unwrap()
     } else {
         windows.get_primary().unwrap()
     };
-    let ray = camera.viewport_to_world(camera_transform, window.cursor_position().unwrap()).unwrap();
+    let ray;
+    if let Some(cursor_position) = window.cursor_position() {
+        ray = camera.viewport_to_world(camera_transform, cursor_position).unwrap();
+    } else {
+        ray = camera.viewport_to_world(camera_transform, camera_movement.last_mouse_position).unwrap();
+    }
     let solid = true;
     let group = 0b0010;
     // println!("Group: {}", group);
@@ -181,7 +189,10 @@ pub fn move_camera(
     if mouse_input.just_pressed(MouseButton::Middle) {
         window.set_cursor_grab_mode(CursorGrabMode::Confined);
         window.set_cursor_visibility(false);
-        camera_movement.last_mouse_position = window.cursor_position().unwrap();
+
+        if let Some(cursor_position) = window.cursor_position() {
+            camera_movement.last_mouse_position = cursor_position;
+        }
     }
 
     if mouse_input.just_released(MouseButton::Middle) {
