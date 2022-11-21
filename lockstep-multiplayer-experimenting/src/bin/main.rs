@@ -1,38 +1,38 @@
-use std::{env, fs};
+use std::{env};
 use std::borrow::BorrowMut;
-use std::collections::HashMap;
-use std::fmt::{Debug, Display, Formatter};
-use std::fs::{create_dir, create_dir_all, File, write};
-use std::io::{Read, Write};
-use std::net::{SocketAddr, UdpSocket};
-use std::path::Path;
-use std::time::{Duration, SystemTime};
+
+use std::fmt::{Debug};
+use std::fs::{create_dir_all, File};
+use std::io::{Write};
+
+
+use std::time::{Duration};
 
 use bevy::app::{App, AppExit, CoreStage};
 use bevy::DefaultPlugins;
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
-use bevy::reflect::GetPath;
+
 use bevy::window::PresentMode;
-use bevy::winit::WinitSettings;
+
 use bevy_asset_loader::prelude::*;
-use bevy_mod_picking::{DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, PickableBundle, PickingCameraBundle};
+use bevy_mod_picking::{DebugCursorPickingPlugin, DefaultPickingPlugins, PickingCameraBundle};
 use bevy_rapier3d::prelude::*;
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin, run_if_client_connected};
-use chrono::{DateTime, Utc};
-use iyes_loopless::prelude::*;
-use rand::prelude::SliceRandom;
-use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient, RenetError, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
-use serde_json::json;
 
-use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraLight, CameraMovement, CameraSettings, client_connection_config, ClientChannel, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, NetworkMapping, Player, PlayerId, PORT, PROTOCOL_ID, SAVE_REPLAY, server_connection_config, ServerChannel, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, Username, VERSION};
-use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, create_new_units, fixed_time_step_client, interpolate_movement_of_other_players, move_camera, move_units, new_renet_client, place_move_target, raycast_to_world};
-use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, PlayerCommand, PlayerCommandsList, ServerSyncedPlayerCommandsList, SyncedPlayerCommand, SyncedPlayerCommandsList};
+use iyes_loopless::prelude::*;
+
+use renet::{RenetClient, RenetError};
+
+
+use lockstep_multiplayer_experimenting::{AMOUNT_PLAYERS, CameraLight, CameraMovement, CameraSettings, ClientLobby, ClientTicks, ClientType, CurrentServerTick, GameState, LocalServerTick, MainCamera, NetworkMapping, Player, PlayerId, PORT, SAVE_REPLAY, ServerLobby, ServerMarker, Tick, TICKRATE, translate_host, translate_port, VERSION};
+use lockstep_multiplayer_experimenting::client_functionality::{client_update_system, create_new_units, fixed_time_step_client, interpolate_movement_of_other_players, move_camera, move_units, new_renet_client, place_move_target};
+use lockstep_multiplayer_experimenting::commands::{CommandQueue, MyDateTime, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
 use lockstep_multiplayer_experimenting::entities::Target;
 use lockstep_multiplayer_experimenting::physic_stuff::PlaceableSurface;
 use lockstep_multiplayer_experimenting::server_functionality::{fixed_time_step_server, new_renet_server, server_update_system};
-use lockstep_multiplayer_experimenting::ServerChannel::ServerMessages;
-use lockstep_multiplayer_experimenting::ServerMessages::{PlayerCreate, PlayerRemove, UpdateTick};
+
+
 
 fn resolve_type(my_type: &str) -> ClientType {
     let my_type = my_type.to_lowercase();
@@ -363,7 +363,7 @@ fn run_server_time_step_if_in_sync(
     let mut players_synced = true;
     while let Some((client_id, client_tick)) = client_iter.next() {
         if client_tick.get() != server_tick.get() {
-            let username = lobby.0.get(&client_id).unwrap().username.clone();
+            let _username = lobby.0.get(&client_id).unwrap().username.clone();
             // println!("Waiting for Client {}!", username);
             players_synced = false;
         }

@@ -1,37 +1,37 @@
-use std::f32::consts::PI;
-use std::fmt;
+
+
 use std::net::UdpSocket;
-use std::ops::Mul;
+
 use std::time::SystemTime;
 
-use bevy::ecs::query::OrFetch;
+
 use bevy::input::Input;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
-use bevy::math::{DQuat, Vec2, Vec3};
+use bevy::math::{Vec2, Vec3};
 use bevy::pbr::NotShadowCaster;
 use bevy::prelude::*;
-use bevy::reflect::erased_serde::Deserializer;
+
 use bevy::render::camera::RenderTarget;
 use bevy::window::CursorGrabMode;
-use bevy_egui::egui::{lerp, remap_clamp};
-use bevy_mod_picking::{PickableBundle, PickingCamera};
-use bevy_rapier3d::parry::transformation::utils::transform;
+use bevy_egui::egui::{lerp};
+use bevy_mod_picking::{PickableBundle};
+
 use bevy_rapier3d::plugin::RapierContext;
 use bevy_rapier3d::prelude::{Collider, CollisionGroups, Group, InteractionGroups, QueryFilter};
 use nalgebra::ComplexField;
-use rand::Rng;
+
 use renet::{ClientAuthentication, NETCODE_USER_DATA_BYTES, RenetClient};
-use serde::{de, Serializer};
-use serde::de::{MapAccess, Visitor};
-use serde::ser::SerializeStruct;
+
+
+
 
 use crate::*;
 use crate::ClientMessages::ClientUpdateTick;
-use crate::commands::{CommandQueue, ServerSyncedPlayerCommandsList, SyncedPlayerCommandsList};
-use crate::entities::{MoveTarget, OtherPlayerCamera, OtherPlayerControlled, PlayerControlled, Target, Unit};
-use crate::physic_stuff::PlaceableSurface;
+use crate::commands::{CommandQueue, SyncedPlayerCommandsList};
+use crate::entities::{MoveTarget, OtherPlayerControlled, PlayerControlled, Target, Unit};
+
 use crate::ServerMessages::UpdateTick;
-use crate::Speeds::{Normal, Sprint};
+
 
 pub fn new_renet_client(username: &String, host: &str, port: i32) -> RenetClient {
     let server_addr = format!("{}:{}", host, port).parse().unwrap();
@@ -86,7 +86,7 @@ pub fn create_new_units(
         let hits = raycast_to_world(windows, camera, camera_transform, rapier_context, false, camera_movement);
 
         for hit in hits {
-            let mut command = PlayerCommand::SpawnUnit(hit.1);
+            let command = PlayerCommand::SpawnUnit(hit.1);
             commands_to_sync.add_command(command);
         }
     }
@@ -106,7 +106,7 @@ pub fn place_move_target(
         let hits = raycast_to_world(windows, camera, camera_transform, rapier_context, false, camera_movement);
 
         for hit in hits {
-            let mut command = PlayerCommand::SetTargetPosition(hit.1);
+            let command = PlayerCommand::SetTargetPosition(hit.1);
             commands_to_sync.add_command(command);
         }
     }
@@ -180,7 +180,7 @@ pub fn move_camera(
         camera_settings.max_speed = DefaultSpeeds::Normal.get();
     }
 
-    let mut direction = Vec3::new(
+    let direction = Vec3::new(
         (keyboard_input.pressed(KeyCode::D) as i32 - keyboard_input.pressed(KeyCode::A) as i32) as f32,
         0.0,
         (keyboard_input.pressed(KeyCode::W) as i32 - keyboard_input.pressed(KeyCode::S) as i32) as f32,
@@ -304,22 +304,22 @@ pub fn move_camera(
         camera_transform.translation.y = lerp(camera_transform.translation.y..=target, scroll_speed * time.delta_seconds());
     }
 
-    let mut scroll_spd = ComplexField::try_sqrt(camera_movement.target_camera_height * camera_movement.target_camera_height).unwrap();
+    let scroll_spd = ComplexField::try_sqrt(camera_movement.target_camera_height * camera_movement.target_camera_height).unwrap();
     if scroll_direction == 0.0 {
         // decelerate camera
         if scroll_spd <= camera_settings.scroll_deceleration {
             camera_movement.target_camera_height = 0.0;
         } else {
-            camera_movement.target_camera_height -= (camera_movement.target_camera_height / scroll_spd * camera_settings.scroll_deceleration);
+            camera_movement.target_camera_height -= camera_movement.target_camera_height / scroll_spd * camera_settings.scroll_deceleration;
         }
     }
 }
 
 pub fn interpolate_movement_of_other_players(
-    mut players: Query<(Entity, &mut Player, &mut Transform), (Without<MainCamera>)>,
+    mut players: Query<(Entity, &mut Player, &mut Transform), Without<MainCamera>>,
     time: Res<Time>,
 ) {
-    let camera_settings = CameraSettings::default();
+    let _camera_settings = CameraSettings::default();
 
     for (_, mut player, mut entity_transform) in players.iter_mut() {
         let player: &mut Player = &mut player;
@@ -337,19 +337,19 @@ pub fn fixed_time_step_client(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut player_target_query: Query<Entity, (With<Target>, With<PlayerControlled>)>,
-    mut other_target_query: Query<(Entity, &OtherPlayerControlled), (With<Target>)>,
+    mut other_target_query: Query<(Entity, &OtherPlayerControlled), With<Target>>,
     camera_movement: Res<CameraMovement>,
     mut q_camera: Query<&mut Transform, (With<MainCamera>, Without<Camera>)>,
-    mut players: Query<(Entity, &mut Player, &mut Transform), (Without<MainCamera>)>,
+    mut players: Query<(Entity, &mut Player, &mut Transform), Without<MainCamera>>,
     mut bevy_commands: Commands,
     mut client: ResMut<RenetClient>,
     mut lobby: ResMut<ClientLobby>,
     mut most_recent_tick: ResMut<Tick>,
-    mut most_recent_server_tick: ResMut<LocalServerTick>,
-    mut synced_commands: ResMut<SyncedPlayerCommandsList>,
+    most_recent_server_tick: ResMut<LocalServerTick>,
+    synced_commands: ResMut<SyncedPlayerCommandsList>,
 ) {
     let client_id = client.client_id();
-    let mut camera_transform = q_camera.single_mut();
+    let camera_transform = q_camera.single_mut();
 
     for (player_id, commands_list_of_player) in synced_commands.get_commands_for_tick(*most_recent_tick).0 {
         let is_player = player_id.0 == client_id;
