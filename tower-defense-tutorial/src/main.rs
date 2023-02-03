@@ -116,7 +116,7 @@ fn bullet_despawn(
     for (entity,mut lifetime) in bullets.iter_mut() {
         lifetime.timer.tick(time.delta());
         if lifetime.timer.just_finished() {
-            commands.entity(entity).despawn()
+            commands.entity(entity).despawn_recursive()
         }
     }
 }
