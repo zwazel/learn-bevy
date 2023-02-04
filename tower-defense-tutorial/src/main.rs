@@ -35,6 +35,8 @@ fn main() {
         .add_system(bullet_despawn)
         .add_system(move_bullets)
         .add_system(move_targets)
+        .add_system(bullet_collision)
+        .add_system(target_death)
 
         .run();
 }
@@ -132,7 +134,7 @@ fn tower_shooting(
     targets: Query<&GlobalTransform, With<Target>>,
     time: Res<Time>,
 ) {
-    for (tower_ent, mut tower, transform) in towers.iter_mut() {
+    for (tower_ent, mut tower, transform) in &mut towers {
         tower.shooting_timer.tick(time.delta());
         if tower.shooting_timer.just_finished() {
             let bullet_spawn = transform.translation() + tower.bullet_offset;
@@ -156,7 +158,7 @@ fn tower_shooting(
                             ..default()
                         })
                         .insert(Lifetime {
-                            timer: Timer::from_seconds(0.5, TimerMode::Once),
+                            timer: Timer::from_seconds(1.5, TimerMode::Once),
                         })
                         .insert(Bullet {
                             direction,
@@ -174,7 +176,7 @@ fn bullet_despawn(
     mut bullets: Query<(Entity, &mut Lifetime)>,
     time: Res<Time>,
 ) {
-    for (entity, mut lifetime) in bullets.iter_mut() {
+    for (entity, mut lifetime) in &mut bullets {
         lifetime.timer.tick(time.delta());
         if lifetime.timer.just_finished() {
             commands.entity(entity).despawn_recursive()
@@ -186,7 +188,7 @@ fn move_bullets(
     mut bullets: Query<(&Bullet, &mut Transform)>,
     time: Res<Time>,
 ) {
-    for (bullet, mut transform) in bullets.iter_mut() {
+    for (bullet, mut transform) in &mut bullets {
         transform.translation += bullet.direction.normalize() * bullet.speed * time.delta_seconds();
     }
 }
@@ -195,7 +197,34 @@ fn move_targets(
     mut targets: Query<(&Target, &mut Transform)>,
     time: Res<Time>,
 ) {
-    for (target, mut transform) in targets.iter_mut() {
+    for (target, mut transform) in &mut targets {
         transform.translation.x += target.speed * time.delta_seconds();
+    }
+}
+
+fn target_death(
+    mut commands: Commands,
+    targets: Query<(Entity, &Health)>
+) {
+    for (entity, health) in &targets {
+        if health.value <= 0 {
+            commands.entity(entity).despawn_recursive();
+        }
+    }
+}
+
+fn bullet_collision(
+    mut commands: Commands,
+    bullets: Query<(Entity, &GlobalTransform), With<Bullet>>,
+    mut targets: Query<(&mut Health, &Transform), With<Target>>
+) {
+    for (bullet, bullet_transform) in &bullets {
+        for (mut health, target_transform) in &mut targets {
+            if Vec3::distance(bullet_transform.translation(), target_transform.translation) < 0.2 {
+                commands.entity(bullet).despawn_recursive();
+                health.value -= 1;
+                break; // we don't want a bullet damaging multiple enemies a frame
+            }
+        }
     }
 }
