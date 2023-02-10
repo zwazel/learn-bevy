@@ -44,6 +44,7 @@ fn main() {
         .add_plugin(PhysicsPlugin)
         .add_startup_system(spawn_basic_scene)
         .add_startup_system(spawn_camera)
+        .add_system(camera_controls)
         .run();
 }
 
@@ -59,7 +60,7 @@ fn spawn_basic_scene(
     //spawn bundle
     commands
         .spawn(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
+            mesh: meshes.add(Mesh::from(shape::Plane { size: 50.0 })),
             material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
             ..default()
         })
@@ -120,4 +121,42 @@ fn spawn_camera(mut commands: Commands) {
         transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
+}
+
+fn camera_controls(
+    keyboard: Res<Input<KeyCode>>,
+    mut camera_query: Query<&mut Transform, With<Camera3d>>,
+    time: Res<Time>
+) {
+    let mut camera = camera_query.single_mut();
+
+    let mut forward = camera.forward();
+    forward.y = 0.0; // camera is angled down a bit
+    forward = forward.normalize(); // always constant height off ground
+
+    let mut left = camera.left();
+    left.y = 0.0;
+    left = left.normalize();
+
+    let speed = 3.0;
+    let rotate_speed = 0.3;
+
+    if keyboard.pressed(KeyCode::W) {
+        camera.translation += forward * time.delta_seconds() * speed;
+    }
+    if keyboard.pressed(KeyCode::S) {
+        camera.translation -= forward * time.delta_seconds() * speed;
+    }
+    if keyboard.pressed(KeyCode::A) {
+        camera.translation += left * time.delta_seconds() * speed;
+    }
+    if keyboard.pressed(KeyCode::D) {
+        camera.translation -= left * time.delta_seconds() * speed;
+    }
+    if keyboard.pressed(KeyCode::Q) {
+        camera.rotate_axis(Vec3::Y, rotate_speed * time.delta_seconds())
+    }
+    if keyboard.pressed(KeyCode::E) {
+        camera.rotate_axis(Vec3::Y, -rotate_speed * time.delta_seconds())
+    }
 }
