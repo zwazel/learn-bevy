@@ -73,39 +73,8 @@ fn spawn_basic_scene(
         })
         .insert(Name::new("Ground"));
 
-    let default_collider_color = materials.add(Color::rgba(0.3,0.5,0.3,0.3).into());
-    commands.
-        spawn(SpatialBundle::from_transform(Transform::from_xyz(
-            0.0,0.8,0.0,
-        )))
-        .insert(Name::new("Tower_Base"))
-        .insert(meshes.add(shape::Capsule::default().into()))
-
-        .insert(default_collider_color)
-        .insert(NotShadowCaster)
-        .insert(PickableBundle::default())
-        .with_children(|commands|{
-            commands.
-                spawn(PbrBundle {
-                    mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-                    material: materials.add(Color::rgb(0.67, 0.84, 0.92).into()),
-                    transform: Transform::from_xyz(0.0, -0.8, 0.0),
-                    ..default()
-                });
-        });
-
-    // commands
-    //     .spawn(PbrBundle {
-    //         mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-    //         material: materials.add(Color::rgb(0.67, 0.84, 0.92).into()),
-    //         transform: Transform::from_xyz(0.0, 0.5, 0.0),
-    //         ..default()
-    //     })
-    //     .insert(Tower {
-    //         shooting_timer: Timer::from_seconds(1.0, TimerMode::Repeating),
-    //         bullet_offset: Vec3::new(0.0, 0.2, 0.5),
-    //     })
-    //     .insert(Name::new("Tower"));
+    TowerBundle::spawn_tower_base(&mut commands, &mut meshes, &mut materials, Vec3::new(0.0, 0.8, 0.0));
+    TowerBundle::spawn_tower_base(&mut commands, &mut meshes, &mut materials, Vec3::new(3.0, 0.8, 0.0));
 
     commands
         .spawn(PbrBundle {

@@ -1,6 +1,10 @@
+use bevy::ecs::query::QuerySingleError;
 use bevy::prelude::*;
+use bevy_rapier3d::parry::transformation::utils::transform;
+use leafwing_input_manager::prelude::*;
 
 use crate::{*, physics::PhysicsBundle};
+use crate::tower::TowerAction::BuildTower;
 
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
@@ -9,11 +13,108 @@ pub struct Tower {
     pub bullet_offset: Vec3,
 }
 
+#[derive(Reflect, Component, Default)]
+#[reflect(Component)]
+pub struct TowerBase;
+
+#[derive(Bundle)]
+pub struct TowerBundle {
+    tower: TowerBase,
+    #[bundle]
+    input_manager: InputManagerBundle<TowerAction>,
+}
+
+impl TowerBundle {
+    fn input_map() -> InputMap<TowerAction> {
+        InputMap::new([
+            (KeyCode::Space, BuildTower)
+        ])
+    }
+
+    pub fn spawn_tower(
+        commands: &mut Commands,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        position: Vec3,
+    ) -> Entity {
+        commands
+            .spawn(SpatialBundle::from_transform(Transform::from_translation(
+                position,
+            )))
+            .insert(Name::new("Tomato_Tower"))
+            .insert(Tower {
+                shooting_timer: Timer::from_seconds(1.5, TimerMode::Repeating),
+                bullet_offset: Vec3::new(0.0, 0.6, 0.0),
+            })
+            .with_children(|commands| {
+                commands.spawn(PbrBundle {
+                    mesh: meshes.add(shape::Capsule::default().into()),
+                    material: materials.add(Color::rgb(0.0, 0.84, 0.92).into()),
+                    transform: Transform::from_xyz(0.0, 0.0, 0.0),
+                    ..default()
+                });
+            })
+            .id()
+    }
+
+    pub fn spawn_tower_base(
+        commands: &mut Commands,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        position: Vec3,
+    ) -> Entity {
+        let default_collider_color = materials.add(Color::rgba(0.3, 0.5, 0.3, 0.3).into());
+        let selected_collider_color = materials.add(Color::rgba(0.3, 0.9, 0.3, 0.9).into());
+
+        commands.
+            spawn(SpatialBundle::from_transform(Transform::from_translation(
+                position
+            )))
+            .insert(Name::new("Tower_Base"))
+            .insert(meshes.add(shape::Capsule::default().into()))
+            .insert(Highlighting {
+                initial: default_collider_color.clone(),
+                hovered: Some(selected_collider_color.clone()),
+                pressed: Some(selected_collider_color.clone()),
+                selected: Some(selected_collider_color),
+            })
+            .insert(TowerBundle {
+                tower: TowerBase,
+                input_manager: InputManagerBundle {
+                    input_map: TowerBundle::input_map(),
+                    ..default()
+                },
+            })
+            .insert(default_collider_color)
+            .insert(NotShadowCaster)
+            .insert(PickableBundle::default())
+            .with_children(|commands| {
+                commands.
+                    spawn(PbrBundle {
+                        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+                        material: materials.add(Color::rgb(0.67, 0.84, 0.92).into()),
+                        transform: Transform::from_xyz(0.0, -0.8, 0.0),
+                        ..default()
+                    });
+            })
+            .id()
+    }
+}
+
+#[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug)]
+enum TowerAction {
+    BuildTower,
+}
+
 pub struct TowerPlugin;
 
 impl Plugin for TowerPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<Tower>().add_system(tower_shooting);
+        app.
+            register_type::<Tower>()
+            .add_plugin(InputManagerPlugin::<TowerAction>::default())
+            .add_system(tower_shooting)
+            .add_system(build_tower);
     }
 }
 
@@ -56,6 +157,25 @@ fn tower_shooting(
                         .insert(Name::new("Bullet"))
                         .insert(PhysicsBundle::moving_entity(Vec3::new(0.2, 0.2, 0.2)));
                 });
+            }
+        }
+    }
+}
+
+fn build_tower(
+    mut commands: Commands,
+    selection: Query<(Entity, &Selection, &Transform)>,
+    action_state: Query<&ActionState<TowerAction>, With<TowerBase>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for action_state in &action_state {
+        if action_state.just_pressed(BuildTower) {
+            for (entity, selection, transform) in &selection {
+                if selection.selected() {
+                    commands.entity(entity).despawn_recursive();
+                    TowerBundle::spawn_tower(&mut commands, &mut meshes, &mut materials, transform.translation);
+                }
             }
         }
     }
