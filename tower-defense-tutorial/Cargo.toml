@@ -14,3 +14,4 @@ opt-level = 3
 [dependencies]
 bevy = { version = "0.9.1" } # features = ["dynamic"] } if not on windows
 bevy-inspector-egui = "0.17.0"
+bevy_rapier3d = "0.20.0"
