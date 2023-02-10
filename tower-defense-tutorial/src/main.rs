@@ -1,5 +1,7 @@
 use bevy::{prelude::*, utils::FloatOrd};
+use bevy::pbr::NotShadowCaster;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_mod_picking::*;
 use bevy_rapier3d::{
     prelude::{NoUserData, RapierConfiguration, RapierPhysicsPlugin},
     render::RapierDebugRenderPlugin,
@@ -40,6 +42,8 @@ fn main() {
         // init physics
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(RapierDebugRenderPlugin::default())
+        // mod picking
+        .add_plugins(DefaultPickingPlugins)
         // Our Systems
         .add_plugin(TowerPlugin)
         .add_plugin(TargetPlugin)
@@ -47,6 +51,7 @@ fn main() {
         .add_plugin(PhysicsPlugin)
         .add_plugin(PlayerPlugin)
         .add_startup_system(spawn_basic_scene)
+        .add_system(what_is_selected)
         .run();
 }
 
@@ -68,18 +73,39 @@ fn spawn_basic_scene(
         })
         .insert(Name::new("Ground"));
 
-    commands
-        .spawn(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-            material: materials.add(Color::rgb(0.67, 0.84, 0.92).into()),
-            transform: Transform::from_xyz(0.0, 0.5, 0.0),
-            ..default()
-        })
-        .insert(Tower {
-            shooting_timer: Timer::from_seconds(1.0, TimerMode::Repeating),
-            bullet_offset: Vec3::new(0.0, 0.2, 0.5),
-        })
-        .insert(Name::new("Tower"));
+    let default_collider_color = materials.add(Color::rgba(0.3,0.5,0.3,0.3).into());
+    commands.
+        spawn(SpatialBundle::from_transform(Transform::from_xyz(
+            0.0,0.8,0.0,
+        )))
+        .insert(Name::new("Tower_Base"))
+        .insert(meshes.add(shape::Capsule::default().into()))
+
+        .insert(default_collider_color)
+        .insert(NotShadowCaster)
+        .insert(PickableBundle::default())
+        .with_children(|commands|{
+            commands.
+                spawn(PbrBundle {
+                    mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+                    material: materials.add(Color::rgb(0.67, 0.84, 0.92).into()),
+                    transform: Transform::from_xyz(0.0, -0.8, 0.0),
+                    ..default()
+                });
+        });
+
+    // commands
+    //     .spawn(PbrBundle {
+    //         mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+    //         material: materials.add(Color::rgb(0.67, 0.84, 0.92).into()),
+    //         transform: Transform::from_xyz(0.0, 0.5, 0.0),
+    //         ..default()
+    //     })
+    //     .insert(Tower {
+    //         shooting_timer: Timer::from_seconds(1.0, TimerMode::Repeating),
+    //         bullet_offset: Vec3::new(0.0, 0.2, 0.5),
+    //     })
+    //     .insert(Name::new("Tower"));
 
     commands
         .spawn(PbrBundle {
@@ -116,4 +142,14 @@ fn spawn_basic_scene(
             ..default()
         })
         .insert(Name::new("Light"));
+}
+
+fn what_is_selected(selection: Query<(&Name, &Selection), Changed<Selection>>) {
+    for (name, selection) in &selection {
+        if selection.selected() {
+            info!("{}", name);
+        } else {
+            info!("not selected {}", name);
+        }
+    }
 }

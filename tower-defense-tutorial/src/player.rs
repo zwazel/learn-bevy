@@ -3,6 +3,7 @@ use std::default::Default;
 use bevy::app::App;
 use bevy::prelude::*;
 use bevy::utils::default;
+use bevy_mod_picking::PickingCameraBundle;
 use leafwing_input_manager::prelude::*;
 
 pub struct PlayerPlugin;
@@ -62,6 +63,7 @@ fn spawn_player(mut commands: Commands) {
             transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         })
+        .insert(PickingCameraBundle::default())
         .insert(PlayerBundle {
             player: Player {
                 username: "Player1".to_string()
