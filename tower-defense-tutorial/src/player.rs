@@ -13,7 +13,7 @@ impl Plugin for PlayerPlugin {
             .register_type::<Player>()
             // This plugin maps inputs to an input-type agnostic action-state
             // We need to provide it with an enum which stores the possible actions a player could take
-            .add_plugin(InputManagerPlugin::<Action>::default())
+            .add_plugin(InputManagerPlugin::<PlayerMovementAction>::default())
             .add_startup_system(spawn_player)
             .add_system(camera_controls);
     }
@@ -21,7 +21,7 @@ impl Plugin for PlayerPlugin {
 
 // This is the list of "things in the game I want to be able to do based on input"
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug)]
-enum Action {
+enum PlayerMovementAction {
     MoveForward,
     MoveBackwards,
     MoveLeft,
@@ -40,18 +40,18 @@ struct Player {
 struct PlayerBundle {
     player: Player,
     #[bundle]
-    input_manager: InputManagerBundle<Action>,
+    input_manager: InputManagerBundle<PlayerMovementAction>,
 }
 
 impl PlayerBundle {
-    fn input_map() -> InputMap<Action> {
+    fn input_map() -> InputMap<PlayerMovementAction> {
         InputMap::new([
-            (KeyCode::W, Action::MoveForward),
-            (KeyCode::S, Action::MoveBackwards),
-            (KeyCode::D, Action::MoveRight),
-            (KeyCode::A, Action::MoveLeft),
-            (KeyCode::Q, Action::RotateLeft),
-            (KeyCode::E, Action::RotateRight),
+            (KeyCode::W, PlayerMovementAction::MoveForward),
+            (KeyCode::S, PlayerMovementAction::MoveBackwards),
+            (KeyCode::D, PlayerMovementAction::MoveRight),
+            (KeyCode::A, PlayerMovementAction::MoveLeft),
+            (KeyCode::Q, PlayerMovementAction::RotateLeft),
+            (KeyCode::E, PlayerMovementAction::RotateRight),
         ])
     }
 }
@@ -74,7 +74,7 @@ fn spawn_player(mut commands: Commands) {
 }
 
 fn camera_controls(
-    action_state: Query<&ActionState<Action>, With<Player>>,
+    action_state: Query<&ActionState<PlayerMovementAction>, With<Player>>,
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
     time: Res<Time>,
 ) {
@@ -92,22 +92,22 @@ fn camera_controls(
     let speed = 3.0;
     let rotate_speed = 0.3;
 
-    if action_state.pressed(Action::MoveForward) {
+    if action_state.pressed(PlayerMovementAction::MoveForward) {
         camera.translation += forward * time.delta_seconds() * speed;
     }
-    if action_state.pressed(Action::MoveBackwards) {
+    if action_state.pressed(PlayerMovementAction::MoveBackwards) {
         camera.translation -= forward * time.delta_seconds() * speed;
     }
-    if action_state.pressed(Action::MoveLeft) {
+    if action_state.pressed(PlayerMovementAction::MoveLeft) {
         camera.translation += left * time.delta_seconds() * speed;
     }
-    if action_state.pressed(Action::MoveRight) {
+    if action_state.pressed(PlayerMovementAction::MoveRight) {
         camera.translation -= left * time.delta_seconds() * speed;
     }
-    if action_state.pressed(Action::RotateLeft) {
+    if action_state.pressed(PlayerMovementAction::RotateLeft) {
         camera.rotate_axis(Vec3::Y, rotate_speed * time.delta_seconds())
     }
-    if action_state.pressed(Action::RotateRight) {
+    if action_state.pressed(PlayerMovementAction::RotateRight) {
         camera.rotate_axis(Vec3::Y, -rotate_speed * time.delta_seconds())
     }
 }
