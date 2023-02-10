@@ -1,5 +1,16 @@
 use bevy::{prelude::*, utils::FloatOrd};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_rapier3d::{
+    prelude::{NoUserData, RapierConfiguration, RapierPhysicsPlugin},
+    render::RapierDebugRenderPlugin,
+};
+
+pub use bullet::*;
+use physics::{PhysicsBundle, PhysicsPlugin};
+pub use target::*;
+pub use tower::*;
+
+use crate::player::PlayerPlugin;
 
 pub const HEIGHT: f32 = 720.0;
 pub const WIDTH: f32 = 1280.0;
@@ -8,15 +19,7 @@ mod bullet;
 mod physics;
 mod target;
 mod tower;
-
-use bevy_rapier3d::{
-    prelude::{NoUserData, RapierConfiguration, RapierPhysicsPlugin},
-    render::RapierDebugRenderPlugin,
-};
-pub use bullet::*;
-use physics::{PhysicsBundle, PhysicsPlugin};
-pub use target::*;
-pub use tower::*;
+mod player;
 
 fn main() {
     App::new()
@@ -42,9 +45,8 @@ fn main() {
         .add_plugin(TargetPlugin)
         .add_plugin(BulletPlugin)
         .add_plugin(PhysicsPlugin)
+        .add_plugin(PlayerPlugin)
         .add_startup_system(spawn_basic_scene)
-        .add_startup_system(spawn_camera)
-        .add_system(camera_controls)
         .run();
 }
 
@@ -114,49 +116,4 @@ fn spawn_basic_scene(
             ..default()
         })
         .insert(Name::new("Light"));
-}
-
-fn spawn_camera(mut commands: Commands) {
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
-}
-
-fn camera_controls(
-    keyboard: Res<Input<KeyCode>>,
-    mut camera_query: Query<&mut Transform, With<Camera3d>>,
-    time: Res<Time>
-) {
-    let mut camera = camera_query.single_mut();
-
-    let mut forward = camera.forward();
-    forward.y = 0.0; // camera is angled down a bit
-    forward = forward.normalize(); // always constant height off ground
-
-    let mut left = camera.left();
-    left.y = 0.0;
-    left = left.normalize();
-
-    let speed = 3.0;
-    let rotate_speed = 0.3;
-
-    if keyboard.pressed(KeyCode::W) {
-        camera.translation += forward * time.delta_seconds() * speed;
-    }
-    if keyboard.pressed(KeyCode::S) {
-        camera.translation -= forward * time.delta_seconds() * speed;
-    }
-    if keyboard.pressed(KeyCode::A) {
-        camera.translation += left * time.delta_seconds() * speed;
-    }
-    if keyboard.pressed(KeyCode::D) {
-        camera.translation -= left * time.delta_seconds() * speed;
-    }
-    if keyboard.pressed(KeyCode::Q) {
-        camera.rotate_axis(Vec3::Y, rotate_speed * time.delta_seconds())
-    }
-    if keyboard.pressed(KeyCode::E) {
-        camera.rotate_axis(Vec3::Y, -rotate_speed * time.delta_seconds())
-    }
 }
