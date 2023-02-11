@@ -6,6 +6,7 @@ use bevy_rapier3d::{
     prelude::{NoUserData, RapierConfiguration, RapierPhysicsPlugin},
     render::RapierDebugRenderPlugin,
 };
+use enum_iterator::all;
 
 pub use bullet::*;
 use physics::{PhysicsBundle, PhysicsPlugin};
@@ -51,7 +52,7 @@ fn main() {
         .add_plugin(PhysicsPlugin)
         .add_plugin(PlayerPlugin)
         .add_startup_system(spawn_basic_scene)
-        .add_system(what_is_selected)
+        .add_startup_system(create_ui)
         .run();
 }
 
@@ -121,4 +122,48 @@ fn what_is_selected(selection: Query<(&Name, &Selection), Changed<Selection>>) {
             info!("not selected {}", name);
         }
     }
+}
+
+#[derive(Component)]
+pub struct TowerUIRoot;
+
+fn create_ui(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+) {
+    let mut button_icons = vec![];
+    for tower_type in all::<TowerType>().collect::<Vec<_>>() {
+        button_icons.push(tower_type.get_image(&asset_server));
+    };
+
+    commands.
+        spawn(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            background_color: Color::NONE.into(),
+            ..default()
+        })
+        .insert(TowerUIRoot)
+        .with_children(|commands| {
+            let mut counter = 0;
+            for tower_type in all::<TowerType>().collect::<Vec<_>>() {
+                commands
+                    .spawn(ButtonBundle {
+                        style: Style {
+                            size: Size::new(Val::Percent(15.0 * 9.0 / 16.0), Val::Percent(15.0)),
+                            align_self: AlignSelf::FlexStart, // Align to the bottom
+                            margin: UiRect::all(Val::Percent(2.0)),
+                            ..default()
+                        },
+                        image: button_icons[counter].clone().into(),
+                        ..default()
+                    })
+                    .insert(tower_type);
+
+                counter += 1;
+            }
+        });
 }

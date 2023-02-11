@@ -1,10 +1,33 @@
-use bevy::ecs::query::QuerySingleError;
 use bevy::prelude::*;
-use bevy_rapier3d::parry::transformation::utils::transform;
+use bevy_inspector_egui::InspectorOptions;
+use enum_iterator::{cardinality, Sequence};
 use leafwing_input_manager::prelude::*;
 
 use crate::{*, physics::PhysicsBundle};
 use crate::tower::TowerAction::BuildTower;
+
+#[derive(InspectorOptions, Component, Clone, Copy, Debug, Sequence)]
+pub enum TowerType {
+    Tomato,
+    Potato,
+    Cabbage
+}
+
+impl TowerType {
+    pub fn get_image(&self, asset_server: &Res<AssetServer>) -> Handle<Image> {
+        match self {
+            TowerType::Tomato => {
+                asset_server.load("tomato_tower.png")
+            }
+            TowerType::Potato => {
+                asset_server.load("potato_tower.png")
+            }
+            TowerType::Cabbage => {
+                asset_server.load("cabbage_tower.png")
+            }
+        }
+    }
+}
 
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
