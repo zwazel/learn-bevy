@@ -149,7 +149,6 @@ fn setup_player_controls(
     let mut player = player.get_single_mut();
     match player {
         Ok(player) => {
-            println!("yes");
             commands.entity(player).insert(TowerBundle {
                 tower_controls: TowerControls,
                 input_manager: InputManagerBundle {
@@ -157,9 +156,10 @@ fn setup_player_controls(
                     ..default()
                 },
             });
+            println!("Set up player controls for towers");
         }
         Err(_) => {
-            println!("no");
+            println!("Can't setup player controls for towers, Player can't be found.");
         }
     }
 }
