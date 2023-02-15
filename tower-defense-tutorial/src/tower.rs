@@ -221,7 +221,6 @@ fn build_tower(
                 if selection.selected() {
                     commands.entity(entity).despawn_recursive();
                     TowerBundle::spawn_tower(&mut commands, &mut meshes, &mut materials, transform.translation);
-                    // todo!(THIS DOESNT WORK! I MEAN IT DOES, BUT ITS DOUBLE BECAUSE WE HAVE 2 INPUT MANAGERS REGISTERING THE BUTTON PRESS!!!!!!!!!!)
                 }
             }
         }
