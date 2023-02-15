@@ -33,7 +33,7 @@ enum PlayerMovementAction {
 
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
-struct Player {
+pub struct Player {
     username: String,
 }
 

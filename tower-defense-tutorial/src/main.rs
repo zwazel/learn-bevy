@@ -46,11 +46,11 @@ fn main() {
         // mod picking
         .add_plugins(DefaultPickingPlugins)
         // Our Systems
+        .add_plugin(PlayerPlugin)
         .add_plugin(TowerPlugin)
         .add_plugin(TargetPlugin)
         .add_plugin(BulletPlugin)
         .add_plugin(PhysicsPlugin)
-        .add_plugin(PlayerPlugin)
         .add_startup_system(spawn_basic_scene)
         .add_startup_system(create_ui)
         .run();

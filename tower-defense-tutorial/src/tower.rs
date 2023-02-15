@@ -1,16 +1,18 @@
+use bevy::ecs::query::QueryEntityError;
 use bevy::prelude::*;
 use bevy_inspector_egui::InspectorOptions;
 use enum_iterator::{cardinality, Sequence};
 use leafwing_input_manager::prelude::*;
 
 use crate::{*, physics::PhysicsBundle};
+use crate::player::Player;
 use crate::tower::TowerAction::BuildTower;
 
 #[derive(InspectorOptions, Component, Clone, Copy, Debug, Sequence)]
 pub enum TowerType {
     Tomato,
     Potato,
-    Cabbage
+    Cabbage,
 }
 
 impl TowerType {
@@ -38,11 +40,11 @@ pub struct Tower {
 
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
-pub struct TowerBase;
+pub struct TowerControls;
 
 #[derive(Bundle)]
 pub struct TowerBundle {
-    tower: TowerBase,
+    tower_controls: TowerControls,
     #[bundle]
     input_manager: InputManagerBundle<TowerAction>,
 }
@@ -101,13 +103,6 @@ impl TowerBundle {
                 pressed: Some(selected_collider_color.clone()),
                 selected: Some(selected_collider_color),
             })
-            .insert(TowerBundle {
-                tower: TowerBase,
-                input_manager: InputManagerBundle {
-                    input_map: TowerBundle::input_map(),
-                    ..default()
-                },
-            })
             .insert(default_collider_color)
             .insert(NotShadowCaster)
             .insert(PickableBundle::default())
@@ -136,8 +131,36 @@ impl Plugin for TowerPlugin {
         app.
             register_type::<Tower>()
             .add_plugin(InputManagerPlugin::<TowerAction>::default())
+            .add_startup_system_set_to_stage(
+                StartupStage::PostStartup,
+                SystemSet::new()
+                    .with_system(setup_player_controls),
+            )
+            .add_startup_system(setup_player_controls)
             .add_system(tower_shooting)
             .add_system(build_tower);
+    }
+}
+
+fn setup_player_controls(
+    mut commands: Commands,
+    mut player: Query<Entity, With<Player>>,
+) {
+    let mut player = player.get_single_mut();
+    match player {
+        Ok(player) => {
+            println!("yes");
+            commands.entity(player).insert(TowerBundle {
+                tower_controls: TowerControls,
+                input_manager: InputManagerBundle {
+                    input_map: TowerBundle::input_map(),
+                    ..default()
+                },
+            });
+        }
+        Err(_) => {
+            println!("no");
+        }
     }
 }
 
@@ -188,7 +211,7 @@ fn tower_shooting(
 fn build_tower(
     mut commands: Commands,
     selection: Query<(Entity, &Selection, &Transform)>,
-    action_state: Query<&ActionState<TowerAction>, With<TowerBase>>,
+    action_state: Query<&ActionState<TowerAction>, With<TowerControls>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -198,7 +221,7 @@ fn build_tower(
                 if selection.selected() {
                     commands.entity(entity).despawn_recursive();
                     TowerBundle::spawn_tower(&mut commands, &mut meshes, &mut materials, transform.translation);
-                    todo!(THIS DOESNT WORK! I MEAN IT DOES, BUT ITS DOUBLE BECAUSE WE HAVE 2 INPUT MANAGERS REGISTERING THE BUTTON PRESS!!!!!!!!!!)
+                    // todo!(THIS DOESNT WORK! I MEAN IT DOES, BUT ITS DOUBLE BECAUSE WE HAVE 2 INPUT MANAGERS REGISTERING THE BUTTON PRESS!!!!!!!!!!)
                 }
             }
         }
