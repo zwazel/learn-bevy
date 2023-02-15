@@ -136,7 +136,6 @@ impl Plugin for TowerPlugin {
                 SystemSet::new()
                     .with_system(setup_player_controls),
             )
-            .add_startup_system(setup_player_controls)
             .add_system(tower_shooting)
             .add_system(build_tower);
     }
