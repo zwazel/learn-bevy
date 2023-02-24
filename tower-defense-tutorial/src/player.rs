@@ -1,6 +1,5 @@
 use std::default::Default;
 
-use bevy::app::App;
 use bevy::prelude::*;
 use bevy::utils::default;
 use bevy_mod_picking::PickingCameraBundle;
