@@ -32,9 +32,9 @@ impl PhysicsBundle {
 fn bullet_collision_detection(
     mut commands: Commands,
     bullet_query: Query<Entity, With<Bullet>>,
-    mut colliding_entities_query: Query<(&mut Health, &CollidingEntities), With<Target>>,
+    mut enemies_query: Query<(&mut Health, &CollidingEntities), With<Target>>,
 ) {
-    for (mut health, colliding_entities) in colliding_entities_query.iter_mut() {
+    for (mut health, colliding_entities) in enemies_query.iter_mut() {
         for bullet_entity in bullet_query.iter() {
             if colliding_entities.contains(bullet_entity) {
                 commands.entity(bullet_entity).despawn_recursive();
